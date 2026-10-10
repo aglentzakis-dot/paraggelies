@@ -436,7 +436,7 @@ function openOrder(id) {
     ${c && c.notes ? `<p class="note">Σημείωση πελάτη: ${esc(c.notes)}</p>` : ""}</div>
    <div class="card">${o.lines.map(l => `<div class="qrow"><div class="qn"><b>${esc(l.name)}${l.added ? ` <span class="pill done">＋${K.num(l.added)}</span>` : ""}</b><span>${K.num(l.q)} ${esc(l.unit)} × ${K.money(l.price)}${l.vat != null ? " · ΦΠΑ " + l.vat + "%" : ""}</span></div><b>${K.money(l.sum)}</b></div>`).join("")}
     <div class="row" style="margin-top:8px"><b class="grow">Σύνολο</b><b class="big-num" style="font-size:20px">${K.money(o.total)}</b></div>
-    <p class="note">Οι τιμές γράφτηκαν από τον δικό σου κατάλογο, όπως ίσχυαν ${fmtTime(o.at)}.</p></div>
+    <p class="note">Οι τιμές γράφτηκαν από τον δικό σου κατάλογο, όπως ίσχυαν ${fmtTime(o.at)}.${o.src === "link" ? " Ο πελάτης αποδέχθηκε τους όρους και την ενημέρωση απορρήτου πριν την αποστολή." : ""}</p></div>
    <h3 style="margin:4px 2px 6px;font-size:15px">Κατάσταση</h3>
    <div class="chips">${stBtn("new", "Νέα")}${stBtn("prep", "Ετοιμάζεται")}${stBtn("done", "Παραδόθηκε")}${stBtn("cancel", "Ακυρώθηκε")}</div>
    ${diffOf(o) ? `<div class="${diffOf(o) > 0 ? "errbox" : "warnbox"}"><b>Η παραγγελία άλλαξε μετά την πληρωμή.</b><br>Πληρώθηκαν ${K.money(paidOf(o))}, νέο σύνολο ${K.money(o.total)}.<br>${diffOf(o) > 0 ? "Ο πελάτης <b>χρωστά " + K.money(diffOf(o)) + "</b>." : "Του <b>επιστρέφεις " + K.money(-diffOf(o)) + "</b>."}<div style="margin-top:8px"><button type="button" class="btn sm ${diffOf(o) > 0 ? "green" : "amber"}" data-ordpaid="diff">${diffOf(o) > 0 ? "€ Πλήρωσε τη διαφορά " + K.money(diffOf(o)) : "↩ Επιστράφηκαν " + K.money(-diffOf(o))}</button></div></div>` : ""}
@@ -858,6 +858,8 @@ function shopSheet() {
     <div class="two"><div><label class="f" for="shAfm">ΑΦΜ</label><input class="t" id="shAfm" inputmode="numeric" value="${esc(s.afm)}" maxlength="9"></div><div><label class="f" for="shP">Τηλέφωνο</label><input class="t" id="shP" type="tel" value="${esc(s.phone)}" maxlength="20"></div></div>
     <label class="f" for="shE">Ηλεκτρονικό ταχυδρομείο (προαιρετικά)</label><input class="t" id="shE" type="email" value="${esc(s.email)}" maxlength="80">
     <label class="ck"><input type="checkbox" id="shV"${s.vatIncl !== false ? " checked" : ""}><span>Οι τιμές μου περιλαμβάνουν ΦΠΑ (λιανική)</span></label></div>
+   <div class="card"><h3>📜 Οι δικοί σου όροι πώλησης</h3><p class="note" style="margin-top:0">Προαιρετικά. Ο πελάτης τους βλέπει και τους αποδέχεται πριν στείλει. Γράψε απλά: χρέωση μεταφορικών, πώς πληρώνει, ως πότε ακυρώνει.</p>
+    <textarea class="t" id="shTr" rows="4" maxlength="600" placeholder="π.χ. Πληρωμή με μετρητά ή κάρτα κατά την παράδοση. Δωρεάν μεταφορικά πάνω από 15 €, αλλιώς 2 €. Ακύρωση έως το προηγούμενο βράδυ.">${esc(s.terms || "")}</textarea></div>
    <div id="shErr"></div>`,
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="shopSave">Αποθήκευση</button>`,
    el => {
@@ -869,7 +871,7 @@ function shopSave() {
   const s = S.shop, b = $("#shB"), v = id => $("#" + id).value.trim();
   const afm = v("shAfm").replace(/\D/g, "");
   if (afm && !afmOk(afm)) { $("#shErr").innerHTML = `<div class="errbox">Ο ΑΦΜ δεν είναι έγκυρος. Έλεγξε τα 9 ψηφία.</div>`; return; }
-  Object.assign(s, { name: v("shN"), legal: v("shL"), addr: v("shA"), afm, phone: v("shP"), email: v("shE"), welcome: v("shW"), c1: $("#shC1").value, c2: $("#shC2").value, vatIncl: $("#shV").checked });
+  Object.assign(s, { name: v("shN"), legal: v("shL"), addr: v("shA"), afm, phone: v("shP"), email: v("shE"), welcome: v("shW"), terms: ($("#shTr").value || "").trim().slice(0, 600), c1: $("#shC1").value, c2: $("#shC2").value, vatIncl: $("#shV").checked });
   if (b.dataset.logo) s.logo = b.dataset.logo;
   if (b.dataset.logoDel) s.logo = "";
   save({ catalog: true }); closeSheet(); toast("✓ Αποθηκεύτηκε"); render();

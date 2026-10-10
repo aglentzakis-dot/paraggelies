@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.16">
+<meta name="app-version" content="1.17">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.16">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.16">
-<link rel="stylesheet" href="koino.css?v=1.16">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.17">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.17">
+<link rel="stylesheet" href="koino.css?v=1.17">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -85,7 +85,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.16"></script>
+<script src="katalogos.js?v=1.17"></script>
 <script>
 (function(){
 "use strict";
@@ -160,6 +160,7 @@ function footer(){const s=C.s;const perish=Object.values(P).some(p=>p.perish);
   <div>${s.vi?"Όλες οι τιμές περιλαμβάνουν ΦΠΑ.":"Οι τιμές δεν περιλαμβάνουν ΦΠΑ."} Οι τιμές και η διαθεσιμότητα επιβεβαιώνονται από τον πωλητή.</div>
   <div>Η επιβεβαίωση της παραγγελίας δεν αποτελεί φορολογικό παραστατικό. Το νόμιμο παραστατικό εκδίδεται από τον πωλητή.</div>
   ${perish?`<div>Για τρόφιμα που αλλοιώνονται γρήγορα δεν ισχύει το δικαίωμα υπαναχώρησης (ν. 2251/1994, άρθρο 3ιδ).</div>`:""}
+  ${s.tr?`<div><b>Όροι πώλησης:</b> ${esc(s.tr)}</div>`:""}
   <div>Υπεύθυνος για τα προϊόντα, τις τιμές και τα προσωπικά σας στοιχεία είναι ο πωλητής. <a href="aporrito.html#pelatis" target="_blank" rel="noopener">Απόρρητο</a> · <a href="oroi.html#agorastis" target="_blank" rel="noopener">Όροι</a></div></details>
   <button type="button" class="home-add" data-act="home">📲 Βάλ' το στην αρχική οθόνη</button>
   <div class="gl">Παραγγελίες με GlenApps</div></footer>`}
@@ -239,10 +240,11 @@ function renderCheck(){
     <label class="f" for="iJ">Επάγγελμα</label><input class="t" id="iJ" value="${esc(inv.j||"")}" maxlength="80">
     <label class="f" for="iAd">Διεύθυνση έδρας</label><input class="t" id="iAd" value="${esc(inv.a||"")}" maxlength="140"></div>`:""}
    <label class="ck"><input type="checkbox" id="crem"${me.n?" checked":""}><span>Να θυμάται αυτό το κινητό τα στοιχεία μου για την επόμενη φορά</span></label>
-   <label class="ck"><input type="checkbox" id="ccons"><span>Δίνω τα στοιχεία μου στον πωλητή «${esc(s.l||s.n)}» μόνο για την εκτέλεση της παραγγελίας. Διάβασα την <a href="aporrito.html#pelatis" target="_blank" rel="noopener">ενημέρωση απορρήτου</a>.</span></label>
+   ${s.tr?`<details class="sec" style="padding:10px 12px;margin:10px 0 0;background:#fafafa"><summary style="font-weight:700;cursor:pointer">📜 Όροι πώλησης του καταστήματος</summary><p style="white-space:pre-wrap;font-size:14px;margin:8px 0 0">${esc(s.tr)}</p></details>`:""}
+   <label class="ck"><input type="checkbox" id="ccons"><span>Διάβασα και αποδέχομαι ${s.tr?"τους όρους πώλησης του καταστήματος, ":""}τους <a href="oroi.html#agorastis" target="_blank" rel="noopener">όρους χρήσης</a> και την <a href="aporrito.html#pelatis" target="_blank" rel="noopener">ενημέρωση απορρήτου</a>. Δίνω τα στοιχεία μου στον πωλητή «${esc(s.l||s.n)}» μόνο για την εκτέλεση της παραγγελίας.</span></label>
    ${perish?`<p class="note">Τα τρόφιμα που αλλοιώνονται γρήγορα δεν επιστρέφονται (εξαίρεση από το δικαίωμα υπαναχώρησης). Για αλλαγή ή ακύρωση επικοινώνησε με τον πωλητή πριν από την παράδοση.</p>`:""}
    <div class="err" id="cerr"></div></div>
-  <button type="button" class="btn wide" id="send" data-act="send"${sending?" disabled":""}>${sending?"Αποστολή…":"Αποστολή παραγγελίας · "+K.money(t.t)}</button>
+  <button type="button" class="btn wide" id="send" data-act="send"${sending?" disabled":""}>${sending?"Αποστολή…":"Παραγγελία με υποχρέωση πληρωμής · "+K.money(t.t)}</button>
   <p class="note" style="text-align:center">Η επιβεβαίωση δεν αποτελεί φορολογικό παραστατικό.</p>
   </main>`+footer();
 }
@@ -265,7 +267,7 @@ async function send(){
   if(!ch.d||!days.includes(ch.d))return err("Διάλεξε ημέρα.");
   if(ch.inv!=="r"&&ch.inv!=="i")return err("Διάλεξε αν θέλεις απόδειξη ή τιμολόγιο.");
   let inv=null;if(ch.inv==="i"){saveCk();inv=store.get(SK+":inv",{});if((inv.n||"").length<2)return err("Γράψε την επωνυμία για το τιμολόγιο.");if(!afmOk(inv.f))return err("Ο ΑΦΜ για το τιμολόγιο δεν είναι έγκυρος.");if((inv.a||"").length<4)return err("Γράψε τη διεύθυνση έδρας για το τιμολόγιο.")}
-  if(!$("#ccons").checked)return err("Χρειάζεται να αποδεχτείς την ενημέρωση απορρήτου.");
+  if(!$("#ccons").checked)return err("Χρειάζεται να αποδεχτείς τους όρους και την ενημέρωση απορρήτου.");
   if(sentFor(ch.d).length&&!confirm("Έχεις ήδη στείλει παραγγελία για "+K.dayLabel(ch.d)+".\n\nΝα σταλεί κι αυτή; Ο πωλητής θα την προσθέσει στην προηγούμενη."))return;
   if($("#crem").checked)store.set(SK+":me",{n,p,a});else{try{localStorage.removeItem(SK+":me")}catch{}}
   if(!orderId)orderId=K.uid(12);

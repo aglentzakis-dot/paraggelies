@@ -2,7 +2,7 @@
   Παραγγελίες
   © 2026 Ανδρέας Μ. Γλεντζάκης (Andreas M. Glentzakis). Με την επιφύλαξη παντός δικαιώματος. All rights reserved.
 */
-const CACHE="paraggelies-1.16",SHELL=["./","./index.html","./p.html","./katalogos.js?v=1.16","./koino.css?v=1.16","./efarmogi.js?v=1.16","./epexergasia.js?v=1.16","./protypa.js?v=1.16","./antigrafa.js?v=1.16","./efarmoges-mas.js?v=1.16","./oroi.html","./aporrito.html","./manifest.json","./eikonidia/icon-192.png?v=1.16","./eikonidia/icon-512.png?v=1.16","./eikonidia/icon-512-maskable.png?v=1.16","./eikonidia/apple-touch-icon.png?v=1.16"];
+const CACHE="paraggelies-1.17",SHELL=["./","./index.html","./p.html","./katalogos.js?v=1.17","./koino.css?v=1.17","./efarmogi.js?v=1.17","./epexergasia.js?v=1.17","./protypa.js?v=1.17","./antigrafa.js?v=1.17","./efarmoges-mas.js?v=1.17","./oroi.html","./aporrito.html","./manifest.json","./eikonidia/icon-192.png?v=1.17","./eikonidia/icon-512.png?v=1.17","./eikonidia/icon-512-maskable.png?v=1.17","./eikonidia/apple-touch-icon.png?v=1.17"];
 self.addEventListener("install",e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>Promise.all(SHELL.map(u=>c.add(u).catch(()=>{})))))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x.startsWith("paraggelies-")&&x!==CACHE).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
 self.addEventListener("message",e=>{e.data&&e.data.type==="skipWaiting"&&self.skipWaiting()});

@@ -484,7 +484,7 @@
     const d = st.deliv || {};
     return {
       v: 1, ts: Date.now(),
-      s: { n: sh.name || "", l: sh.legal || "", a: sh.addr || "", f: sh.afm || "", t: sh.phone || "", vb: sh.viber || "", m: sh.email || "", lg: opts.logo !== false ? sh.logo || "" : "", c1: sh.c1 || "#17324D", c2: sh.c2 || "#F2B632", w: sh.welcome || "", vi: sh.vatIncl !== false ? 1 : 0, lic: sh.lic || "" },
+      s: { n: sh.name || "", l: sh.legal || "", a: sh.addr || "", f: sh.afm || "", t: sh.phone || "", vb: sh.viber || "", m: sh.email || "", lg: opts.logo !== false ? sh.logo || "" : "", c1: sh.c1 || "#17324D", c2: sh.c2 || "#F2B632", w: sh.welcome || "", vi: sh.vatIncl !== false ? 1 : 0, lic: sh.lic || "", tr: sh.terms || "" },
       d: { h: d.how || "both", days: d.days || [1, 2, 3, 4, 5, 6], sl: d.slots || [], min: +d.min || 0, max: +d.max || 14, cut: d.cut || "", cl: K.closedDates(d, 70), ad: d.askAddr !== false ? 1 : 0, mo: +d.minOrder || 0, nt: d.note || "" },
       m, p,
       k: st.nt.pub, t: st.nt.topic, u: opts.appUrl || "",
