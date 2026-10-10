@@ -80,7 +80,7 @@ const today = () => K.ymd(new Date());
 const addDays = (y, n) => { const d = K.fromYmd(y) || new Date(); d.setDate(d.getDate() + n); return K.ymd(d); };
 const fmtWhen = o => (o.when.date ? K.dayLabel(o.when.date) : "Χωρίς ημέρα") + (o.when.slot ? " · " + o.when.slot : "");
 const fmtTime = ts => { const d = new Date(ts); return d.getDate() + "/" + (d.getMonth() + 1) + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
-const code = o => o.id.slice(-5).toUpperCase().replace(/[-_]/g, "X");
+const code = o => o.id.slice(-5).toUpperCase().replace(/[-_.]/g, "X");
 const qtyTxt = l => K.num(l.q) + " " + l.unit;
 
 /* ---------- Pro και δωρεάν δοκιμή (όπως στο Δρομολόγιο) ---------- */
@@ -145,7 +145,7 @@ async function ensureKeys() {
   if (S.nt.pub && S.nt.priv && S.nt.topic) return;
   const k = await K.genKeys();
   S.nt.pub = k.pub; S.nt.priv = k.priv;
-  S.nt.topic = "parag_" + K.uid(15);
+  S.nt.topic = "parag_" + K.uid(15).replace(/[.]/g, "_");
   await write();
 }
 
@@ -184,7 +184,7 @@ async function pollOnce(manual) {
   try { msgs = await K.ntfyPoll(S.nt.topic, S.nt.since || "12h"); } catch { if (manual) toast("Δεν υπάρχει σύνδεση με την υπηρεσία ειδοποιήσεων."); return; }
   let got = 0;
   for (const m of msgs) {
-    const mm = /#o=([0-9A-Za-z_-]+)/.exec(String(m.click || ""));
+    const mm = /#o=([0-9A-Za-z_.-]+)/.exec(String(m.click || ""));
     if (mm) { const r = await receive(mm[1], "link"); if (r.ok) { got++; announce(r.order); } }
     else if (m.title && /Δοκιμή/.test(m.title) && m.message === "test") { if (manual !== "silent" && !S.nt.on) { S.nt.on = true; } }
     S.nt.since = m.id;

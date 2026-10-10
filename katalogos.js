@@ -15,8 +15,9 @@
   K.esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   K.uid = (n = 9) => { const a = crypto.getRandomValues(new Uint8Array(n)); return K.b64u.enc(a); };
   K.b64u = {
-    enc(u8) { let s = ""; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); },
-    dec(t) { t = String(t).replace(/-/g, "+").replace(/_/g, "/"); while (t.length % 4) t += "="; const s = atob(t), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+    /* «.» αντί για «_»: το Viber θεωρεί το _κείμενο_ πλάγια γραφή, σβήνει τις κάτω παύλες και κόβει τον σύνδεσμο */
+    enc(u8) { let s = ""; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s).replace(/\+/g, "-").replace(/\//g, ".").replace(/=+$/, ""); },
+    dec(t) { t = String(t).replace(/-/g, "+").replace(/[_.]/g, "/"); while (t.length % 4) t += "="; const s = atob(t), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
   };
   async function streamBytes(u8, Ctor, fmt) {
     const cs = new Ctor(fmt), w = cs.writable.getWriter();
@@ -102,7 +103,7 @@
   K.cleanB64 = str => {
     str = String(str || "");
     if (/%[0-9A-Fa-f]{2}/.test(str)) { try { str = decodeURIComponent(str); } catch {} }
-    return str.replace(/\s+/g, "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+/g, "").replace(/[^0-9A-Za-z_-].*$/, "");
+    return str.replace(/\s+/g, "").replace(/\+/g, "-").replace(/\//g, ".").replace(/=+/g, "").replace(/[^0-9A-Za-z_.-].*$/, "");
   };
   /* συμπίεση αντικειμένου σε κείμενο για σύνδεσμο */
   K.pack = async obj => "1" + K.b64u.enc(await K.deflate(new TextEncoder().encode(JSON.stringify(obj))));
@@ -211,7 +212,7 @@
     now = now || Date.now();
     const warn = [];
     if (!O || typeof O !== "object" || O.v !== 1) return { err: "Άγνωστη μορφή παραγγελίας." };
-    if (typeof O.id !== "string" || !/^[A-Za-z0-9_-]{8,40}$/.test(O.id)) return { err: "Λείπει ο κωδικός της παραγγελίας." };
+    if (typeof O.id !== "string" || !/^[A-Za-z0-9_.-]{8,40}$/.test(O.id)) return { err: "Λείπει ο κωδικός της παραγγελίας." };
     const c = O.c || {};
     const name = String(c.n || "").trim().slice(0, 80), phone = String(c.p || "").replace(/[^\d+]/g, "").slice(0, 20);
     if (!name) return { err: "Λείπει το όνομα του πελάτη." };
@@ -248,7 +249,7 @@
       order: {
         id: O.id, at, rx: now,
         cust: { name, phone, addr: String(c.a || "").trim().slice(0, 160), note: String(c.note || "").trim().slice(0, 400) },
-        when: { date, slot: String(w.s || "").slice(0, 30), how: w.h === "pick" ? "pick" : "del" },
+        when: { date, slot: String(w.s || "").slice(0, 30), how: w.h === "pick" ? "pick" : "del", extra: !!w.x },
         lines, total: K.round2(total), cv: +O.cv || 0
       }
     };
@@ -449,7 +450,8 @@
       s: { n: sh.name || "", l: sh.legal || "", a: sh.addr || "", f: sh.afm || "", t: sh.phone || "", vb: sh.viber || "", m: sh.email || "", lg: opts.logo !== false ? sh.logo || "" : "", c1: sh.c1 || "#17324D", c2: sh.c2 || "#F2B632", w: sh.welcome || "", vi: sh.vatIncl !== false ? 1 : 0, lic: sh.lic || "" },
       d: { h: d.how || "both", days: d.days || [1, 2, 3, 4, 5, 6], sl: d.slots || [], min: +d.min || 0, max: +d.max || 14, cut: d.cut || "", cl: d.closed || [], ad: d.askAddr !== false ? 1 : 0, mo: +d.minOrder || 0, nt: d.note || "" },
       m, p,
-      k: st.nt.pub, t: st.nt.topic, u: opts.appUrl || ""
+      k: st.nt.pub, t: st.nt.topic, u: opts.appUrl || "",
+      c: opts.cust || undefined
     };
   };
   /* από τον συμπαγή κατάλογο σε κοινή μορφή για την απόδοση */
