@@ -266,7 +266,7 @@ function ordersView() {
   const list = S.orders.filter(o => ordMatch(o, ordFilter)).sort((a, b) => ordFilter.st === "all" || ordFilter.st === "paid" || ordFilter.st === "cancel" ? b.rx - a.rx : (a.when.date || "9").localeCompare(b.when.date || "9") || a.rx - b.rx);
   const lk = S.link.dirty && S.link.sentAt ? `<div class="warnbox">Άλλαξαν προϊόντα ή τιμές μετά τον τελευταίο σύνδεσμο. <button type="button" class="btn sm amber" data-act="link" style="margin-top:6px">Στείλε νέο σύνδεσμο</button></div>` : "";
   const ntw = S.shop.name && !S.nt.on ? `<div class="warnbox">🔔 Οι ειδοποιήσεις δεν έχουν ενεργοποιηθεί ακόμα. <button type="button" class="btn sm amber" data-act="notif" style="margin-top:6px">Ενεργοποίηση</button></div>` : "";
-  return onboarding() + lk + ntw + `
+  return updBanner() + installBanner() + onboarding() + lk + ntw + `
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-act="newOrder">＋ Παραγγελία</button><button type="button" class="btn ghost grow" data-act="paste">📋 Από μήνυμα</button><button type="button" class="btn soft" data-act="poll" aria-label="Έλεγχος για νέες">⟳</button></div>
    <div class="chips">${tabsDef.map(([k, l]) => `<button type="button" class="chip${ordFilter.st === k ? " on" : ""}" data-ost="${k}">${l}<span class="n">${cnt(k)}</span></button>`).join("")}</div>
    ${days.length ? `<div class="chips"><button type="button" class="chip${!ordFilter.day ? " on" : ""}" data-oday="">Όλες οι ημέρες</button>${days.map(d => `<button type="button" class="chip${ordFilter.day === d ? " on" : ""}" data-oday="${d}">${esc(K.dayLabel(d))}</button>`).join("")}</div>` : ""}
@@ -494,7 +494,8 @@ function moreView() {
    ${it("🧭", "Σύνδεση με Δρομολόγιο", "Στάσεις, υπενθυμίσεις, «Χρωστάνε» · σε επόμενη έκδοση", "drom")}</div>
    <div class="card list">
    ${it("⚖️", "Όροι χρήσης και απόρρητο", "Τι ισχύει για σένα και τους πελάτες σου", "legal")}
-   ${it("ℹ️", "Έκδοση " + VERSION, "Έλεγχος αναβάθμισης", "update")}</div>
+   ${it("📲", "Εγκατάσταση στο κινητό", installed() ? "Εγκατεστημένη ✓" : "Με δικό της εικονίδιο στην αρχική οθόνη", "install")}
+   ${it("ℹ️", "Έκδοση " + VERSION, updNew && updNew !== VERSION ? "Υπάρχει νέα έκδοση " + updNew + " — πάτα για αναβάθμιση" : "Αυτόματες αναβαθμίσεις · πάτα για έλεγχο τώρα", "update")}</div>
    ${S.rejected.length ? `<details class="card"><summary style="cursor:pointer;font-weight:700">Απορρίφθηκαν (${S.rejected.length})</summary>${S.rejected.map(([t, m]) => `<div class="note">${fmtTime(t)} · ${esc(m)}</div>`).join("")}</details>` : ""}
    <div class="efm-host" id="efmHost"></div>
    <p class="note" style="text-align:center">Παραγγελίες · GlenApps · © 2026 Ανδρέας Μ. Γλεντζάκης</p>`;
@@ -705,22 +706,48 @@ function xlsSheet() {
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="xlsGo">Εξαγωγή</button>`);
 }
 
-/* ---------- αναβάθμιση ---------- */
+/* ---------- αναβάθμιση: αυτόματη, όπως στο Δρομολόγιο ---------- */
+let updBusy = false, updLast = 0, updNew = "";
 async function checkUpdate(manual) {
+  if (updBusy) return; updBusy = true; updLast = Date.now();
   try {
     const r = await fetch("index.html?v=" + Date.now(), { cache: "no-store" });
     const t = await r.text();
     const m = /name="app-version" content="([^"]+)"/.exec(t);
     S.ui.updChecked = today(); save();
     if (m && m[1] !== VERSION) {
-      if (manual || confirm("Υπάρχει νέα έκδοση " + m[1] + ". Αναβάθμιση τώρα;")) {
-        toast("Αναβάθμιση…");
-        const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
-        if (reg) { await reg.update(); if (reg.waiting) reg.waiting.postMessage({ type: "skipWaiting" }); }
-        setTimeout(() => location.reload(), 900);
-      }
+      updNew = m[1];
+      if (manual || !isSheetOpen()) await applyUpdate();
+      else render();
     } else if (manual) toast("✓ Έχεις την τελευταία έκδοση (" + VERSION + ").");
   } catch { if (manual) toast("Δεν υπάρχει σύνδεση στο διαδίκτυο."); }
+  updBusy = false;
+}
+async function applyUpdate() {
+  toast("⬆️ Αναβάθμιση σε " + (updNew || "νέα έκδοση") + "… τα δεδομένα σου μένουν.", 3000);
+  clearTimeout(saveT); await write();
+  try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) { await reg.update(); if (reg.waiting) reg.waiting.postMessage({ type: "skipWaiting" }); } } catch {}
+  try { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith("paraggelies-")).map(k => caches.delete(k))); } catch {}
+  setTimeout(() => location.reload(), 1200);
+}
+function updBanner() { return updNew && updNew !== VERSION ? `<div class="okbox">⬆️ Νέα έκδοση ${esc(updNew)} έτοιμη. <button type="button" class="btn sm amber" data-act="updGo" style="margin-top:6px">Αναβάθμιση τώρα</button></div>` : ""; }
+
+/* ---------- εγκατάσταση στο κινητό ---------- */
+let instPrompt = null;
+const installed = () => { try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch { return false; } };
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); instPrompt = e; if (S) render(); });
+window.addEventListener("appinstalled", () => { instPrompt = null; if (S) { S.ui.installed = true; save(); render(); } toast("✓ Οι Παραγγελίες μπήκαν στην αρχική οθόνη."); });
+function installBanner() {
+  if (installed() || (S.ui && S.ui.installed && !instPrompt) || (S.ui && S.ui.instHide === today())) return "";
+  return `<div class="card" style="display:flex;gap:12px;align-items:center"><img src="eikonidia/icon-192.png?v=${VERSION}" alt="" style="width:52px;height:52px;border-radius:12px"><div style="flex:1;min-width:0"><b>Εγκατάσταση στο κινητό</b><div class="note" style="margin:2px 0 0">Ανοίγει σαν κανονική εφαρμογή, με δικό της εικονίδιο, και δέχεται μηνύματα από το Viber.</div></div><div style="display:flex;flex-direction:column;gap:6px"><button type="button" class="btn sm amber" data-act="install">📲 Εγκατάσταση</button><button type="button" class="btn sm soft" data-act="instLater">Αργότερα</button></div></div>`;
+}
+async function doInstall() {
+  if (instPrompt) { try { instPrompt.prompt(); const c = await instPrompt.userChoice; if (c && c.outcome === "accepted") { S.ui.installed = true; save(); } } catch {} instPrompt = null; render(); return; }
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  sheet("📲 Εγκατάσταση", `<div class="card">${installed() ? `<div class="okbox">✓ Οι Παραγγελίες είναι ήδη εγκατεστημένες.</div>` : ios
+    ? `<p><b>1.</b> Άνοιξε τη σελίδα στο Safari.</p><p><b>2.</b> Πάτα το κουμπί κοινοποίησης ⬆️.</p><p><b>3.</b> Διάλεξε «Προσθήκη στην οθόνη Αφετηρίας».</p>`
+    : `<p><b>1.</b> Άνοιξε τη σελίδα στο Chrome (όχι μέσα από το Viber).</p><p><b>2.</b> Πάτα τις τρεις τελείες <b>⋮</b> πάνω δεξιά.</p><p><b>3.</b> Διάλεξε «Εγκατάσταση εφαρμογής» ή «Προσθήκη στην αρχική οθόνη».</p>`}
+    <p class="note">Η διεύθυνση της εφαρμογής: aglentzakis-dot.github.io/paraggelies</p></div>`);
 }
 
 /* ---------- οι εφαρμογές μας ---------- */
@@ -735,6 +762,9 @@ const ACT = {
   paste: pasteSheet, newOrder: () => orderForm(),
   poll: () => pollOnce(true),
   update: () => checkUpdate(true),
+  updGo: () => applyUpdate(),
+  install: () => doInstall(),
+  instLater: () => { S.ui.instHide = today(); save(); render(); },
   legal: () => sheet("⚖️ Όροι και απόρρητο", `<div class="card list"><a class="it" href="oroi.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="ic">📄</div><div class="t"><b>Όροι χρήσης</b><span>Για πωλητές και αγοραστές</span></div></a><a class="it" href="aporrito.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="ic">🔒</div><div class="t"><b>Πολιτική απορρήτου</b><span>Τι δεδομένα υπάρχουν και πού</span></div></a></div>
     <div class="card"><h3>Υπενθυμίσεις για τον πωλητή</h3><ul style="padding-left:20px;margin:0;font-size:14.5px"><li>Η εφαρμογή δεν εκδίδει φορολογικά παραστατικά. Έκδωσε απόδειξη ή τιμολόγιο όπως ορίζει ο νόμος (myDATA).</li><li>Για τρόφιμα χρειάζεται καταχώριση ή άδεια της δραστηριότητάς σου (π.χ. ΕΦΕΤ, ΔΑΟΚ, κανόνες σήμανσης για αυγά και μέλι).</li><li>Τα στοιχεία των πελατών σου χρησιμοποίησέ τα μόνο για τις παραγγελίες τους.</li></ul></div>`),
   drom: () => sheet("🧭 Σύνδεση με Δρομολόγιο", `<div class="card"><p style="margin-top:0">Σε επόμενη έκδοση, με έναν διακόπτη:</p><ul style="padding-left:20px;margin:0"><li>οι παραδόσεις μπαίνουν ως στάσεις στη διαδρομή σου·</li><li>υπενθυμίσεις για κάθε παράδοση·</li><li>οι απλήρωτες παραγγελίες εμφανίζονται στο «Χρωστάνε»·</li><li>κοινοί πελάτες.</li></ul><p class="note">Δουλεύει μόνο αν έχεις και το Δρομολόγιο στο ίδιο κινητό. Τα δεδομένα δεν φεύγουν από το κινητό σου.</p></div>
@@ -802,7 +832,7 @@ document.addEventListener("change", e => {
   if (e.target.id === "lkLg") { S.link.logo = e.target.checked; save(); linkSheet(); }
   if (e.target.matches("[data-fq]")) { readForm(); const t = $("#ftot"); if (t) { let s = 0; for (const [id, q] of Object.entries(F.q)) { const p = S.products[id]; if (p) s += K.round2(q * (F.keep[id] != null ? F.keep[id] : p.price)); } t.textContent = K.money(s); } }
 });
-document.addEventListener("visibilitychange", () => { if (!document.hidden) pollOnce(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { pollOnce(); if (S && Date.now() - updLast > 30 * 6e4) checkUpdate(false); } });
 window.addEventListener("hashchange", () => handleHash().then(render));
 window.addEventListener("popstate", () => { if (isSheetOpen()) closeSheet(); });
 
@@ -817,7 +847,7 @@ async function boot() {
   await handleHash();
   render();
   startPoll(); gdInit(); efmInit(); render();
-  if (S.ui.updChecked !== today()) setTimeout(() => checkUpdate(false), 4000);
+  setTimeout(() => checkUpdate(false), 3000);
 }
 A.boot = boot;
 window.addEventListener("load", () => boot());
