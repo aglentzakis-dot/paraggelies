@@ -7,14 +7,14 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.3">
+<meta name="app-version" content="1.4">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.3">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.3">
-<link rel="stylesheet" href="koino.css?v=1.3">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.4">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.4">
+<link rel="stylesheet" href="koino.css?v=1.4">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -79,7 +79,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.3"></script>
+<script src="katalogos.js?v=1.4"></script>
 <script>
 (function(){
 "use strict";
@@ -97,7 +97,9 @@ async function load(){
   const h=new URLSearchParams(location.hash.slice(1));
   const k=h.get("k");
   if(!k){bad("Λείπει ο κατάλογος από τον σύνδεσμο.");return}
-  try{C=await K.unpack(k)}catch{bad("Ο σύνδεσμος είναι ελλιπής ή αλλοιωμένος. Ίσως κόπηκε κατά την αντιγραφή.");return}
+  const want=+h.get("n")||0,got=K.cleanB64(k).length;
+  if(want&&got<want){bad("Ο σύνδεσμος κόπηκε στη μεταφορά: έφτασαν "+got+" από "+want+" χαρακτήρες. Ζήτησε από τον πωλητή να τον στείλει με το κουμπί «Αντιγραφή» ή να βγάλει το λογότυπο από τον σύνδεσμο.");return}
+  try{C=await K.unpack(k)}catch(e){bad("Ο σύνδεσμος δεν διαβάστηκε σε αυτόν τον περιηγητή. Δοκίμασε: τρεις τελείες ⋮ πάνω δεξιά → «Άνοιγμα σε Chrome». (Τεχνική ένδειξη: "+esc(String(e&&e.message||e))+", "+got+(want?"/"+want:"")+")");return}
   if(!C||C.v!==1||!C.k||!C.t||!C.s||!C.s.n){bad("Ο σύνδεσμος δεν είναι έγκυρος.");return}
   const ex=K.expandCatalog(C);P=ex.products;M=ex.menu;
   SK="par:"+C.k.slice(0,16);

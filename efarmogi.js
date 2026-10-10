@@ -498,6 +498,7 @@ function moreView() {
    ${it("⭐", "Pro", l.kind === "pro" ? "Ενεργό μέχρι " + S.lic.until.split("-").reverse().join("/") : l.kind === "trial" ? "Δοκιμή: μένουν " + l.left + " ημέρες" : "Δωρεάν έκδοση", "pro")}
    ${it("🧭", "Σύνδεση με Δρομολόγιο", "Στάσεις, υπενθυμίσεις, «Χρωστάνε» · σε επόμενη έκδοση", "drom")}</div>
    <div class="card list">
+   ${it("🧩", "Οι εφαρμογές μας", "Κι άλλες εφαρμογές της GlenApps", "efm")}
    ${it("⚖️", "Όροι χρήσης και απόρρητο", "Τι ισχύει για σένα και τους πελάτες σου", "legal")}
    ${it("📲", "Εγκατάσταση στο κινητό", installed() ? "Εγκατεστημένη ✓" : "Με δικό της εικονίδιο στην αρχική οθόνη", "install")}
    ${it("ℹ️", "Έκδοση " + VERSION, updNew && updNew !== VERSION ? "Υπάρχει νέα έκδοση " + updNew + " — πάτα για αναβάθμιση" : "Αυτόματες αναβαθμίσεις · πάτα για έλεγχο τώρα", "update")}</div>
@@ -579,8 +580,9 @@ function delivSave() {
 }
 
 /* ---------- σύνδεσμος παραγγελίας ---------- */
-async function thumbOf(src) {
-  return new Promise(res => { const i = new Image(); i.onload = () => { const c = document.createElement("canvas"); c.width = c.height = 56; c.getContext("2d").drawImage(i, 0, 0, 56, 56); let d = c.toDataURL("image/webp", 0.6); if (!d.startsWith("data:image/webp")) d = c.toDataURL("image/jpeg", 0.6); res(d); }; i.onerror = () => res(""); i.src = src; });
+async function thumbOf(src, n, q) {
+  n = n || 56; q = q || 0.6;
+  return new Promise(res => { const i = new Image(); i.onload = () => { const c = document.createElement("canvas"); c.width = c.height = n; c.getContext("2d").drawImage(i, 0, 0, n, n); let d = c.toDataURL("image/webp", q); if (!d.startsWith("data:image/webp")) d = c.toDataURL("image/jpeg", q); res(d); }; i.onerror = () => res(""); i.src = src; });
 }
 async function makeLink() {
   await ensureKeys();
@@ -590,8 +592,10 @@ async function makeLink() {
     prodsForLink = {};
     for (const [id, p] of Object.entries(st.products)) prodsForLink[id] = p.photo ? Object.assign({}, p, { photo: await thumbOf(p.photo) }) : p;
   }
-  const C = K.buildCatalog(Object.assign({}, st, { products: prodsForLink }), { photos: S.link.photos && isPro(), logo: S.link.logo, appUrl: BASE });
-  return BASE + "p.html#k=" + await K.pack(C);
+  const shopForLink = st.shop.logo && S.link.logo ? Object.assign({}, st.shop, { logo: await thumbOf(st.shop.logo, 48, 0.5) }) : st.shop;
+  const C = K.buildCatalog(Object.assign({}, st, { products: prodsForLink, shop: shopForLink }), { photos: S.link.photos && isPro(), logo: S.link.logo, appUrl: BASE });
+  const pk = await K.pack(C);
+  return BASE + "p.html#k=" + pk + "&n=" + pk.length;
 }
 A.makeLink = makeLink;
 async function linkSheet() {
@@ -759,7 +763,10 @@ async function doInstall() {
 
 /* ---------- οι εφαρμογές μας ---------- */
 function efmInit() { try { window.EfarmogesMas && EfarmogesMas.init({ app: "paraggelies", isPro: () => lic().kind === "pro", lang: () => "el", t: s => s, canShow: () => S.orders.length > 0 }); } catch {} }
-function efmMount() { try { const h = $("#efmHost"); if (!h || !window.EfarmogesMas) return; if (tab === "more") { h.innerHTML = `<h3 style="margin:0 2px 8px;font-size:16px">Κι άλλες εφαρμογές μας</h3><div id="efmList"></div>`; EfarmogesMas.page($("#efmList"), { skip: ["paraggelies"] }); } else EfarmogesMas.mount(h); } catch {} }
+function efmMount() { try { const h = $("#efmHost"); if (!h || !window.EfarmogesMas || tab === "more") return; EfarmogesMas.mount(h); } catch {} }
+function efmSheet() {
+  sheet("🧩 Οι εφαρμογές μας", `<p class="note" style="margin-top:0">Κι άλλες εφαρμογές της GlenApps που ίσως σου φανούν χρήσιμες.</p><div id="efmList"></div>`, "", el => { try { window.EfarmogesMas ? EfarmogesMas.page(el.querySelector("#efmList"), { skip: ["paraggelies"] }) : (el.querySelector("#efmList").innerHTML = `<p class="note">Η λίστα δεν φορτώθηκε.</p>`); } catch {} });
+}
 
 /* ---------- πατήματα ---------- */
 const ACT = {
@@ -773,6 +780,7 @@ const ACT = {
   lkPreview: () => { const u = $("#shB").dataset.url; closeSheet(); setTimeout(() => openPreview(u), 60); },
   pvClose: () => closePreview(false),
   role: () => switchRole(),
+  efm: () => efmSheet(),
   secret: () => secretTap(),
   testDel: () => { const n = S.orders.filter(o => o.test).length; if (!n) { toast("Δεν υπάρχουν δοκιμαστικές παραγγελίες."); return; } if (!confirm("Διαγραφή " + n + " δοκιμαστικών παραγγελιών;")) return; S.orders = S.orders.filter(o => !o.test); save(); render(); toast("Διαγράφηκαν."); },
   testOff: () => { S.ui.test = false; save(); render(); },
