@@ -183,22 +183,53 @@ async function receive(ct, src) {
   return { ok: true, order: o };
 }
 function rejectLog(msg) { S.rejected.unshift([Date.now(), msg]); S.rejected.length = Math.min(S.rejected.length, 30); }
-async function pollOnce(manual) {
-  if (!S || !S.nt.topic || (document.hidden && !manual)) return;
-  let msgs;
-  try { msgs = await K.ntfyPoll(S.nt.topic, S.nt.since || "12h"); } catch { if (manual) toast("Δεν υπάρχει σύνδεση με την υπηρεσία ειδοποιήσεων."); return; }
-  let got = 0;
-  for (const m of msgs) {
-    const mm = /#o=([0-9A-Za-z_.-]+)/.exec(String(m.click || ""));
-    if (mm) { const r = await receive(mm[1], "link"); if (r.ok) { got++; announce(r.order); } }
-    else if (m.title && /Δοκιμή/.test(m.title) && m.message === "test") { if (manual !== "silent" && !S.nt.on) { S.nt.on = true; } }
-    S.nt.since = m.id;
-  }
-  if (msgs.length) save();
-  if (got) render(); else if (manual === true) toast("Δεν υπάρχουν νέες παραγγελίες.");
+/* ---------- λήψη παραγγελιών ----------
+   1) ζωντανή σύνδεση (ροή γεγονότων) όσο η εφαρμογή είναι ανοιχτή: η παραγγελία μπαίνει αμέσως
+   2) έλεγχος κάθε 20 δευτερόλεπτα για σιγουριά, και όταν ξανανοίγει η εφαρμογή ή επανέρχεται το διαδίκτυο
+   3) όταν η εφαρμογή είναι κλειστή: ειδοποίηση από την ntfy, που ανοίγει την παραγγελία */
+let liveES = null, liveOk = false, lastPollOk = 0, busyMsg = Promise.resolve();
+async function handleMsg(m, manual) {
+  let got = null;
+  const mm = /#o=([0-9A-Za-z_.-]+)/.exec(String(m.click || ""));
+  if (mm) { const r = await receive(mm[1], "link"); if (r.ok) { got = r.order; announce(r.order); } }
+  else if (m.title && /Δοκιμή/.test(m.title) && !S.nt.on) S.nt.on = true;
+  if (m.id) S.nt.since = m.id;
+  return got;
 }
+function queueMsg(m) { busyMsg = busyMsg.then(async () => { const o = await handleMsg(m); save(); if (o) render(); else liveMark(); }).catch(() => {}); return busyMsg; }
+async function pollOnce(manual) {
+  if (!S || !S.nt.topic || DEMO || (document.hidden && !manual)) return;
+  let msgs;
+  try { msgs = await K.ntfyPoll(S.nt.topic, S.nt.since || "12h"); lastPollOk = Date.now(); } catch { liveMark(); if (manual) toast("Δεν υπάρχει σύνδεση με την υπηρεσία ειδοποιήσεων."); return; }
+  let got = 0;
+  await busyMsg;
+  for (const m of msgs) if (await handleMsg(m)) got++;
+  if (msgs.length) save();
+  if (got) render(); else { liveMark(); if (manual === true) toast("✓ Όλα ενημερωμένα· δεν υπάρχουν νέες παραγγελίες."); }
+}
+function liveStart() {
+  if (DEMO || !S || !S.nt.topic || liveES || document.hidden || typeof EventSource !== "function") return;
+  try {
+    liveES = new EventSource(K.NTFY + "/" + encodeURIComponent(S.nt.topic) + "/sse?since=" + encodeURIComponent(S.nt.since || "12h"));
+    liveES.onopen = () => { liveOk = true; liveMark(); };
+    liveES.onmessage = ev => { try { const m = JSON.parse(ev.data); if (m.event === "message") queueMsg(m); } catch {} };
+    liveES.onerror = () => { liveOk = false; liveMark(); };
+  } catch { liveES = null; }
+}
+function liveStop() { if (liveES) { try { liveES.close(); } catch {} liveES = null; } liveOk = false; }
+function liveText() {
+  if (DEMO) return "🎬 Επίδειξη: δεν γίνεται λήψη από το διαδίκτυο";
+  const on = liveOk || Date.now() - lastPollOk < 60000;
+  return on ? "🟢 Αυτόματη λήψη ενεργή · οι νέες παραγγελίες μπαίνουν μόνες τους" : navigator.onLine === false ? "🟠 Χωρίς διαδίκτυο · θα μπουν μόλις συνδεθείς" : "🟡 Σύνδεση με την υπηρεσία…";
+}
+function liveMark() { const e = $("#liveSt"); if (e) e.textContent = liveText(); }
 function startPoll() {
-  if (DEMO) return; clearInterval(pollT); pollT = setInterval(() => pollOnce(), 30000); setTimeout(() => pollOnce(), 800); }
+  if (DEMO) return; clearInterval(pollT);
+  pollT = setInterval(() => { pollOnce(); if (!liveES) liveStart(); }, 20000);
+  setTimeout(() => { pollOnce(); liveStart(); }, 600);
+  window.addEventListener("online", () => { pollOnce(); liveStop(); liveStart(); });
+  window.addEventListener("focus", () => pollOnce());
+}
 function announce(o) {
   toast("🛒 Νέα παραγγελία από " + o.cust.name, 4000);
   try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch {}
@@ -316,6 +347,7 @@ function ordersView() {
   const lk = S.link.dirty && S.link.sentAt ? `<div class="warnbox">Άλλαξαν προϊόντα ή τιμές μετά τον τελευταίο σύνδεσμο. <button type="button" class="btn sm amber" data-act="link" style="margin-top:6px">Στείλε νέο σύνδεσμο</button></div>` : "";
   const ntw = S.shop.name && !S.nt.on ? `<div class="warnbox">🔔 Οι ειδοποιήσεις δεν έχουν ενεργοποιηθεί ακόμα. <button type="button" class="btn sm amber" data-act="notif" style="margin-top:6px">Ενεργοποίηση</button></div>` : "";
   return demoBanner() + updBanner() + installBanner() + (DEMO ? "" : onboarding()) + (DEMO ? "" : lk + ntw) + `
+   <div class="note" id="liveSt" style="margin:0 2px 8px">${liveText()}</div>
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-act="newOrder">＋ Παραγγελία</button><button type="button" class="btn ghost grow" data-act="paste">📋 Από μήνυμα</button><button type="button" class="btn soft" data-act="poll" aria-label="Έλεγχος για νέες">⟳</button></div>
    <div class="chips">${tabsDef.map(([k, l]) => `<button type="button" class="chip${ordFilter.st === k ? " on" : ""}" data-ost="${k}">${l}<span class="n">${cnt(k)}</span></button>`).join("")}</div>
    ${days.length ? `<div class="chips"><button type="button" class="chip${!ordFilter.day ? " on" : ""}" data-oday="">Όλες οι ημέρες</button>${days.map(d => `<button type="button" class="chip${ordFilter.day === d ? " on" : ""}" data-oday="${d}">${esc(K.dayLabel(d))}</button>`).join("")}</div>` : ""}
@@ -332,17 +364,34 @@ function ordCard(o) {
    <div class="it">${esc(items)}</div>
    <div class="row">${o.test ? `<span class="pill warn">🧪 Δοκιμή</span>` : ""}${o.when.extra ? `<span class="pill new">⚡ Έκτακτη</span>` : ""}${o.inv && o.inv.t === "i" ? `<span class="pill done">📄 Τιμολόγιο</span>` : ""}<span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}${o.warn && o.warn.length ? `<span class="pill warn">⚠️ ${o.warn.length}</span>` : ""}${o.cust.note ? `<span class="pill">📝</span>` : ""}<span class="grow"></span>${next ? `<button type="button" class="btn sm ${next[0] === "paid" ? "green" : "amber"}" data-next="${o.id}" data-to="${next[0]}">${next[1]}</button>` : ""}</div></div>`;
 }
+/* η κατάσταση πάει μόνο μπροστά: νέα → ετοιμάζεται → παραδόθηκε· κάθε βήμα με επιβεβαίωση */
+const RANK = { dup: -1, new: 0, prep: 1, done: 2, cancel: 3 };
+const STEP_MSG = {
+  prep: o => "Να ξεκινήσει η ετοιμασία της παραγγελίας #" + o.no + " (" + o.cust.name + ");\n\nΗ παραγγελία καταχωρίζεται ως «Ετοιμάζεται» και μπαίνει στο πρόγραμμα παράδοσης. Δεν γυρίζει πίσω σε «Νέα».",
+  done: o => "Παραδόθηκε η παραγγελία #" + o.no + " (" + o.cust.name + ");\n\nΔεν γυρίζει πίσω.",
+  cancel: o => "Ακύρωση της παραγγελίας #" + o.no + " (" + o.cust.name + ");\n\nΗ ακύρωση είναι οριστική."
+};
 function setStatus(o, st) {
-  if (st === "paid") { o.paid = true; o.paidAt = Date.now(); o.log.push([Date.now(), "Πληρώθηκε"]); if (o.st === "new" || o.st === "prep") { } }
-  else if (st === "unpaid") { o.paid = false; o.paidAt = 0; o.log.push([Date.now(), "Σημειώθηκε απλήρωτη"]); }
-  else { o.st = st; o.log.push([Date.now(), ST[st]]); }
-  save();
+  if (st === "paid") { o.paid = true; o.paidAt = Date.now(); o.log.push([Date.now(), "Πληρώθηκε"]); save(); return true; }
+  if (st === "unpaid") { if (!confirm("Να σημειωθεί ξανά ως απλήρωτη η παραγγελία #" + o.no + ";")) return false; o.paid = false; o.paidAt = 0; o.log.push([Date.now(), "Σημειώθηκε απλήρωτη"]); save(); return true; }
+  if (st === o.st) return false;
+  if (o.st === "cancel") { toast("Η παραγγελία έχει ακυρωθεί οριστικά."); return false; }
+  if (st === "cancel" && o.st === "done") { toast("Η παραγγελία έχει παραδοθεί· δεν ακυρώνεται."); return false; }
+  if (st !== "cancel" && (RANK[st] || 0) < (RANK[o.st] || 0)) { toast("Η παραγγελία είναι ήδη «" + ST[o.st] + "»· δεν γυρίζει πίσω."); return false; }
+  if (STEP_MSG[st] && !confirm(STEP_MSG[st](o))) return false;
+  if (st === "done" && o.st === "new") o.log.push([Date.now(), ST.prep]);
+  o.st = st; o.log.push([Date.now(), ST[st]]);
+  if (st === "prep") o.prepAt = Date.now();
+  if (st === "done") o.doneAt = Date.now();
+  save(); toast("✓ " + ST[st]);
+  return true;
 }
 function openOrder(id) {
   const o = S.orders.find(x => x.id === id); if (!o) return;
   const c = S.customers[custKey(o.cust.phone)];
   const phone = o.cust.phone;
-  const stBtn = (st, l) => `<button type="button" class="chip${o.st === st ? " on" : ""}" data-ordst="${st}">${l}</button>`;
+  const locked = st => o.st === "cancel" || (st !== "cancel" && RANK[st] < RANK[o.st]) || (st === "cancel" && o.st === "done");
+  const stBtn = (st, l) => `<button type="button" class="chip${o.st === st ? " on" : ""}" data-ordst="${st}"${locked(st) && o.st !== st ? ` disabled style="opacity:.4"` : ""}>${o.st !== st && locked(st) ? "🔒 " : ""}${l}</button>`;
   sheet("#" + o.no + " · " + o.cust.name, `
    ${o.st === "dup" ? `<div class="warnbox">Ήρθε ξανά ίδια παραγγελία μέσα σε 15 λεπτά. Μάλλον ο πελάτης πάτησε δύο φορές «Αποστολή».<div class="row" style="margin-top:8px"><button type="button" class="btn sm green" data-act="dupKeep">Είναι νέα, κράτησέ την</button><button type="button" class="btn sm red" data-act="dupDel">Διπλή, διαγραφή</button></div></div>` : ""}
    ${(o.warn || []).map(w => `<div class="warnbox">⚠️ ${esc(w)}</div>`).join("")}
@@ -360,8 +409,10 @@ function openOrder(id) {
    <h3 style="margin:4px 2px 6px;font-size:15px">Κατάσταση</h3>
    <div class="chips">${stBtn("new", "Νέα")}${stBtn("prep", "Ετοιμάζεται")}${stBtn("done", "Παραδόθηκε")}${stBtn("cancel", "Ακυρώθηκε")}</div>
    <div class="row" style="margin:0 0 12px">${o.paid ? `<button type="button" class="btn soft grow" data-ordpaid="0">Σημείωσε απλήρωτη</button>` : `<button type="button" class="btn green grow" data-ordpaid="1">€ Πληρώθηκε</button>`}</div>
-   <h3 style="margin:4px 2px 6px;font-size:15px">Ενημέρωση πελάτη</h3>
-   <div class="row" style="margin-bottom:12px">${msgButtons(o)}</div>
+   <div class="card" style="border-left:5px solid var(--accent)"><h3 style="margin:0 0 4px">💬 Ενημέρωση πελάτη</h3>
+    <p class="note" style="margin:0 0 10px">Στέλνει στον πελάτη έτοιμο μήνυμα με την κατάσταση της παραγγελίας («${esc(ST[o.st])}»), τον κωδικό και το σύνολο.</p>
+    <div class="row">${msgButtons(o)}</div></div>
+   <div class="row" style="margin-bottom:12px"><button type="button" class="btn amber grow" data-act="ordPrint">🖨 Εκτύπωση</button><select class="t" id="prFmt" style="width:auto;flex:0 0 auto">${[["58", "Θερμικός 58 χιλ."], ["80", "Θερμικός 80 χιλ."], ["a4", "Χαρτί Α4"]].map(([k, l]) => `<option value="${k}"${(S.ui.printFmt || "58") === k ? " selected" : ""}>${l}</option>`).join("")}</select><button type="button" class="btn soft" data-act="ordPrText" aria-label="Κείμενο για εφαρμογή εκτυπωτή">📤</button></div>
    <div class="row" style="margin-bottom:12px"><button type="button" class="btn ghost grow" data-act="ordEdit">✏️ Αλλαγή</button><button type="button" class="btn ghost grow" data-act="ordProof">🧾 Βεβαίωση</button><button type="button" class="btn ghost grow" data-act="ordRepeat">🔁 Ξανά</button></div>
    <details class="card"><summary style="cursor:pointer;font-weight:700">Ιστορικό</summary>${(o.log || []).map(([t, x]) => `<div class="note">${fmtTime(t)} · ${esc(x)}</div>`).join("")}<div class="note">Προέλευση: ${o.src === "viber" ? "μήνυμα Viber" : o.src === "manual" ? "καταχώριση από εσένα" : "σύνδεσμος παραγγελίας"}</div></details>
    <button type="button" class="btn red wide" data-act="ordDel" style="margin-top:4px">Διαγραφή παραγγελίας</button>`,
@@ -396,6 +447,37 @@ function proof(o) {
   const w = window.open("", "_blank");
   if (w) { w.document.write(html); w.document.close(); }
   else { const b = new Blob([html], { type: "text/html" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "vevaiosi-" + code(o) + ".html"; a.click(); }
+}
+
+/* ---------- εκτύπωση: απλή, και σε θερμικό εκτυπωτή ---------- */
+function printText(o, w) {
+  w = w || 32;
+  const pad = (a, b) => { a = String(a); b = String(b); const sp = Math.max(1, w - a.length - b.length); return a.length + b.length + 1 > w ? a + "\n" + " ".repeat(Math.max(0, w - b.length)) + b : a + " ".repeat(sp) + b; };
+  const line = "-".repeat(w), sh = S.shop;
+  const L = [sh.name || "", "ΠΑΡΑΓΓΕΛΙΑ #" + o.no + "  (" + code(o) + ")", line,
+    (o.when.how === "pick" ? "Παραλαβή: " : "Παράδοση: ") + fmtWhen(o), o.when.extra ? "*** ΕΚΤΑΚΤΗ ***" : "", line,
+    o.cust.name, o.cust.phone, o.cust.addr || "", o.cust.note ? "Σημ.: " + o.cust.note : "", line];
+  for (const l of o.lines) { L.push(l.name); L.push(pad("  " + K.num(l.q) + " " + l.unit + " x " + K.money(l.price), K.money(l.sum))); }
+  L.push(line, pad("ΣΥΝΟΛΟ", K.money(o.total)), o.paid ? "ΠΛΗΡΩΜΕΝΗ" : "ΑΠΛΗΡΩΤΗ");
+  if (o.inv && o.inv.t === "i") L.push(line, "ΤΙΜΟΛΟΓΙΟ:", o.inv.n, "ΑΦΜ " + o.inv.f + (o.inv.d ? " ΔΟΥ " + o.inv.d : ""), o.inv.a);
+  else if (o.inv && o.inv.t === "r") L.push("Παραστατικό: απόδειξη");
+  L.push(line, "Δεν αποτελεί φορολογικό", "παραστατικό.", fmtTime(Date.now()));
+  return L.filter(x => x !== "").join("\n");
+}
+function printOrder(o, fmt) {
+  fmt = fmt || "58";
+  const th = fmt !== "a4", mm = fmt === "80" ? 80 : 58;
+  const css = th ? `@page{size:${mm}mm auto;margin:0}html,body{margin:0}body{width:${mm - 4}mm;padding:2mm;font:${mm === 58 ? 11 : 13}px/1.35 "Courier New",monospace;color:#000}pre{white-space:pre-wrap;margin:0;font:inherit;font-weight:700}`
+    : `@page{size:A4;margin:15mm}body{font:15px/1.5 "Courier New",monospace;color:#000}pre{white-space:pre-wrap;font:inherit;font-size:16px}`;
+  const txt = printText(o, th ? (mm === 58 ? 32 : 42) : 60);
+  const html = `<!DOCTYPE html><html lang="el"><head><meta charset="UTF-8"><title>Παραγγελία ${o.no}</title><style>${css}</style></head><body><pre>${esc(txt)}</pre></body></html>`;
+  const old = $("#prFrame"); if (old) old.remove();
+  const f = document.createElement("iframe");
+  f.id = "prFrame"; f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(f);
+  const d = f.contentWindow.document; d.open(); d.write(html); d.close();
+  setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch { toast("Η εκτύπωση δεν άνοιξε."); } }, 250);
+  o.log.push([Date.now(), "Εκτυπώθηκε"]); save();
 }
 
 /* ---------- φόρμα παραγγελίας (νέα, αλλαγή, από μήνυμα, επανάληψη) ---------- */
@@ -998,6 +1080,8 @@ const ACT = {
   pasteClip: async () => { try { $("#ptxt").value = await navigator.clipboard.readText(); } catch { toast("Κράτα πατημένο το πλαίσιο και διάλεξε «Επικόλληση»."); } },
   pasteGo: () => { const t = $("#ptxt").value.trim(); if (!t) { toast("Επικόλλησε πρώτα το μήνυμα."); return; } A.importText(t); },
   ordEdit: () => { const o = curOrd(); if (!o) return; const q = {}, keep = {}; o.lines.forEach(l => { q[l.pid] = l.q; keep[l.pid] = l.price; }); orderForm({ id: o.id, name: o.cust.name, phone: o.cust.phone, addr: o.cust.addr, note: o.cust.note, date: o.when.date, slot: o.when.slot, how: o.when.how, q, keep }); },
+  ordPrint: () => { const o = curOrd(); if (!o) return; const f = $("#prFmt") ? $("#prFmt").value : "58"; S.ui.printFmt = f; save(); printOrder(o, f); },
+  ordPrText: async () => { const o = curOrd(); if (!o) return; const t = printText(o, (S.ui.printFmt || "58") === "80" ? 42 : 32); try { await navigator.share({ text: t }); } catch (e) { if (!e || e.name !== "AbortError") { try { await navigator.clipboard.writeText(t); toast("✓ Αντιγράφηκε το κείμενο της παραγγελίας"); } catch {} } } },
   ordProof: () => { const o = curOrd(); if (o) proof(o); },
   ordRepeat: () => { const o = curOrd(); if (o) repeatOrder(o); },
   ordDel: () => { const o = curOrd(); if (!o || !confirm("Διαγραφή της παραγγελίας #" + o.no + ";")) return; S.orders = S.orders.filter(x => x !== o); save(); closeSheet(); render(); toast("Διαγράφηκε."); },
@@ -1053,7 +1137,7 @@ document.addEventListener("change", e => {
   if (e.target.id === "lkLg") { S.link.logo = e.target.checked; save(); linkSheet(); }
   if (e.target.matches("[data-fq]")) { readForm(); const t = $("#ftot"); if (t) { let s = 0; for (const [id, q] of Object.entries(F.q)) { const p = S.products[id]; if (p) s += K.round2(q * (F.keep[id] != null ? F.keep[id] : p.price)); } t.textContent = K.money(s); } }
 });
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { pollOnce(); if (S && Date.now() - updLast > 30 * 6e4) checkUpdate(false); } });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { pollOnce(); liveStart(); if (S && Date.now() - updLast > 30 * 6e4) checkUpdate(false); } else liveStop(); });
 window.addEventListener("hashchange", () => handleHash().then(render));
 /* ---------- κουμπί «πίσω» του κινητού: πάντα ένα βήμα πίσω ----------
    φύλλο → κλείνει · προεπισκόπηση → κλείνει · κατηγορία μενού → μία πάνω ·
