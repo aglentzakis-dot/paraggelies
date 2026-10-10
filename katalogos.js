@@ -160,7 +160,7 @@
   K.money = n => (Math.round((+n || 0) * 100) / 100).toLocaleString("el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   K.num = n => { n = Math.round((+n || 0) * 1000) / 1000; return n.toLocaleString("el-GR", { maximumFractionDigits: 3 }); };
   K.round2 = n => Math.round((+n || 0) * 100 + 1e-9) / 100;
-  K.UNITS = ["τεμ.", "κιλό", "λίτρο", "δωδεκάδα", "εξάδα", "θήκη 30", "βάζο", "μπουκάλι", "κιβώτιο", "συσκευασία", "φραντζόλα", "μερίδα"];
+  K.UNITS = ["τεμ.", "κιλό", "γρ.", "λίτρο", "δωδεκάδα", "εξάδα", "δεκάδα", "θήκη 30", "βάζο", "μπουκάλι", "συσκευασία", "κιβώτιο", "τελάρο", "σακί", "παλέτα", "δοχείο", "φραντζόλα", "μερίδα", "ματσάκι", "ταψί", "άτομο", "σετ"];
   /* ελληνική γραφή: «.» χιλιάδες, «,» δεκαδικά — το «1.000» είναι χίλια, το «4.5» τέσσερα και μισό */
   K.parseNum = s => { let t = String(s == null ? "" : s).replace(/[\s€]/g, "");
     if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
@@ -229,6 +229,28 @@
     }
     return price;
   };
+  /* κλιμακωτή τιμή: [[από ποσότητα, τιμή], …] — ισχύει η χαμηλότερη για την ποσότητα */
+  K.tierPrice = (tiers, q, base) => { let r = base; for (const t of tiers || []) if (Array.isArray(t) && q >= +t[0] && +t[1] > 0 && +t[1] < r) r = +t[1]; return r; };
+  K.unitPrice = (p, q) => p ? K.tierPrice(p.tiers, q || 0, +p.price || 0) : 0;
+  /* τιμή που ορίζει ο πωλητής για συγκεκριμένο πελάτη: προσωπική > χονδρική > λιανική, και μετά κλιμακωτή */
+  K.priceFor = (p, cust, q, at) => {
+    if (!p) return 0;
+    if (cust && cust.prices && cust.prices[p.id] != null && isFinite(+cust.prices[p.id])) return +cust.prices[p.id];
+    const base = cust && cust.pl === "w" && +p.whole > 0 ? +p.whole : (at ? K.priceAt(p, at) : +p.price || 0);
+    return K.tierPrice(p.tiers, q || 0, base);
+  };
+  K.priceKind = (p, cust) => cust && cust.prices && cust.prices[p.id] != null ? "personal" : cust && cust.pl === "w" && +p.whole > 0 ? "whole" : "retail";
+  /* εποχικά: μήνες 1–12 που κυκλοφορεί */
+  K.inSeason = (p, d) => { const m = p && p.season; if (!Array.isArray(m) || !m.length || m.length >= 12) return true; return m.includes((d || new Date()).getMonth() + 1); };
+  K.MONTHS = ["Ιαν", "Φεβ", "Μαρ", "Απρ", "Μάι", "Ιούν", "Ιούλ", "Αύγ", "Σεπ", "Οκτ", "Νοέ", "Δεκ"];
+  /* απόθεμα: ό,τι δήλωσε ο πωλητής μείον όσα έχουν παραγγελθεί από τότε (εκτός ακυρωμένων) */
+  K.reserved = (pid, orders, since) => { let r = 0; since = since || 0;
+    for (const o of orders || []) { if (o.st === "cancel" || o.st === "dup") continue;
+      const base = o.rx0 || o.rx || o.at || 0;
+      if (base >= since) { for (const l of o.lines || []) if (l.pid === pid) r += +l.q || 0; }
+      else for (const a of o.adds || []) if (a.at >= since) for (const [ap, aq] of a.l || []) if (ap === pid) r += +aq || 0; }
+    return Math.round(r * 1000) / 1000; };
+  K.avail = (p, orders) => p && p.stock != null && p.stock !== "" && isFinite(+p.stock) ? Math.round((+p.stock - K.reserved(p.id, orders, p.stockAt)) * 1000) / 1000 : Infinity;
   K.stepOk = (q, step) => { step = +step || 1; const r = q / step; return Math.abs(r - Math.round(r)) < 1e-6; };
 
   /* ---------- έλεγχος εισερχόμενης παραγγελίας ----------
@@ -249,6 +271,15 @@
     let at = +O.at || now;
     if (at > now + 10 * 6e4 || at < now - 7 * 864e5) { warn.push("Η ώρα υποβολής δεν ήταν έγκυρη· μπήκαν οι σημερινές τιμές."); at = now; }
     const lines = [], seen = new Set();
+    /* ειδικές τιμές μόνο με τον προσωπικό σύνδεσμο (κλειδί tk)· ποτέ μόνο από το τηλέφωνο που γράφει ο πελάτης */
+    const ckey = phone.replace(/\D/g, "").slice(-10), C0 = st.customers || {};
+    const special = c => !!c && (c.pl === "w" || (c.prices && Object.keys(c.prices).length) || Object.values(st.products || {}).some(p => p.only && (p.onlyFor || []).includes(c.key)));
+    const tk = typeof O.tk === "string" && O.tk.length >= 8 ? O.tk : "";
+    const byTok = tk ? Object.values(C0).find(c => c.tok && c.tok === tk) : null;
+    let cu = byTok || C0[ckey] || null;
+    if (!byTok && special(cu)) { warn.push("Ο πελάτης παρήγγειλε χωρίς τον προσωπικό του σύνδεσμο (με το τηλέφωνο του «" + cu.name + "»)· γράφτηκαν οι κανονικές τιμές. Αν είναι όντως αυτός, στείλ' του τον προσωπικό του σύνδεσμο."); cu = null; }
+    if (byTok && byTok.key !== ckey) warn.push("Παραγγελία από τον προσωπικό σύνδεσμο του «" + byTok.name + "» με άλλο τηλέφωνο (" + phone + ")· γράφτηκαν οι τιμές του «" + byTok.name + "».");
+    const allowKey = cu ? cu.key : "";
     let total = 0;
     for (const row of O.l) {
       if (!Array.isArray(row)) continue;
@@ -261,7 +292,13 @@
       if (q > K.MAX_QTY) { q = K.MAX_QTY; warn.push("Πολύ μεγάλη ποσότητα στο «" + p.name + "»· ελέγξτε."); }
       if (!K.stepOk(q, p.step)) warn.push("Ασυνήθιστη ποσότητα στο «" + p.name + "».");
       if (p.soldout) warn.push("Το «" + p.name + "» είναι σημειωμένο ως εξαντλημένο.");
-      const price = K.priceAt(p, at);
+      if (p.draft || p.hidden) warn.push("Το «" + p.name + "» δεν είναι ενεργό στον κατάλογό σας.");
+      if (p.only && !(p.onlyFor || []).includes(allowKey)) warn.push("Το «" + p.name + "» είναι μόνο για επιλεγμένους πελάτες και αυτός δεν είναι ανάμεσά τους.");
+      if (+p.min > 0 && q < +p.min) warn.push("Στο «" + p.name + "» ζήτησε " + K.num(q) + ", λιγότερο από την ελάχιστη ποσότητα " + K.num(p.min) + ".");
+      if (!K.inSeason(p, new Date(at))) warn.push("Το «" + p.name + "» είναι εκτός εποχής.");
+      const av = K.avail(p, st.orders);
+      if (av !== Infinity && q > av + 1e-9) warn.push("Το «" + p.name + "» ξεπερνά το απόθεμα: ζήτησε " + K.num(q) + ", υπάρχουν " + K.num(Math.max(0, av)) + ".");
+      const price = K.priceFor(p, cu, q, at);
       if (seenPrice != null && Math.abs(+seenPrice - price) > 0.004) warn.push("Ο πελάτης είδε άλλη τιμή στο «" + p.name + "» (" + K.money(seenPrice) + ")· γράφτηκε η δική σας " + K.money(price) + ". Στείλτε του τον νέο σύνδεσμο.");
       const sum = K.round2(q * price);
       total += sum;
@@ -299,6 +336,62 @@
   });
 
   /* ---------- ειδοποιήσεις (ntfy, όπως στο Δρομολόγιο) ---------- */
+  /* ---------- ζωντανή διαθεσιμότητα: υπογεγραμμένη ενημέρωση του πωλητή που διαβάζει ο πελάτης ---------- */
+  K.LIVE_SUFFIX = "_z";
+  K.liveKeys = async () => {
+    const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+    const raw = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey));
+    return { pub: K.b64u.enc(raw), priv: await crypto.subtle.exportKey("jwk", kp.privateKey) };
+  };
+  K.liveSign = async (privJwk, d) => {
+    const k = await crypto.subtle.importKey("jwk", privJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    return K.b64u.enc(new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, k, new TextEncoder().encode(d))));
+  };
+  K.liveVerify = async (pubB64, d, sig) => {
+    try {
+      const k = await crypto.subtle.importKey("raw", K.b64u.dec(pubB64), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+      return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, k, K.b64u.dec(sig), new TextEncoder().encode(d));
+    } catch { return false; }
+  };
+  /* s: {pid: [κατάσταση 1=εξαντλήθηκε 2=εκτός εποχής, μέγιστο]} μόνο για όσα δεν είναι ελεύθερα· r: λιανικές τιμές */
+  /* a: ενεργά προϊόντα (όσα λείπουν = δεν υπάρχουν πια)· s: εξαντλημένα/εκτός εποχής/όριο αποθέματος· r: λιανικές τιμές */
+  K.liveSnapshot = (st, withPrices) => {
+    const s = {}, r = {}, a = [], now = new Date();
+    for (const p of Object.values(st.products || {})) {
+      if (p.del || p.hidden || p.draft) continue;
+      if (withPrices) r[p.id] = +p.price || 0; else a.push(p.id);
+      if (p.soldout) { s[p.id] = [1]; continue; }
+      if (!K.inSeason(p, now)) { s[p.id] = [2]; continue; }
+      const av = K.avail(p, st.orders);
+      if (av !== Infinity) s[p.id] = av <= 0 ? [1] : [0, av];
+    }
+    const d = { ts: Date.now(), s };
+    if (withPrices) d.r = r; else d.a = a;
+    return d;
+  };
+  K.liveBody = st => { let o = K.liveSnapshot(st, true), d = JSON.stringify(o); if (d.length > 3300) { o = K.liveSnapshot(st, false); d = JSON.stringify(o); } if (d.length > 3300) o = { ts: Date.now(), off: 1 }; return o; };
+  K.livePublish = async (st, o) => {
+    if (!st.nt || !st.nt.topic || !st.nt.spriv) return false;
+    const d = JSON.stringify(o || K.liveBody(st));
+    const msg = JSON.stringify({ d, g: await K.liveSign(st.nt.spriv, d) });
+    const r = await fetch(K.NTFY + "/" + st.nt.topic + K.LIVE_SUFFIX, { method: "POST", body: msg });
+    return r.ok;
+  };
+  K.liveFetch = async (C) => {
+    if (!C || !C.g || !C.t) return null;
+    const r = await fetch(K.NTFY + "/" + C.t + K.LIVE_SUFFIX + "/json?poll=1&since=12h", { cache: "no-store" });
+    if (!r.ok) return null;
+    const cands = [];
+    for (const ln of (await r.text()).split("\n")) { if (!ln.trim()) continue;
+      try { const m = JSON.parse(ln); if (m.event !== "message") continue; const o = JSON.parse(m.message); if (typeof o.d !== "string" || typeof o.g !== "string") continue; const d = JSON.parse(o.d); if (typeof d.ts === "number") cands.push({ d, raw: o.d, g: o.g }); } catch {} }
+    cands.sort((a, b) => b.d.ts - a.d.ts);
+    const now = Date.now();
+    for (const c of cands.slice(0, 40)) {
+      if (!(c.d.ts > (C.ts || 0)) || c.d.ts > now + 10 * 6e4 || now - c.d.ts > 13 * 36e5) continue;
+      if (await K.liveVerify(C.g, c.raw, c.g)) return c.d.off ? null : c.d;
+    }
+    return null;
+  };
   K.ntfySend = async (topic, title, message, click) => {
     const r = await fetch(K.NTFY + "/", {
       method: "POST",
@@ -354,7 +447,7 @@
       if (score > bestScore) { bestScore = score; best = c; }
     }
     if (best) res.cust = best;
-    const prods = Object.values(st.products || {}).filter(p => !p.del);
+    const prods = Object.values(st.products || {}).filter(p => !p.del && !p.draft);
     const pTok = prods.map(p => ({ p, toks: [...new Set(words(K.norm(p.name + " " + (p.keys || ""))).filter(w => w.length >= 3 && !/^\d/.test(w)).map(stem))] }));
     const segs = String(text).split(/\n|(?<!\d),|,(?!\d)|;|\+/).flatMap(x => K.norm(x).split(/ και | κ /)).map(x => x.trim()).filter(Boolean);
     const used = new Map();
@@ -417,9 +510,9 @@
         const q = ctx.qty ? ctx.qty(p.id) : 0;
         const so = !!p.soldout;
         const img = p.photo ? `<img class="ph" src="${K.esc(p.photo)}" alt="">` : (n.emoji || p.emoji ? `<span class="em">${K.esc(n.emoji || p.emoji)}</span>` : "");
-        const ctl = ctx.edit ? "" : so ? `<div class="so">Εξαντλήθηκε</div>` :
+        const ctl = ctx.edit ? "" : so ? `<div class="so">${p.oos ? "Εκτός εποχής" : "Εξαντλήθηκε"}</div>` :
           `<div class="qty"><button type="button" class="qb" data-minus="${p.id}" aria-label="Λιγότερο"${q ? "" : " disabled"}>−</button><span class="qv" data-qv="${p.id}">${q ? K.num(q) : "0"}</span><button type="button" class="qb plus" data-plus="${p.id}" aria-label="Περισσότερο">+</button></div>`;
-        out.push(`<div class="tile prod sz-${sz}${so ? " soldout" : ""}${q ? " has" : ""}${p.hidden ? " hid" : ""}${sel}" data-node="${n.id}" data-pid="${p.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<div class="tx"><div class="nm">${K.esc(n.name || p.name)}</div><div class="pr">${K.money(p.price)} <small>/ ${K.esc(p.unit)}</small></div>${+p.step && +p.step !== 1 ? `<div class="stp">κάθε ＋ ${K.num(p.step)} ${K.esc(p.unit)} = <b>${K.money(p.price * p.step)}</b></div>` : ""}${p.desc && sz !== "s" ? `<div class="ds">${K.esc(p.desc)}</div>` : ""}</div>${ctl}${ctx.edit && (so || p.hidden) ? `<div class="flag">${so ? "Εξαντλήθηκε" : "Κρυφό"}</div>` : ""}</div>`);
+        out.push(`<div class="tile prod sz-${sz}${so ? " soldout" : ""}${q ? " has" : ""}${p.hidden || p.draft ? " hid" : ""}${sel}" data-node="${n.id}" data-pid="${p.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<div class="tx"><div class="nm">${K.esc(n.name || p.name)}</div><div class="pr">${K.money(p.price)} <small>/ ${K.esc(p.unit)}</small></div>${+p.step && +p.step !== 1 ? `<div class="stp">κάθε ＋ ${K.num(p.step)} ${K.esc(p.unit)} = <b>${K.money(p.price * p.step)}</b></div>` : ""}${(p.tiers || []).length ? `<div class="stp">${p.tiers.slice().sort((a, b) => a[0] - b[0]).map(t => `από ${K.num(t[0])}: <b>${K.money(t[1])}</b>`).join(" · ")}</div>` : ""}${+p.min > 0 && !ctx.edit ? `<div class="stp">ελάχιστη παραγγελία: ${K.num(p.min)}</div>` : ""}${p.max != null && !ctx.edit && p.max < 20 ? `<div class="stp lft">έμειναν ${K.num(p.max)}</div>` : ""}${p.desc && sz !== "s" ? `<div class="ds">${K.esc(p.desc)}</div>` : ""}</div>${ctl}${ctx.edit && (so || p.hidden || p.draft) ? `<div class="flag">${p.draft ? "Ενδεικτικό" : so ? "Εξαντλήθηκε" : "Κρυφό"}</div>` : ""}</div>`);
       } else {
         const cnt = ctx.count ? ctx.count(n) : 0;
         const img = n.photo ? `<img class="ph" src="${K.esc(n.photo)}" alt="">` : n.emoji ? `<span class="em">${K.esc(n.emoji)}</span>` : "";
@@ -462,21 +555,29 @@
     opts = opts || {};
     const sh = st.shop || {};
     const used = new Set();
+    const ck = opts.cust && opts.cust.k, cu = ck && st.customers ? st.customers[ck] : null;
+    const visible = p => p && !p.hidden && !p.del && !p.draft && (!p.only || (ck && (p.onlyFor || []).includes(ck)));
     const walk = ns => (ns || []).map(n => {
       const o = { i: n.id, n: n.name || "" };
       if (n.size && n.size !== "m") o.z = n.size;
       if (n.emoji) o.e = n.emoji;
       if (n.color) o.c = n.color;
-      if (n.t === "p") { const p = st.products[n.pid]; if (!p || p.hidden || p.del) return null; o.p = n.pid; used.add(n.pid); if (o.n === p.name) delete o.n; }
-      else { o.k = walk(n.kids).filter(Boolean); if (opts.photos && n.photo) o.f = n.photo; }
+      if (n.t === "p") { const p = st.products[n.pid]; if (!visible(p)) return null; o.p = n.pid; used.add(n.pid); if (o.n === p.name) delete o.n; }
+      else { o.k = walk(n.kids).filter(Boolean); if (!o.k.length) return null; if (opts.photos && n.photo) o.f = n.photo; }
       return o;
     }).filter(Boolean);
     const m = walk(st.menu);
     const p = {};
     for (const id of used) {
       const x = st.products[id];
-      const o = { n: x.name, u: x.unit, r: +x.price || 0 };
+      const kind = K.priceKind(x, cu);
+      const o = { n: x.name, u: x.unit, r: kind === "retail" ? +x.price || 0 : K.priceFor(x, cu, 0) };
       if (+x.step && +x.step !== 1) o.s = +x.step;
+      if (kind !== "personal" && Array.isArray(x.tiers) && x.tiers.length) { const tq = x.tiers.filter(t => +t[0] > 0 && +t[1] > 0 && +t[1] < o.r).map(t => [+t[0], +t[1]]); if (tq.length) o.tq = tq; }
+      if (+x.min > 0) o.mn = +x.min;
+      if (!K.inSeason(x)) o.xs = 1;
+      const av = K.avail(x, st.orders);
+      if (av !== Infinity) { if (av <= 0) o.x = 1; else o.mx = av; }
       if (x.vat != null && +x.vat !== 13) o.v = +x.vat;
       if (x.soldout) o.x = 1;
       if (x.desc) o.d = x.desc;
@@ -491,14 +592,14 @@
       s: { n: sh.name || "", l: sh.legal || "", a: sh.addr || "", f: sh.afm || "", t: sh.phone || "", vb: sh.viber || "", m: sh.email || "", lg: opts.logo !== false ? sh.logo || "" : "", c1: sh.c1 || "#17324D", c2: sh.c2 || "#F2B632", w: sh.welcome || "", vi: sh.vatIncl !== false ? 1 : 0, lic: sh.lic || "", tr: sh.terms || "" },
       d: { h: d.how || "both", days: d.days || [1, 2, 3, 4, 5, 6], sl: d.slots || [], min: +d.min || 0, max: +d.max || 14, cut: d.cut || "", cl: K.closedDates(d, 70), ad: d.askAddr !== false ? 1 : 0, mo: +d.minOrder || 0, nt: d.note || "" },
       m, p,
-      k: st.nt.pub, t: st.nt.topic, u: opts.appUrl || "",
+      k: st.nt.pub, t: st.nt.topic, u: opts.appUrl || "", g: st.nt.spub || undefined,
       c: opts.cust || undefined
     };
   };
   /* από τον συμπαγή κατάλογο σε κοινή μορφή για την απόδοση */
   K.expandCatalog = C => {
     const products = {};
-    for (const [id, o] of Object.entries(C.p || {})) products[id] = { id, name: o.n, unit: o.u, price: +o.r || 0, step: +o.s || 1, vat: o.v != null ? +o.v : 13, soldout: !!o.x, desc: o.d || "", emoji: o.e || "", perish: !o.np, photo: o.f || "" };
+    for (const [id, o] of Object.entries(C.p || {})) products[id] = { id, name: o.n, unit: o.u, price: +o.r || 0, step: +o.s || 1, vat: o.v != null ? +o.v : 13, soldout: !!o.x || !!o.xs, oos: !!o.xs, desc: o.d || "", emoji: o.e || "", perish: !o.np, photo: o.f || "", tiers: Array.isArray(o.tq) ? o.tq : [], min: +o.mn || 0, max: o.mx != null ? +o.mx : null };
     const walk = ns => (ns || []).map(o => o.p ? { id: o.i, t: "p", pid: o.p, name: o.n || (products[o.p] || {}).name || "", size: o.z || "m", emoji: o.e || "", color: o.c || "" } : { id: o.i, t: "c", name: o.n, size: o.z || "m", emoji: o.e || "", color: o.c || "", photo: o.f || "", kids: walk(o.k) });
     return { products, menu: walk(C.m) };
   };

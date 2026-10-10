@@ -130,8 +130,19 @@ const SIZES = [["s", "Μικρό"], ["m", "Μεσαίο"], ["l", "Μεγάλο"]
 const COLS = [
   ["cat", "Κατηγορία", 18], ["sub", "Υποκατηγορία", 18], ["name", "Προϊόν *", 30], ["price", "Τιμή € *", 10], ["unit", "Μονάδα", 12], ["step", "Βήμα (κάθε +)", 10],
   ["vat", "ΦΠΑ %", 8], ["desc", "Περιγραφή", 32], ["av", "Διαθέσιμο", 11], ["hid", "Κρυφό", 9], ["per", "Ευπαθές", 9], ["emoji", "Εικονίδιο", 10],
-  ["size", "Μέγεθος κουμπιού", 14], ["keys", "Άλλες λέξεις (για Viber)", 26], ["id", "Κωδικός (μην τον αλλάζεις)", 16]
+  ["size", "Μέγεθος κουμπιού", 14], ["keys", "Άλλες λέξεις (για Viber)", 26], ["code", "Κωδικός προϊόντος", 14], ["min", "Ελάχιστη ποσότητα", 11],
+  ["stock", "Απόθεμα (κενό = δεν μετράω)", 14], ["whole", "Τιμή χονδρικής €", 11], ["tiers", "Έκπτωση ποσότητας (π.χ. 10: 4,00; 50: 3,50)", 26], ["season", "Εποχή: μήνες (κενό = όλο τον χρόνο)", 22],
+  ["id", "Αναγνωριστικό εφαρμογής (μην το αλλάζεις)", 16]
 ];
+const tiersText = t => (t || []).map(x => K.num(x[0]) + ": " + K.num(x[1])).join("; ");
+const seasonText = m => Array.isArray(m) && m.length && m.length < 12 ? m.slice().sort((a, b) => a - b).map(x => K.MONTHS[x - 1]).join(", ") : "";
+const tiersParse = v => { const out = []; for (const part of String(v || "").split(/[;·|\n]+/)) { const m = part.split(/\s*[:=→>]\s*/); if (m.length < 2) continue; const q = K.parseNum(m[0].replace(/[^\d.,]/g, "")), pr = K.parseNum(m[1].replace(/[^\d.,]/g, "")); if (isFinite(q) && q > 0 && isFinite(pr) && pr > 0) out.push([q, K.round2(pr)]); } return out.sort((a, b) => a[0] - b[0]).slice(0, 5); };
+const seasonParse = v => { const set = new Set(); const MN = K.MONTHS.map(m => K.norm(m));
+  for (const tok of String(v == null ? "" : v).replace(/\s*[-–]\s*/g, "-").split(/[,;\s]+/).filter(Boolean)) { const r = /^(\d{1,2})\s*-\s*(\d{1,2})$/.exec(tok);
+    if (r) { let a = +r[1], b = +r[2]; for (let i = 0; i < 12 && a >= 1 && a <= 12 && b >= 1 && b <= 12; i++) { set.add(a); if (a === b) break; a = a % 12 + 1; } continue; }
+    if (/^\d{1,2}$/.test(tok) && +tok >= 1 && +tok <= 12) { set.add(+tok); continue; }
+    const n = K.norm(tok); let i = MN.indexOf(n); if (i < 0) i = MN.findIndex(m => n.startsWith(m) || (n.length >= 3 && m.startsWith(n))); if (i < 0) { const full = ["ιανουαρ", "φεβρουαρ", "μαρτ", "απριλ", "μαι", "ιουν", "ιουλ", "αυγουστ", "σεπτεμβρ", "οκτωβρ", "νοεμβρ", "δεκεμβρ"]; i = full.findIndex(f => n.startsWith(f)); } if (i >= 0) set.add(i + 1); }
+  const a = [...set].sort((x, y) => x - y); return a.length && a.length < 12 ? a : null; };
 const CCOLS = [["path", "Κατηγορία (υποκατηγορίες με >)", 34], ["emoji", "Εικονίδιο", 10], ["size", "Μέγεθος κουμπιού", 16]];
 const yes = v => v ? "ΝΑΙ" : "ΟΧΙ";
 const sizeName = z => (SIZES.find(x => x[0] === z) || SIZES[1])[1];
@@ -146,20 +157,22 @@ function catalogRows() {
     }
   };
   walk(st.menu, []);
-  const inMenu = new Set(rows.map(r => r[14]));
+  const inMenu = new Set(rows.map(r => r[r.length - 1]));
   for (const p of Object.values(st.products)) if (!p.del && !inMenu.has(p.id)) rows.push(prodRow(p, null, null));
   return { rows, crows };
 }
 function prodRow(p, trail, n) {
   const cat = trail ? trail[0] || "" : "", sub = trail ? trail.slice(1).join(SEP) : "";
-  return [trail ? cat : "(εκτός μενού)", sub, p.name, K.round2(+p.price || 0), p.unit || "", +p.step && +p.step !== 1 ? +p.step : "", +p.vat || 0, p.desc || "", yes(!p.soldout), yes(!!p.hidden), yes(p.perish !== false), p.emoji || "", sizeName(n ? n.size : "m"), p.keys || "", p.id];
+  const av = K.avail(p, S().orders);
+  return [trail ? cat : "(εκτός μενού)", sub, p.name, K.round2(+p.price || 0), p.unit || "", +p.step && +p.step !== 1 ? +p.step : "", +p.vat || 0, p.desc || "", yes(!p.soldout), yes(!!p.hidden || !!p.draft), yes(p.perish !== false), p.emoji || "", sizeName(n ? n.size : "m"), p.keys || "",
+    p.code || "", +p.min > 0 ? +p.min : "", av === Infinity ? "" : Math.max(0, av), +p.whole > 0 ? +p.whole : "", tiersText(p.tiers), seasonText(p.season), p.id];
 }
 const EXAMPLES = [
-  ["Αυγά", "", "Αυγά ελευθέρας βοσκής", 4.5, "δωδεκάδα", "", 13, "Φρέσκα, από κότες που βόσκουν ελεύθερες", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μεσαίο", "αυγουλάκια", ""],
-  ["Αυγά", "", "Αυγά ελευθέρας βοσκής", 10, "θήκη 30", "", 13, "", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μεσαίο", "", ""],
-  ["Αυγά", "Βιολογικά", "Αυγά βιολογικά", 0.45, "τεμ.", 6, 13, "Κάθε «+» προσθέτει 6 αυγά", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μικρό", "", ""],
-  ["Μέλι", "", "Μέλι θυμαρίσιο", 12, "βάζο", "", 13, "1 κιλό", "ΝΑΙ", "ΟΧΙ", "ΟΧΙ", "🍯", "Μεγάλο", "μελι", ""],
-  ["Μέλι", "", "Μέλι πεύκου", 9, "βάζο", "", 13, "1 κιλό", "ΟΧΙ", "ΟΧΙ", "ΟΧΙ", "🍯", "Μεσαίο", "", ""]
+  ["Αυγά", "", "Αυγά ελευθέρας βοσκής", 4.5, "δωδεκάδα", "", 13, "Φρέσκα, από κότες που βόσκουν ελεύθερες", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μεσαίο", "αυγουλάκια", "ΑΥΓ-12", "", 60, 3.8, "10: 4,20; 30: 4,00", "", ""],
+  ["Αυγά", "", "Αυγά ελευθέρας βοσκής", 10, "θήκη 30", "", 13, "", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μεσαίο", "", "ΑΥΓ-30", "", "", "", "", "", ""],
+  ["Αυγά", "Βιολογικά", "Αυγά βιολογικά", 0.45, "τεμ.", 6, 13, "Κάθε «+» προσθέτει 6 αυγά", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μικρό", "", "", 12, "", "", "", "", ""],
+  ["Μέλι", "", "Μέλι θυμαρίσιο", 12, "βάζο", "", 13, "1 κιλό", "ΝΑΙ", "ΟΧΙ", "ΟΧΙ", "🍯", "Μεγάλο", "μελι", "", "", "", 10, "", "", ""],
+  ["Μέλι", "", "Μέλι ελάτου", 14, "βάζο", "", 13, "1 κιλό", "ΝΑΙ", "ΟΧΙ", "ΟΧΙ", "🍯", "Μεσαίο", "", "", "", "", "", "", "Ιούν, Ιούλ, Αύγ, Σεπ", ""]
 ];
 const HELP = [
   ["Πώς συμπληρώνεται ο κατάλογος"],
@@ -176,8 +189,14 @@ const HELP = [
   ["10. «Ευπαθές» ΝΑΙ: τρόφιμο που αλλοιώνεται γρήγορα (δεν ισχύει δικαίωμα υπαναχώρησης)."],
   ["11. «Εικονίδιο»: ένα σύμβολο όπως 🥚 🍯 🫒 🍞. Οι φωτογραφίες μπαίνουν μετά από την εφαρμογή."],
   ["12. «Μέγεθος κουμπιού»: Μικρό (3 στη σειρά), Μεσαίο (2), Μεγάλο (όλο το πλάτος), Φαρδύ (όλο το πλάτος σε μία γραμμή)."],
-  ["13. «Κωδικός»: τον γράφει η εφαρμογή όταν κατεβάζεις τον δικό σου κατάλογο. Μην τον αλλάζεις: έτσι κρατιούνται φωτογραφίες και ιστορικό τιμών ακόμα κι αν αλλάξεις όνομα. Στα νέα προϊόντα άφησέ τον κενό."],
-  ["14. Στο φύλλο «Κατηγορίες» (προαιρετικό) δίνεις σειρά, εικονίδιο και μέγεθος στα κουμπιά των κατηγοριών."],
+  ["13. «Κωδικός προϊόντος»: δικός σου κωδικός (προαιρετικός), π.χ. ΑΥΓ-12."],
+  ["14. «Ελάχιστη ποσότητα»: ο πελάτης δεν μπορεί να παραγγείλει λιγότερο."],
+  ["15. «Απόθεμα»: πόσα έχεις τώρα. Αφαιρούνται μόνα τους με κάθε παραγγελία και όταν τελειώσουν ο πελάτης δεν μπορεί να το παραγγείλει. Κενό = δεν μετράς απόθεμα."],
+  ["16. «Τιμή χονδρικής»: ισχύει για τους πελάτες που έχεις ορίσει «χονδρικής» (Πελάτες › πελάτης › Τιμές για αυτόν)."],
+  ["17. «Έκπτωση ποσότητας»: γράψε «από ποσότητα: τιμή», χωρισμένα με ερωτηματικό. Π.χ. 10: 4,00; 50: 3,50."],
+  ["18. «Εποχή»: οι μήνες που το έχεις, π.χ. «Ιούν, Ιούλ, Αύγ» ή «6-9». Τους άλλους μήνες ο πελάτης το βλέπει «Εκτός εποχής». Κενό = όλο τον χρόνο."],
+  ["19. «Αναγνωριστικό εφαρμογής»: το γράφει η εφαρμογή όταν κατεβάζεις τον δικό σου κατάλογο. Μην το αλλάζεις: έτσι κρατιούνται φωτογραφίες και ιστορικό τιμών ακόμα κι αν αλλάξεις όνομα. Στα νέα προϊόντα άφησέ το κενό."],
+  ["20. Στο φύλλο «Κατηγορίες» (προαιρετικό) δίνεις σειρά, εικονίδιο και μέγεθος στα κουμπιά των κατηγοριών."],
   [""],
   ["Οι γραμμές με τα παραδείγματα (κίτρινες) σβήσ' τες ή άλλαξέ τες με τα δικά σου."],
   ["Όταν τελειώσεις: Παραγγελίες › Κατάλογος › Προϊόντα και τιμές › 📊 Excel › Ανέβασμα."]
@@ -192,7 +211,7 @@ function buildBook(mine) {
     { name: "Κατάλογος", head: true, cols: COLS.map(c => c[2]), num: [3, 5, 6], ex, rows: [head, ...rows],
       valid: [{ col: 4, list: K.UNITS }, { col: 6, list: ["13", "24", "6", "0"] }, { col: 8, list: yn }, { col: 9, list: yn }, { col: 10, list: yn }, { col: 12, list: sz }] },
     { name: "Κατηγορίες", head: true, cols: CCOLS.map(c => c[2]), ex: mine ? [] : crows.map((_, i) => i + 1), rows: [chead, ...crows], valid: [{ col: 2, list: sz }] },
-    { name: "Οδηγίες", title: true, wrap: true, cols: [120], rows: HELP }
+    { name: "Οδηγίες", title: true, wrap: true, cols: [120], rows: mine ? HELP.concat([[""], ["Εξαγωγή καταλόγου: " + new Date().toLocaleString("el-GR") + " · #" + Date.now() + " (μην το σβήσεις)"]]) : HELP }
   ]);
 }
 function saveBlob(name, blob) {
@@ -205,7 +224,8 @@ const fileName = mine => (mine ? "katalogos-" + (latin(S().shop.name || "") || "
 
 /* ---------- ανάγνωση αρχείου → σχέδιο εισαγωγής ---------- */
 const hdrKey = h => { const n = K.norm(h).replace(/\*/g, "").trim(); if (!n) return "";
-  const M = [["κωδικ", "id"], ["υποκατηγ", "sub"], ["κατηγορ", "cat"], ["προιον", "name"], ["ονομα", "name"], ["τιμη", "price"], ["μοναδα", "unit"], ["βημα", "step"], ["φπα", "vat"], ["περιγραφ", "desc"], ["διαθεσιμ", "av"], ["κρυφ", "hid"], ["ευπαθ", "per"], ["εικονιδ", "emoji"], ["μεγεθ", "size"], ["λεξεις", "keys"]];
+  if (/μην το|αναγνωρ/.test(n)) return "id"; if (n.includes("κωδικ")) return "code"; if (n.includes("χονδρ")) return "whole"; if (n.includes("εκπτωσ")) return "tiers"; if (n.includes("εποχ")) return "season"; if (n.includes("αποθεμ")) return "stock"; if (n.includes("ελαχιστ")) return "min";
+  const M = [["υποκατηγ", "sub"], ["κατηγορ", "cat"], ["προιον", "name"], ["ονομα", "name"], ["τιμη", "price"], ["μοναδα", "unit"], ["βημα", "step"], ["φπα", "vat"], ["περιγραφ", "desc"], ["διαθεσιμ", "av"], ["κρυφ", "hid"], ["ευπαθ", "per"], ["εικονιδ", "emoji"], ["μεγεθ", "size"], ["λεξεις", "keys"]];
   for (const [k, v] of M) if (n.includes(k)) return v; return ""; };
 const ynParse = (v, def) => { if (v === "" || v == null) return def; const n = K.norm(String(v)); if (/^(ναι|ν|yes|y|1|true|✓|x)$/.test(n) || v === 1 || v === true) return true; if (/^(οχι|ο|no|n|0|false)$/.test(n) || v === 0) return false; return def; };
 const sizeParse = v => { const n = K.norm(String(v || "")); if (!n) return ""; if (/^(s|μικρ)/.test(n)) return "s"; if (/^(l|μεγαλ)/.test(n)) return "l"; if (/^(w|φαρδ)/.test(n)) return "w"; if (/^(m|μεσα)/.test(n)) return "m"; return ""; };
@@ -234,7 +254,10 @@ function makePlan(sheets) {
     const unit = String(g(r, "unit")).trim() || "τεμ.";
     items.push({ line, path, id: String(g(r, "id")).trim(), name: name.slice(0, 60), price: K.round2(price), unit: unit.slice(0, 20), step: Math.round(step * 1000) / 1000, vat,
       desc: String(g(r, "desc")).trim().slice(0, 80), av: ynParse(g(r, "av"), true), hid: ynParse(g(r, "hid"), false), per: ynParse(g(r, "per"), true),
-      emoji: String(g(r, "emoji")).trim().slice(0, 4), size: sizeParse(g(r, "size")), keys: String(g(r, "keys")).trim().slice(0, 100) });
+      emoji: String(g(r, "emoji")).trim().slice(0, 4), size: sizeParse(g(r, "size")), keys: String(g(r, "keys")).trim().slice(0, 100),
+      code: map.code != null ? String(g(r, "code")).trim().slice(0, 30) : undefined, min: map.min != null ? numParse(g(r, "min")) : undefined,
+      stock: map.stock == null ? undefined : String(g(r, "stock")).trim() === "" ? null : numParse(g(r, "stock")), whole: map.whole != null ? numParse(g(r, "whole")) : undefined,
+      tiers: map.tiers != null ? tiersParse(g(r, "tiers")) : undefined, season: map.season != null ? seasonParse(g(r, "season")) : undefined });
   });
   /* φύλλο κατηγοριών */
   const cats = [];
@@ -253,9 +276,13 @@ function makePlan(sheets) {
     if (p) { used.add(p.id); it.pid = p.id; if (Math.abs((+p.price || 0) - it.price) > 0.004) { nPrice++; it.oldPrice = +p.price || 0; } else nSame++; }
     else nNew++; }
   const prods = items.filter(x => !x.onlyCat);
+  /* χρονική στιγμή εξαγωγής (για σωστό απόθεμα όταν ξαναανεβαίνει ο κατάλογός μου) */
+  let expAt = 0; for (const sh of sheets) if (/οδηγι/.test(K.norm(sh.name))) for (const r of sh.rows) for (const c of r || []) { const m = /#(\d{13})\b/.exec(String(c == null ? "" : c)); if (m) expAt = +m[1]; }
+  const willDraft = it => !(it.price > 0) || (it.pid && st.products[it.pid] && st.products[it.pid].draft && it.hid);
+  const active = prods.filter(it => !willDraft(it)).length;
   const catSet = new Set(); for (const it of items) if (it.path) for (let i = 1; i <= it.path.length; i++) catSet.add(it.path.slice(0, i).map(K.norm).join(">")); for (const c of cats) for (let i = 1; i <= c.path.length; i++) catSet.add(c.path.slice(0, i).map(K.norm).join(">"));
   const missing = live.filter(p => !used.has(p.id));
-  return { items, cats, errs, warns, prods: prods.length, nNew, nPrice, nSame, nCats: catSet.size, missing, loose: prods.filter(x => x.path && !x.path.length).length, outMenu: prods.filter(x => !x.path).length };
+  return { items, cats, errs, warns, expAt, active, drafts: prods.length - active, prods: prods.length, nNew, nPrice, nSame, nCats: catSet.size, missing, loose: prods.filter(x => x.path && !x.path.length).length, outMenu: prods.filter(x => !x.path).length };
 }
 
 function applyPlan(plan, delMissing) {
@@ -279,7 +306,18 @@ function applyPlan(plan, delMissing) {
     if (!p.hist.length || Math.abs(p.hist[p.hist.length - 1][1] - it.price) > 0.004) p.hist.push([now, it.price]);
     Object.assign(p, { name: it.name, unit: it.unit, price: it.price, step: it.step, vat: it.vat, desc: it.desc, soldout: !it.av, hidden: it.hid, perish: it.per, keys: it.keys });
     if (it.emoji) p.emoji = it.emoji;
-    delete p.hidBySo; delete p.del;
+    const wasDraft = !!p.draft;
+    delete p.hidBySo; delete p.del; delete p.draft;
+    if (!(it.price > 0) || (wasDraft && it.hid)) { p.draft = true; if (wasDraft && it.hid) p.hidden = false; }
+    if (it.code !== undefined) { if (it.code) p.code = it.code; else delete p.code; }
+    if (it.min !== undefined) { if (isFinite(it.min) && it.min > 0) p.min = it.min; else delete p.min; }
+    if (it.whole !== undefined) { if (isFinite(it.whole) && it.whole > 0) p.whole = K.round2(it.whole); else delete p.whole; }
+    if (it.tiers !== undefined) { if (it.tiers.length) p.tiers = it.tiers; else delete p.tiers; }
+    if (it.season !== undefined) { if (it.season) p.season = it.season; else delete p.season; }
+    if (it.stock !== undefined) { if (it.stock === null || !isFinite(it.stock) || it.stock < 0) { delete p.stock; delete p.stockAt; }
+      else { let ref = K.avail(p, st.orders);
+        if (plan.expAt && p.stock != null && p.stock !== "" && (p.stockAt || 0) <= plan.expAt) ref = Math.round((+p.stock - (K.reserved(p.id, st.orders, p.stockAt) - K.reserved(p.id, st.orders, plan.expAt))) * 1000) / 1000;
+        if (ref === Infinity || Math.abs(ref - it.stock) > 1e-9) { p.stock = Math.round(it.stock * 1000) / 1000; p.stockAt = now; } } }
     if (!it.path) continue;
     const L = it.path.length ? getCat(it.path) : menu;
     const o = oldNode[p.id] || {};
@@ -319,13 +357,14 @@ async function loadFile(f) {
   A._xlPlan = plan; previewSheet(plan);
 }
 function previewSheet(plan) {
-  const over = !A.isPro() && plan.prods > A.FREE_PRODUCTS;
+  const over = !A.isPro() && plan.active > A.FREE_PRODUCTS;
   const ch = plan.items.filter(x => x.oldPrice != null).slice(0, 12);
   A.sheet("📊 Τι θα γίνει", `
    <div class="card"><div class="okbox" style="margin-top:0">Βρέθηκαν <b>${plan.prods}</b> προϊόντα σε <b>${plan.nCats}</b> κατηγορίες.</div>
     <div class="note">✨ Νέα προϊόντα: <b>${plan.nNew}</b></div>
     <div class="note">💶 Αλλαγή τιμής: <b>${plan.nPrice}</b></div>
     <div class="note">✓ Ίδια τιμή: <b>${plan.nSame}</b></div>
+    ${plan.drafts ? `<div class="note">📝 Ενδεικτικά (χωρίς τιμή ή κρυφά ενδεικτικά, δεν τα βλέπουν οι πελάτες): <b>${plan.drafts}</b></div>` : ""}
     ${plan.loose ? `<div class="note">⚠️ Χωρίς κατηγορία (μπαίνουν χύμα στην αρχική): <b>${plan.loose}</b></div>` : ""}
     ${plan.outMenu ? `<div class="note">Εκτός μενού: <b>${plan.outMenu}</b></div>` : ""}
     ${ch.length ? `<details style="margin-top:6px"><summary class="note" style="cursor:pointer">Δες τις αλλαγές τιμών</summary>${ch.map(x => `<div class="note">${esc(x.name)} (${esc(x.unit)}): ${K.money(x.oldPrice)} → <b>${K.money(x.price)}</b></div>`).join("")}${plan.nPrice > ch.length ? `<div class="note">…και άλλες ${plan.nPrice - ch.length}</div>` : ""}</details>` : ""}</div>
@@ -333,7 +372,7 @@ function previewSheet(plan) {
    ${plan.warns.length ? `<div class="warnbox">${plan.warns.slice(0, 6).map(esc).join("<br>")}</div>` : ""}
    ${plan.missing.length ? `<div class="card"><p class="note" style="margin-top:0">${plan.missing.length} προϊόντα σου δεν υπάρχουν στο αρχείο (π.χ. ${plan.missing.slice(0, 3).map(p => "«" + esc(p.name) + "»").join(", ")}).</p><label class="ck"><input type="checkbox" id="xlDel"><span>Να διαγραφούν από τον κατάλογο</span></label><p class="note" style="margin-bottom:0">Αλλιώς μένουν στα «Προϊόντα και τιμές» ως «Δεν είναι στο μενού».</p></div>` : ""}
    <p class="note">Το μενού του πελάτη θα στηθεί όπως στο αρχείο. Φωτογραφίες, χρώματα κουμπιών και ιστορικό τιμών των ίδιων προϊόντων κρατιούνται. Αν κάτι δεν σου αρέσει, υπάρχει «Αναίρεση».</p>
-   ${over ? `<div class="warnbox">Η δωρεάν έκδοση έχει έως ${A.FREE_PRODUCTS} προϊόντα. Για ${plan.prods} χρειάζεται η πλήρης έκδοση.</div>` : ""}`,
+   ${over ? `<div class="warnbox">Η δωρεάν έκδοση έχει έως ${A.FREE_PRODUCTS} προϊόντα. Για ${plan.active} ενεργά χρειάζεται η πλήρης έκδοση.</div>` : ""}`,
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-xl="go"${plan.prods || plan.nCats ? "" : " disabled"}>✓ Εισαγωγή</button>`);
 }
 document.addEventListener("click", async e => {
@@ -345,7 +384,7 @@ document.addEventListener("click", async e => {
   if (k === "mine") { saveBlob(fileName(true), buildBook(true)); A.toast("⬇️ Κατέβηκε ο κατάλογός σου σε Excel.", 3500); return; }
   if (k === "go") {
     const plan = A._xlPlan; if (!plan) return;
-    if (!A.isPro() && plan.prods > A.FREE_PRODUCTS) { A.proGate("products"); return; }
+    if (!A.isPro() && plan.active > A.FREE_PRODUCTS) { A.proGate("products"); return; }
     applyPlan(plan, !!($("#xlDel") && $("#xlDel").checked)); A._xlPlan = null;
     A.closeSheet(); A.render(); A.toast(`✓ Μπήκαν ${plan.prods} προϊόντα σε ${plan.nCats} κατηγορίες. Πρόσθεσε φωτογραφίες όπου θέλεις.`, 4500); return;
   }

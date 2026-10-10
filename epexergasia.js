@@ -36,6 +36,19 @@ function removeProductEverywhere(pid, list) {
 }
 function productInMenu(pid, list) { for (const n of list || S().menu) { if (n.t === "p" && n.pid === pid) return true; if (n.kids && productInMenu(pid, n.kids)) return true; } return false; }
 const liveProducts = () => Object.values(S().products).filter(p => !p.del);
+const activeCount = () => liveProducts().filter(p => !p.draft).length;
+/* ενεργοποίηση ενδεικτικών: ελέγχει το όριο της δωρεάν έκδοσης */
+function canActivate(n) { if (A.isPro() || activeCount() + n <= A.FREE_PRODUCTS) return true; A.proGate("products"); return false; }
+function activate(ids) {
+  const st = S(), L = ids.map(id => st.products[id]).filter(p => p && p.draft);
+  const noPrice = L.filter(p => !(p.price > 0)), ok = L.filter(p => p.price > 0);
+  if (!ok.length) { A.toast(noPrice.length ? "Βάλε πρώτα τιμή: " + noPrice.slice(0, 3).map(p => "«" + p.name + "»").join(", ") : "Δεν υπάρχει κάτι για ενεργοποίηση.", 4000); return; }
+  let n = ok.length; if (!A.isPro()) { const room = Math.max(0, A.FREE_PRODUCTS - activeCount()); if (room < n) { n = room; } }
+  ok.slice(0, n).forEach(p => delete p.draft);
+  A.save({ catalog: true }); A.render();
+  if (n < ok.length) { A.proGate("products"); return; }
+  A.toast((n === 1 ? "✓ Ενεργοποιήθηκε 1 προϊόν" : "✓ Ενεργοποιήθηκαν " + n + " προϊόντα") + (noPrice.length ? " · " + noPrice.length + " χωρίς τιμή περιμένουν" : "") + ". " + (n === 1 ? "Το βλέπουν" : "Τα βλέπουν") + " πλέον οι πελάτες.", 4000);
+}
 
 /* ---------- προβολή ---------- */
 A.menuView = function (m) {
@@ -51,6 +64,7 @@ A.menuView = function (m) {
   m.innerHTML = seg + crumbs +
     (ed.hint && L.length ? `<div class="note" style="margin:0 0 10px"><b>Πάτα ένα προϊόν</b> για να αλλάξεις όνομα και τιμή. <b>Πάτα μια κατηγορία</b> για να μπεις μέσα της. Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά. <a href="#" data-ea="hintOff">Εντάξει</a></div>` : "") +
     (empty ? presetsHTML() : "") +
+    (() => { const nd = liveProducts().filter(p => p.draft).length; return nd ? `<div class="warnbox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><div style="flex:1">📝 <b>${nd === 1 ? "1 ενδεικτικό προϊόν" : nd + " ενδεικτικά προϊόντα"}</b> ${nd === 1 ? "δεν φαίνεται" : "δεν φαίνονται"} ακόμα στους πελάτες (αχνά κουμπιά).</div><button type="button" class="btn sm amber" data-ev="list">Έλεγχος και ενεργοποίηση</button></div>` : ""; })() +
     (() => { if (ed.path.length) return ""; const lo = st.menu.filter(n => n.t === "p").length; return lo && st.menu.some(n => n.t === "c") ? `<div class="warnbox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><div style="flex:1">Έχεις <b>${lo} ${lo === 1 ? "προϊόν" : "προϊόντα"} χύμα</b> στην αρχική, ανάμεσα στις κατηγορίες. Ο πελάτης τα βλέπει μπερδεμένα.</div><button type="button" class="btn sm amber" data-ea="tidy">🧹 Τακτοποίηση</button></div>` : ""; })() +
     `<div class="grid" id="edGrid" style="--c1:${esc(st.shop.c1)};--c2:${esc(st.shop.c2)};--on1:${K.contrast(st.shop.c1)};--on2:${K.contrast(st.shop.c2)}">${K.tilesHTML(L, { edit: true, marked: ed.marked, prod: id => st.products[id] })}</div>
     <div class="card" style="margin:6px 0 12px;padding:12px"><div class="note" style="margin:0 0 8px">Προσθήκη ${ed.path.length ? "μέσα στο <b>«" + esc(curCat().name) + "»</b>" : "στην <b>αρχική</b>"}:</div>
@@ -72,15 +86,27 @@ function actbar() {
    <button type="button" data-ea="moveTo">📁 Μετακίνηση</button><button type="button" data-ea="all">Όλα</button>
    <button type="button" class="red" data-ea="del">🗑</button><button type="button" data-ea="unmark">✕</button></div>`);
 }
+function tagsHTML(p) {
+  const st = S(), t = [];
+  if (p.draft) t.push(["📝 Ενδεικτικό", "#fff4d6", "#7a5a00"]);
+  const av = K.avail(p, st.orders);
+  if (av !== Infinity) t.push([av <= 0 ? "📦 Τελείωσε" : "📦 Απόθεμα " + K.num(av), av <= 0 ? "#fde8e6" : "#e3f1df", av <= 0 ? "#b3261e" : "#1f5c2e"]);
+  if (!K.inSeason(p)) t.push(["🍂 Εκτός εποχής", "#f1f1ec", "#5d6670"]);
+  if (+p.min > 0) t.push(["ελάχ. " + K.num(p.min), "#e8eef5", "#17324D"]);
+  if (+p.whole > 0) t.push(["χονδρική " + K.money(p.whole), "#e8eef5", "#17324D"]);
+  if ((p.tiers || []).length) t.push(["έκπτωση ποσότητας", "#e8eef5", "#17324D"]);
+  if (p.only) t.push(["🔒 Μόνο για " + (p.onlyFor || []).length + ((p.onlyFor || []).length === 1 ? " πελάτη" : " πελάτες"), "#ece3f5", "#4a2a6b"]);
+  return t.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">${t.map(([x, b, c]) => `<span style="font-size:11.5px;font-weight:700;background:${b};color:${c};border-radius:8px;padding:2px 7px">${x}</span>`).join("")}</div>` : "";
+}
 function listHTML() {
   const st = S(), q = K.norm(ed.q);
   const L = liveProducts().filter(p => !q || K.norm(p.name).includes(q));
   const want = new Set(L.map(p => p.id)), used = new Set();
   const prow = p => `<div class="prow" data-prow="${p.id}" style="flex-wrap:wrap;gap:6px 10px;padding:10px 0">
-     <div style="flex:1 1 100%;display:flex;align-items:center;gap:8px"><span class="pdrag" data-pdrag="${p.id}" aria-label="Κράτα και σύρε για μετακίνηση" title="Κράτα και σύρε">⠿</span><div class="pt" data-pedit="${p.id}" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px"><span style="font-size:22px">${esc(p.emoji || "📦")}</span><div style="flex:1;min-width:0"><b style="font-size:16.5px;display:block">${esc(p.name)}</b><span>ανά ${esc(p.unit)}${+p.step && +p.step !== 1 ? " · βήμα " + K.num(p.step) : ""}${p.hidden ? " · κρυφό" : ""}</span></div><span style="font-size:15px;color:var(--brand)" aria-hidden="true">✏️</span></div><button type="button" data-pmove="${p.id}" aria-label="Μετακίνηση σε άλλη κατηγορία" title="Σε άλλη κατηγορία" style="border:0;background:#e8eef5;color:var(--brand);border-radius:10px;width:40px;height:36px;font-size:15px;cursor:pointer;flex:none">📁</button><button type="button" data-pdel="${p.id}" aria-label="Διαγραφή" style="border:0;background:#fde8e6;color:var(--bad);border-radius:10px;width:40px;height:36px;font-size:15px;cursor:pointer;flex:none">🗑</button></div>
+     <div style="flex:1 1 100%;display:flex;align-items:center;gap:8px"><span class="pdrag" data-pdrag="${p.id}" aria-label="Κράτα και σύρε για μετακίνηση" title="Κράτα και σύρε">⠿</span><div class="pt" data-pedit="${p.id}" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px"><span style="font-size:22px">${esc(p.emoji || "📦")}</span><div style="flex:1;min-width:0"><b style="font-size:16.5px;display:block">${esc(p.name)}</b><span>ανά ${esc(p.unit)}${+p.step && +p.step !== 1 ? " · βήμα " + K.num(p.step) : ""}${p.hidden ? " · κρυφό" : ""}${p.code ? " · " + esc(p.code) : ""}</span>${tagsHTML(p)}</div><span style="font-size:15px;color:var(--brand)" aria-hidden="true">✏️</span></div><button type="button" data-pmove="${p.id}" aria-label="Μετακίνηση σε άλλη κατηγορία" title="Σε άλλη κατηγορία" style="border:0;background:#e8eef5;color:var(--brand);border-radius:10px;width:40px;height:36px;font-size:15px;cursor:pointer;flex:none">📁</button><button type="button" data-pdel="${p.id}" aria-label="Διαγραφή" style="border:0;background:#fde8e6;color:var(--bad);border-radius:10px;width:40px;height:36px;font-size:15px;cursor:pointer;flex:none">🗑</button></div>
      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--mute);font-weight:700">Τιμή €<input class="pp" inputmode="decimal" data-pprice="${p.id}" value="${(+p.price || 0).toFixed(2).replace(".", ",")}" aria-label="Τιμή"></label>
      <span style="flex:1"></span>
-     <div style="display:flex;align-items:center;gap:6px"><label class="tog g av" title="Διαθέσιμο" style="flex:none"><input type="checkbox" data-pavail="${p.id}"${p.soldout ? "" : " checked"}><span></span></label><small style="font-size:12px;font-weight:700;width:76px;color:${p.soldout ? "var(--bad)" : "var(--ok)"}">${p.soldout ? "Εξαντλήθηκε" : "Διαθέσιμο"}</small></div>
+     ${p.draft ? `<button type="button" class="btn sm amber" data-pact="${p.id}" style="padding:8px 12px">✓ Ενεργοποίηση</button>` : `<div style="display:flex;align-items:center;gap:6px"><label class="tog g av" title="Διαθέσιμο" style="flex:none"><input type="checkbox" data-pavail="${p.id}"${p.soldout ? "" : " checked"}><span></span></label><small style="font-size:12px;font-weight:700;width:76px;color:${p.soldout ? "var(--bad)" : "var(--ok)"}">${p.soldout ? "Εξαντλήθηκε" : "Διαθέσιμο"}</small></div>`}
      </div>`;
   /* ομάδες όπως στο μενού: «Κατηγορία › Υποκατηγορία» */
   const groups = [];
@@ -102,7 +128,9 @@ function listHTML() {
 `;
   if (q) for (const g of groups) if (!g.items.length) g.skip = 1;
   const nSub = id => { const f = K.findNode(st.menu, id); return f ? (f.node.kids || []).filter(n => n.t === "c").length : 0; };
-  return head + (L.length > 1 && !q ? `<p class="note" style="margin:0 2px 10px">Κράτα το <b>⠿</b> και σύρε για να αλλάξεις σειρά ή να πας ένα προϊόν σε άλλη κατηγορία· ή πάτα <b>📁</b>. Με τα <b>▲▼</b> αλλάζεις σειρά στις κατηγορίες. Πάτα τον <b>τίτλο</b> μιας κατηγορίας για να την μετονομάσεις ή να τη διαγράψεις.</p>` : "") + (groups.length ? groups.filter(g => !g.skip).map(g => `<div class="card pgrp${g.hdr ? " phdr" : ""}" data-gcat="${g.warn ? "!" : g.cat}" style="padding:${g.hdr ? "8px 14px" : "10px 14px"};${g.hdr ? "background:color-mix(in srgb,var(--accent) 14%,#fff);margin-bottom:6px;" : ""}${g.depth > 1 ? "margin-left:" + Math.min(3, g.depth - 1) * 10 + "px;" : ""}border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><div style="display:flex;align-items:center;gap:8px;margin:2px 0 6px">${g.cat ? (() => { const f = K.findNode(st.menu, g.cat), sib = f ? f.list.filter(n => n.t === "c") : [], i = f ? sib.indexOf(f.node) : -1; return `<div class="cmv"><button type="button" data-cmv="${g.cat}" data-dir="-1" aria-label="Κατηγορία πιο πάνω"${i <= 0 ? " disabled" : ""}>▲</button><button type="button" data-cmv="${g.cat}" data-dir="1" aria-label="Κατηγορία πιο κάτω"${i < 0 || i >= sib.length - 1 ? " disabled" : ""}>▼</button></div>`; })() : ""}<h3${g.cat ? ` data-gedit="${g.cat}" role="button" title="Αλλαγή ονόματος ή διαγραφή"` : ""} style="margin:0;flex:1;min-width:0;font-size:${g.depth > 1 ? 15.5 : 17}px;${g.cat ? "cursor:pointer" : ""}">${esc(g.title)} <span class="note gcnt" style="font-weight:400">· ${g.hdr ? nSub(g.cat) + " υποκατ." : g.items.length}</span>${g.cat ? ` <span style="font-size:13px;color:var(--brand)">✏️</span>` : ""}</h3>${g.warn || g.hdr ? "" : g.loose ? `<button type="button" class="btn sm amber" data-ea="tidy" style="padding:7px 11px">🧹 Τακτοποίηση</button>` : `<button type="button" class="btn sm amber" data-addto="${g.cat}" style="padding:7px 11px">＋ Προϊόν</button>`}</div>${g.loose ? `<p class="note" style="margin:0 0 4px">Αυτά φαίνονται στον πελάτη ανάμεσα στις κατηγορίες. Σύρε τα με το ⠿ μέσα σε κατηγορία ή πάτα «Τακτοποίηση».</p>` : ""}${g.hdr ? "" : `<div class="pitems">`}${(g.warn ? g.items.sort((a, b) => a.name.localeCompare(b.name, "el")) : g.items).map(prow).join("")}${g.hdr ? "" : "</div>"}</div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
+  const nd = liveProducts().filter(p => p.draft).length;
+  const dbox = nd ? `<div class="warnbox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><div style="flex:1">📝 <b>${nd === 1 ? "1 ενδεικτικό προϊόν" : nd + " ενδεικτικά προϊόντα"}</b> από έτοιμο κατάλογο. Δεν τα βλέπουν οι πελάτες. Διόρθωσε τιμές, σβήσε όσα δεν χρειάζεσαι και ενεργοποίησέ τα.</div><button type="button" class="btn sm amber" data-pactall="*">✓ Όλα</button></div>` : "";
+  return head + dbox + (L.length > 1 && !q ? `<p class="note" style="margin:0 2px 10px">Κράτα το <b>⠿</b> και σύρε για να αλλάξεις σειρά ή να πας ένα προϊόν σε άλλη κατηγορία· ή πάτα <b>📁</b>. Με τα <b>▲▼</b> αλλάζεις σειρά στις κατηγορίες. Πάτα τον <b>τίτλο</b> μιας κατηγορίας για να την μετονομάσεις ή να τη διαγράψεις.</p>` : "") + (groups.length ? groups.filter(g => !g.skip).map(g => `<div class="card pgrp${g.hdr ? " phdr" : ""}" data-gcat="${g.warn ? "!" : g.cat}" style="padding:${g.hdr ? "8px 14px" : "10px 14px"};${g.hdr ? "background:color-mix(in srgb,var(--accent) 14%,#fff);margin-bottom:6px;" : ""}${g.depth > 1 ? "margin-left:" + Math.min(3, g.depth - 1) * 10 + "px;" : ""}border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><div style="display:flex;align-items:center;gap:8px;margin:2px 0 6px">${g.cat ? (() => { const f = K.findNode(st.menu, g.cat), sib = f ? f.list.filter(n => n.t === "c") : [], i = f ? sib.indexOf(f.node) : -1; return `<div class="cmv"><button type="button" data-cmv="${g.cat}" data-dir="-1" aria-label="Κατηγορία πιο πάνω"${i <= 0 ? " disabled" : ""}>▲</button><button type="button" data-cmv="${g.cat}" data-dir="1" aria-label="Κατηγορία πιο κάτω"${i < 0 || i >= sib.length - 1 ? " disabled" : ""}>▼</button></div>`; })() : ""}<h3${g.cat ? ` data-gedit="${g.cat}" role="button" title="Αλλαγή ονόματος ή διαγραφή"` : ""} style="margin:0;flex:1;min-width:0;font-size:${g.depth > 1 ? 15.5 : 17}px;${g.cat ? "cursor:pointer" : ""}">${esc(g.title)} <span class="note gcnt" style="font-weight:400">· ${g.hdr ? nSub(g.cat) + " υποκατ." : g.items.length}</span>${g.cat ? ` <span style="font-size:13px;color:var(--brand)">✏️</span>` : ""}</h3>${g.items.some(p => p.draft) ? `<button type="button" class="btn sm soft" data-pactall="${g.warn ? "!" : g.cat || "~"}" style="padding:7px 10px">✓ Όλα (${g.items.filter(p => p.draft).length})</button>` : ""}${g.warn || g.hdr ? "" : g.loose ? `<button type="button" class="btn sm amber" data-ea="tidy" style="padding:7px 11px">🧹 Τακτοποίηση</button>` : `<button type="button" class="btn sm amber" data-addto="${g.cat}" style="padding:7px 11px">＋ Προϊόν</button>`}</div>${g.loose ? `<p class="note" style="margin:0 0 4px">Αυτά φαίνονται στον πελάτη ανάμεσα στις κατηγορίες. Σύρε τα με το ⠿ μέσα σε κατηγορία ή πάτα «Τακτοποίηση».</p>` : ""}${g.hdr ? "" : `<div class="pitems">`}${(g.warn ? g.items.sort((a, b) => a.name.localeCompare(b.name, "el")) : g.items).map(prow).join("")}${g.hdr ? "" : "</div>"}</div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
     + (L.length ? `<p class="note">Πράσινος διακόπτης = <b>διαθέσιμο</b>. Κλείσ' τον όταν τελειώσει ένα προϊόν: ο πελάτης το βλέπει «Εξαντλήθηκε» και δεν μπορεί να το παραγγείλει. Η τιμή αλλάζει μόλις φύγεις από το πλαίσιο.</p>` : "");
 }
 /* ---------- τακτοποίηση: προϊόντα χύμα στην αρχική ---------- */
@@ -254,28 +282,27 @@ function presetSheet(k) {
   A.sheet(P.e + " " + P.n, `<p class="note" style="margin-top:0">${esc(P.d || "")}</p>
    ${P.w ? `<div class="warnbox">⚖️ ${esc(P.w)}</div>` : ""}
    ${P.c.map(([cn, ce, items]) => `<div class="card"><h3>${ce} ${esc(cn)}</h3>${items.map(([n, u, pr]) => `<div class="qrow"><div class="qn"><b>${esc(n)}</b><span>ανά ${esc(u)}</span></div><b>${K.money(pr)}</b></div>`).join("")}</div>`).join("")}
-   <p class="note">${prodCount(P)} προϊόντα σε ${P.c.length} κατηγορίες. Τιμές και ΦΠΑ είναι ενδεικτικά· έλεγξέ τα και με τον λογιστή σου.${!A.isPro() && liveProducts().length + prodCount(P) > A.FREE_PRODUCTS ? " Η δωρεάν έκδοση (μετά τη δοκιμή) κρατά έως " + A.FREE_PRODUCTS + " προϊόντα." : ""}</p>`,
-   `<button type="button" class="btn soft" data-ea="presetBack">← Επαγγέλματα</button><button type="button" class="btn amber" data-preset-go="${k}">Βάλ' τα στο μενού</button>`);
+   <div class="okbox">📝 Μπαίνουν ως <b>ενδεικτικά</b>: δεν τα βλέπουν οι πελάτες μέχρι να ελέγξεις τιμές και να πατήσεις «Ενεργοποίηση». Όσα δεν χρειάζεσαι, τα σβήνεις.</div>
+   <p class="note">${prodCount(P)} προϊόντα σε ${P.c.length} κατηγορίες. Τιμές και ΦΠΑ είναι ενδεικτικά· έλεγξέ τα και με τον λογιστή σου.${!A.isPro() ? " Η δωρεάν έκδοση (μετά τη δοκιμή) έχει έως " + A.FREE_PRODUCTS + " ενεργά προϊόντα." : ""}</p>`,
+   `<button type="button" class="btn soft" data-ea="presetBack">← Επαγγέλματα</button><button type="button" class="btn amber" data-preset-go="${k}">Πρόσθεσέ τα</button>`);
 }
 function applyPreset(k) {
   const st = S(), P = PRESETS[k]; if (!P) return;
-  let count = liveProducts().length, cut = false;
   const target = ed.view === "menu" && ed.path.length ? curList() : st.menu;
-  const lim = A.isPro() ? 1e9 : A.FREE_PRODUCTS;
+  let count = 0;
   for (const [cn, ce, items] of P.c) {
     const cat = { id: newId(), t: "c", name: cn, emoji: ce, size: "m", kids: [] };
     for (const [n, u, pr, step, o] of items) {
-      if (count >= lim) { cut = true; break; }
       const id = "p" + K.uid(5), op = o || {};
-      st.products[id] = { id, name: n, unit: u, price: pr, step: step || 1, vat: op.v != null ? op.v : 13, perish: !op.np, emoji: ce, hist: [[Date.now(), pr]], created: Date.now() };
+      st.products[id] = { id, name: n, unit: u, price: pr, step: step || 1, vat: op.v != null ? op.v : 13, perish: !op.np, emoji: ce, hist: [[Date.now(), pr]], created: Date.now(), draft: true };
       cat.kids.push({ id: newId(), t: "p", pid: id, size: "m" });
       count++;
     }
     if (cat.kids.length) target.push(cat);
   }
-  ed.view = "menu"; ed.marked.clear();
-  A.save({ catalog: true }); A.closeSheet(); A.render();
-  A.toast(cut ? "Μπήκαν έως " + A.FREE_PRODUCTS + " προϊόντα (όριο δωρεάν έκδοσης)." : "✓ Έτοιμο. Έλεγξε τις τιμές στο «Προϊόντα και τιμές».", 4000);
+  ed.view = "list"; ed.marked.clear(); ed.q = "";
+  A.save({ catalog: true }); A.closeSheet(); A.render(); window.scrollTo(0, 0);
+  A.toast("✓ Μπήκαν " + count + " ενδεικτικά προϊόντα. Δεν τα βλέπουν οι πελάτες μέχρι να ελέγξεις τιμές και να πατήσεις «Ενεργοποίηση».", 6000);
 }
 
 /* ---------- σύρσιμο με το δάχτυλο για αλλαγή σειράς ---------- */
@@ -424,14 +451,41 @@ function catSave() {
   A.save({ catalog: true }); A.closeSheet(); A.render();
 }
 
+/* επιπλέον ρυθμίσεις προϊόντος: απόθεμα, ελάχιστη ποσότητα, εποχή, κωδικός, χονδρική, κλιμακωτές τιμές, αποκλειστικό */
+function moreHTML(x) {
+  const st = S(), av = x.id ? K.avail(x, st.orders) : Infinity, stOn = x.stock != null && x.stock !== "";
+  const tiers = (x.tiers || []).concat([[], [], []]).slice(0, 3);
+  const custs = Object.values(st.customers || {}).sort((a, b) => (a.name || "").localeCompare(b.name || "", "el"));
+  const sea = Array.isArray(x.season) ? x.season : [];
+  const any = stOn || +x.min > 0 || x.code || (sea.length && sea.length < 12) || +x.whole > 0 || (x.tiers || []).length || x.only;
+  return `<details class="card"${any ? " open" : ""}><summary style="cursor:pointer;font-weight:800">⚙️ Απόθεμα, ελάχιστη ποσότητα, εποχή, κωδικός, χονδρική, εκπτώσεις</summary>
+    <h3 style="margin:12px 0 4px">📦 Απόθεμα</h3>
+    <label class="ck"><input type="checkbox" id="pStOn"${stOn ? " checked" : ""}><span>Μετράω απόθεμα: όταν τελειώσει, ο πελάτης δεν μπορεί να το παραγγείλει</span></label>
+    <div id="pStBox" style="${stOn ? "" : "display:none"}"><label class="f" for="pStock">Διαθέσιμη ποσότητα τώρα (${esc(x.unit || "τεμ.")})</label><input class="t" id="pStock" inputmode="decimal" value="${stOn ? K.num(Math.max(0, av)) : ""}" data-was="${stOn ? K.num(Math.max(0, av)) : ""}" placeholder="π.χ. 120">
+     <p class="note" style="margin:4px 0 0">Αφαιρείται μόνο του με κάθε παραγγελία και επιστρέφει αν την ακυρώσεις. Όταν ξαναγεμίσεις, γράψε εδώ τη νέα ποσότητα.</p></div>
+    <h3 style="margin:14px 0 4px">🧾 Παραγγελία</h3>
+    <div class="two"><div><label class="f" for="pMin">Ελάχιστη ποσότητα</label><input class="t" id="pMin" inputmode="decimal" value="${+x.min > 0 ? K.num(x.min) : ""}" placeholder="καμία"></div>
+     <div><label class="f" for="pCode">Κωδικός προϊόντος</label><input class="t" id="pCode" value="${esc(x.code || "")}" maxlength="30" placeholder="π.χ. ΑΥΓ-12"></div></div>
+    <label class="f">Εποχικό: μήνες που το έχεις (κανένας = όλο τον χρόνο)</label>
+    <div class="chips" id="pSea" style="flex-wrap:wrap">${K.MONTHS.map((m, i) => `<button type="button" class="chip${sea.includes(i + 1) && sea.length < 12 ? " on" : ""}" data-mo="${i + 1}">${m}</button>`).join("")}</div>
+    <h3 style="margin:14px 0 4px">💶 Τιμές για πελάτες</h3>
+    <label class="f" for="pWh">Τιμή χονδρικής (για πελάτες «χονδρικής»)</label><input class="t" id="pWh" inputmode="decimal" value="${+x.whole > 0 ? K.num(x.whole) : ""}" placeholder="ίδια με τη λιανική">
+    <label class="f">Έκπτωση ποσότητας</label>
+    ${tiers.map((t, i) => `<div class="two" style="margin-top:4px"><div><input class="t" data-tq="${i}" inputmode="decimal" value="${t[0] ? K.num(t[0]) : ""}" placeholder="από ποσότητα"></div><div><input class="t" data-tp="${i}" inputmode="decimal" value="${t[1] ? K.num(t[1]) : ""}" placeholder="τιμή μονάδας €"></div></div>`).join("")}
+    <p class="note" style="margin:4px 0 0">Π.χ. από 10 → 4,00 €. Ο πελάτης βλέπει την έκπτωση και πληρώνει τη χαμηλότερη τιμή που του αναλογεί.</p>
+    <label class="ck" style="margin-top:10px"><input type="checkbox" id="pOnly"${x.only ? " checked" : ""}><span>Μόνο για επιλεγμένους πελάτες (δεν φαίνεται στον κοινό σύνδεσμο)</span></label>
+    <div id="pOnlyBox" style="${x.only ? "" : "display:none"}">${custs.length ? custs.map(c => `<label class="ck"><input type="checkbox" data-onlyc="${esc(c.key)}"${(x.onlyFor || []).includes(c.key) ? " checked" : ""}><span>${esc(c.name || c.phone)}</span></label>`).join("") : `<p class="note">Δεν έχεις πελάτες ακόμα.</p>`}<p class="note" style="margin:4px 0 0">Οι επιλεγμένοι το βλέπουν στον προσωπικό τους σύνδεσμο (Πελάτες › πελάτης › «📤 Στείλε του τον κατάλογο»).</p></div>
+  </details>`;
+}
 function prodSheet(pid, nodeId) {
   const st = S(), p = pid ? st.products[pid] : null;
-  if (!p && liveProducts().length >= A.FREE_PRODUCTS && !A.proGate("products")) return;
+  if (!p && activeCount() >= A.FREE_PRODUCTS && !A.proGate("products")) return;
   const x = p || { name: "", unit: "τεμ.", price: "", step: 1, vat: 13, perish: true, emoji: (curCat() || {}).emoji || "" };
   const node = nodeId ? K.findNode(st.menu, nodeId).node : null;
   const unitKnown = K.UNITS.includes(x.unit);
   A.sheet(p ? "Προϊόν" : "Νέο προϊόν", `
    ${!p ? (() => { const def = A._addTo != null ? A._addTo : ed.view === "menu" ? (curCat() ? curCat().id : "") : ((S().menu.find(n => n.t === "c") || {}).id || ""); return `<div class="card"><label class="f" for="pCat">Κατηγορία</label><select class="t" id="pCat">${catOptsHTML(def, "🏠 Χωρίς κατηγορία (στην αρχική)")}<option value="+">＋ Νέα κατηγορία…</option></select><input class="t" id="pCatNew" maxlength="40" placeholder="Όνομα νέας κατηγορίας, π.χ. Αυγά" style="margin-top:6px;display:none"></div>`; })() : ""}
+   ${p && p.draft ? `<div class="warnbox" style="margin-top:0"><b>📝 Ενδεικτικό προϊόν από έτοιμο κατάλογο.</b> Δεν το βλέπουν οι πελάτες. Έλεγξε όνομα και τιμή και άναψε το «Ενεργό».<label class="ck" style="margin-top:6px"><input type="checkbox" id="pAct"><span>Ενεργό: να το βλέπουν οι πελάτες</span></label></div>` : ""}
    <div class="card"><label class="f" for="pN">Όνομα προϊόντος</label><input class="t" id="pN" value="${esc(x.name)}" maxlength="60" placeholder="π.χ. Αυγά ελευθέρας βοσκής">
     <div class="two"><div><label class="f" for="pP">💶 Τιμή (€)</label><input class="t" id="pP" inputmode="decimal" value="${x.price !== "" ? K.num(x.price) : ""}" placeholder="0,00" style="font-size:22px;font-weight:800;border-color:var(--accent)"></div>
      <div><label class="f" for="pU">Μονάδα</label><select class="t" id="pU">${K.UNITS.map(u => `<option${u === x.unit ? " selected" : ""}>${u}</option>`).join("")}<option value="*"${unitKnown ? "" : " selected"}>Άλλη…</option></select></div></div>
@@ -451,6 +505,7 @@ function prodSheet(pid, nodeId) {
     <div class="sw"><span>Κρυφό (δεν φαίνεται στον πελάτη)</span><label class="tog"><input type="checkbox" id="pHi"${x.hidden ? " checked" : ""}><span></span></label></div>
     <div class="sw"><span>Τρόφιμο που αλλοιώνεται γρήγορα</span><label class="tog g"><input type="checkbox" id="pPe"${x.perish !== false ? " checked" : ""}><span></span></label></div>
     <p class="note">Για τα ευπαθή τρόφιμα ο πελάτης ενημερώνεται ότι δεν ισχύει το δικαίωμα υπαναχώρησης.</p></div>
+   ${moreHTML(x)}
    ${node ? `<div class="card"><h3>Το κουμπί στο μενού</h3><label class="f" for="nName">Όνομα στο κουμπί (κενό = όνομα προϊόντος)</label><input class="t" id="nName" value="${esc(node.name || "")}" maxlength="40">
     <label class="f">Μέγεθος</label>${sizePicker(node.size)}<label class="f">Χρώμα</label>${colorPicker(node.color)}</div>` : ""}
    ${p && node ? `<div class="card"><h3>📦 Μεγέθη ή παραλλαγές</h3><p class="note" style="margin-top:0">Θέλεις και άλλο προϊόν μέσα σε αυτό; π.χ. «Μέλι» σε 500 γρ. και 1 κιλό, ή «Αυγά» σε δωδεκάδα και θήκη 30. Το κουμπί γίνεται κατηγορία «${esc(x.name)}» και μέσα της μπαίνουν τα μεγέθη, το καθένα με δική του τιμή.</p><button type="button" class="btn amber wide" data-ea="toVariants">＋ Πρόσθεσε μέγεθος ή παραλλαγή</button></div>` : ""}
@@ -482,10 +537,27 @@ function prodSave() {
   const unit = $("#pU").value === "*" ? ($("#pU2").value.trim() || "τεμ.") : $("#pU").value;
   let pid = b.dataset.pid, p = pid && st.products[pid];
   const now = Date.now();
+  const wantAct = !!($("#pAct") && $("#pAct").checked);
+  if (wantAct) { if (!(price > 0)) return err("Βάλε τιμή πριν το ενεργοποιήσεις."); if (!canActivate(1)) return; }
   if (!p) { pid = "p" + K.uid(5); p = st.products[pid] = { id: pid, hist: [], created: now }; }
   const old = p.price;
   Object.assign(p, { name, unit, price: K.round2(price), step: (() => { const v = K.parseNum($("#pS").value); return isFinite(v) && v > 0 ? Math.round(v * 1000) / 1000 : 1; })(), vat: +$("#pV").value, desc: $("#pD").value.trim(), emoji: $("#emFree").value.trim(), keys: $("#pK").value.trim(), soldout: !$("#pAv").checked, hidden: $("#pHi").checked, perish: $("#pPe").checked });
   if (p.hidden && b.dataset.hidBySo === "1") p.hidBySo = true; else delete p.hidBySo;
+  /* επιπλέον ρυθμίσεις */
+  const num = id => { const e = $(id); if (!e) return NaN; return K.parseNum(e.value); };
+  if ($("#pStOn")) {
+    if ($("#pStOn").checked) { const v = num("#pStock"), was = $("#pStock").dataset.was;
+      if (isFinite(v) && v >= 0 && (p.stock == null || p.stock === "" || $("#pStock").value.trim() !== was)) { p.stock = Math.round(v * 1000) / 1000; p.stockAt = now; } }
+    else { delete p.stock; delete p.stockAt; }
+    const mn = num("#pMin"); if (isFinite(mn) && mn > 0) p.min = mn; else delete p.min;
+    const code = $("#pCode").value.trim(); if (code) p.code = code; else delete p.code;
+    const mo = [...document.querySelectorAll("#pSea [data-mo].on")].map(x => +x.dataset.mo); if (mo.length && mo.length < 12) p.season = mo; else delete p.season;
+    const wh = num("#pWh"); if (isFinite(wh) && wh > 0) p.whole = K.round2(wh); else delete p.whole;
+    const tiers = []; for (let i = 0; i < 3; i++) { const q = num(`[data-tq="${i}"]`), pr = num(`[data-tp="${i}"]`); if (isFinite(q) && q > 0 && isFinite(pr) && pr > 0) tiers.push([q, K.round2(pr)]); }
+    if (tiers.length) p.tiers = tiers.sort((a, c) => a[0] - c[0]); else delete p.tiers;
+    if ($("#pOnly").checked) { p.only = true; p.onlyFor = [...document.querySelectorAll("[data-onlyc]:checked")].map(x => x.dataset.onlyc); } else { delete p.only; delete p.onlyFor; }
+  }
+  if (wantAct) delete p.draft;
   if (b.dataset.photo) p.photo = b.dataset.photo;
   if (b.dataset.phDel) p.photo = "";
   if (old !== p.price) p.hist.push([now, p.price]);
@@ -572,6 +644,7 @@ function renameSheet() {
 }
 
 /* κουμπί «πίσω»: μαρκαρίσματα → κατηγορία πάνω → από «Προϊόντα» στο μενού */
+A.menuList = function () { ed.view = "list"; ed.path = []; ed.marked.clear(); A.render(); window.scrollTo(0, 0); };
 A.menuBack = function () {
   if (ed.marked.size) { ed.marked.clear(); A.render(); return true; }
   if (ed.path.length) { ed.path.pop(); window.scrollTo(0, 0); A.render(); return true; }
@@ -649,6 +722,13 @@ document.addEventListener("click", e => {
     if (n.t === "c") { ed.path.push(n.id); window.scrollTo(0, 0); A.render(); } else prodSheet(n.pid, n.id);
     return;
   }
+  const pa = t.closest("[data-pact]"); if (pa) { activate([pa.dataset.pact]); return; }
+  const paa = t.closest("[data-pactall]"); if (paa) { const v = paa.dataset.pactall, st = S();
+    let ids; if (v === "*") ids = liveProducts().filter(p => p.draft).map(p => p.id);
+    else { const box = paa.closest(".pgrp"); ids = box ? [...box.querySelectorAll("[data-prow]")].map(r => r.dataset.prow) : []; }
+    const n = ids.filter(id => st.products[id] && st.products[id].draft).length;
+    if (n && confirm(n === 1 ? "Να ενεργοποιηθεί 1 προϊόν; Θα το βλέπουν οι πελάτες με την τιμή που έχει τώρα." : "Να ενεργοποιηθούν " + n + " προϊόντα; Θα τα βλέπουν οι πελάτες με τις τιμές που έχουν τώρα.")) activate(ids); return; }
+  const mo = t.closest("#pSea [data-mo]"); if (mo) { mo.classList.toggle("on"); return; }
   const sq = t.closest("[data-soq]"); if (sq) {
     if ($("#pSoQ") && $("#pSoQ").contains(sq)) { const hi = $("#pHi"); if (sq.dataset.soq === "hide") { hi.checked = true; $("#shB").dataset.hidBySo = "1"; } $("#pSoQ").style.display = "none"; A.toast(sq.dataset.soq === "hide" ? "Θα εξαφανιστεί μόλις πατήσεις Αποθήκευση" : "Θα φαίνεται «Εξαντλήθηκε»"); return; }
     const p = S().products[A._soP]; A.closeSheet(); if (p && sq.dataset.soq === "hide") { p.hidden = true; p.hidBySo = true; A.save({ catalog: true }); A.render(); A.toast("🙈 " + p.name + ": δεν φαίνεται πια στους πελάτες"); } else if (p) A.toast(p.name + ": φαίνεται «Εξαντλήθηκε»"); return; }
@@ -665,6 +745,8 @@ document.addEventListener("click", e => {
 }, true);
 document.addEventListener("change", e => {
   const t = e.target;
+  if (t.id === "pStOn") { const b = $("#pStBox"); if (b) b.style.display = t.checked ? "" : "none"; if (t.checked) setTimeout(() => { const i = $("#pStock"); i && i.focus(); }, 50); return; }
+  if (t.id === "pOnly") { const b = $("#pOnlyBox"); if (b) b.style.display = t.checked ? "" : "none"; return; }
   if (t.id === "pCat") { const i = $("#pCatNew"); if (i) { i.style.display = t.value === "+" ? "" : "none"; if (t.value === "+") i.focus(); } return; }
   if (t.id === "pAv") { const l = $("#pAvL"); if (l) { l.textContent = t.checked ? "✅ Διαθέσιμο" : "❌ Εξαντλήθηκε"; l.style.color = t.checked ? "var(--ok)" : "var(--bad)"; }
     const q = $("#pSoQ"), hi = $("#pHi"), b = $("#shB");
