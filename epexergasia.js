@@ -69,7 +69,7 @@ A.menuView = function (m) {
     `<div class="grid" id="edGrid" style="--c1:${esc(st.shop.c1)};--c2:${esc(st.shop.c2)};--on1:${K.contrast(st.shop.c1)};--on2:${K.contrast(st.shop.c2)}">${K.tilesHTML(L, { edit: true, marked: ed.marked, prod: id => st.products[id] })}</div>
     <div class="card" style="margin:6px 0 12px;padding:12px"><div class="note" style="margin:0 0 8px">Προσθήκη ${ed.path.length ? "μέσα στο <b>«" + esc(curCat().name) + "»</b>" : "στην <b>αρχική</b>"}:</div>
      <div class="row"><button type="button" class="btn amber grow" data-ea="addProd">🛒 ＋ Προϊόν με τιμή</button><button type="button" class="btn grow" data-ea="addCat">📁 ＋ ${ed.path.length ? "Υποκατηγορία" : "Κατηγορία"}</button></div>
-     <div class="row" style="margin-top:8px"><button type="button" class="btn soft sm grow" data-ea="add">Άλλα: υπάρχον προϊόν, έτοιμο μενού…</button><button type="button" class="btn ghost sm" data-ea="preview">👁 Προεπισκόπηση</button></div></div>
+     <div class="row" style="margin-top:8px"><button type="button" class="btn soft sm grow" data-ea="presets">📋 Επαγγέλματα</button><button type="button" class="btn soft sm grow" data-ea="add">Άλλα…</button><button type="button" class="btn ghost sm" data-ea="preview">👁 Προεπισκόπηση</button></div></div>
     ${L.length ? `<p class="note">Σύνολο ${liveProducts().length} προϊόντα${A.isPro() ? "" : " · δωρεάν έως " + A.FREE_PRODUCTS}.</p>` : ""}`;
   actbar();
   bindDrag($("#edGrid"));
@@ -124,7 +124,8 @@ function listHTML() {
   if (rest.length) groups.push({ title: "⚠️ Δεν είναι στο μενού", depth: 0, items: rest, warn: 1 });
   const head = `<div class="row" style="margin-bottom:10px"><input class="t grow" id="edQ" placeholder="🔍 Αναζήτηση προϊόντος" value="${esc(ed.q)}"></div>
   <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-ea="newProd">🛒 ＋ Νέο προϊόν</button><button type="button" class="btn grow" data-ea="newCat">📁 ＋ Νέα κατηγορία</button></div>
-  <button type="button" class="btn soft wide" data-xl="open" style="margin-bottom:10px">📊 Όλος ο κατάλογος με Excel (κατέβασμα / ανέβασμα)</button>
+  <div class="row" style="margin-bottom:10px"><button type="button" class="btn soft grow" data-ea="presets">📋 Επαγγέλματα</button><button type="button" class="btn soft grow" data-xl="open">📊 Excel</button></div>
+  ${(() => { const u = S().undoImport; return u && Date.now() - u.at < 2 * 864e5 ? `<div class="okbox" style="display:flex;gap:10px;align-items:center;margin:0 0 10px"><div style="flex:1">Άλλαξες ολόκληρο τον κατάλογο ${new Date(u.at).toLocaleString("el-GR", { weekday: "long", hour: "2-digit", minute: "2-digit" })}.</div><button type="button" class="btn sm soft" data-xl="undo">↩️ Αναίρεση</button></div>` : ""; })()}
 `;
   if (q) for (const g of groups) if (!g.items.length) g.skip = 1;
   const nSub = id => { const f = K.findNode(st.menu, id); return f ? (f.node.kids || []).filter(n => n.t === "c").length : 0; };
@@ -283,8 +284,9 @@ function presetSheet(k) {
    ${P.w ? `<div class="warnbox">⚖️ ${esc(P.w)}</div>` : ""}
    ${P.c.map(([cn, ce, items]) => `<div class="card"><h3>${ce} ${esc(cn)}</h3>${items.map(([n, u, pr]) => `<div class="qrow"><div class="qn"><b>${esc(n)}</b><span>ανά ${esc(u)}</span></div><b>${K.money(pr)}</b></div>`).join("")}</div>`).join("")}
    <div class="okbox">📝 Μπαίνουν ως <b>ενδεικτικά</b>: δεν τα βλέπουν οι πελάτες μέχρι να ελέγξεις τιμές και να πατήσεις «Ενεργοποίηση». Όσα δεν χρειάζεσαι, τα σβήνεις.</div>
-   <p class="note">${prodCount(P)} προϊόντα σε ${P.c.length} κατηγορίες. Τιμές και ΦΠΑ είναι ενδεικτικά· έλεγξέ τα και με τον λογιστή σου.${!A.isPro() ? " Η δωρεάν έκδοση (μετά τη δοκιμή) έχει έως " + A.FREE_PRODUCTS + " ενεργά προϊόντα." : ""}</p>`,
-   `<button type="button" class="btn soft" data-ea="presetBack">← Επαγγέλματα</button><button type="button" class="btn amber" data-preset-go="${k}">Πρόσθεσέ τα</button>`);
+   <p class="note">${prodCount(P)} προϊόντα σε ${P.c.length} κατηγορίες. Τιμές και ΦΠΑ είναι ενδεικτικά· έλεγξέ τα και με τον λογιστή σου.${!A.isPro() ? " Η δωρεάν έκδοση (μετά τη δοκιμή) έχει έως " + A.FREE_PRODUCTS + " ενεργά προϊόντα." : ""}</p>
+   ${Object.values(S().products).some(p => !p.del) ? `<button type="button" class="btn soft wide" data-preset-swap="${k}" style="margin-top:4px">🔄 Αντικατάσταση: σβήσε τον τωρινό κατάλογο και βάλε αυτόν</button><p class="note">Η αντικατάσταση σβήνει τα τωρινά προϊόντα και κατηγορίες (οι παλιές παραγγελίες μένουν). Μπορείς να την αναιρέσεις από το «Προϊόντα και τιμές».</p>` : ""}`,
+   `<button type="button" class="btn soft" data-ea="presetBack">← Επαγγέλματα</button><button type="button" class="btn amber" data-preset-go="${k}">＋ Πρόσθεσέ τα</button>`);
 }
 function applyPreset(k) {
   const st = S(), P = PRESETS[k]; if (!P) return;
@@ -713,6 +715,11 @@ document.addEventListener("click", e => {
   const cr = t.closest("[data-crumb]"); if (cr) { ed.path = ed.path.slice(0, +cr.dataset.crumb + 1); ed.marked.clear(); A.render(); return; }
   const pr = t.closest("[data-preset]"); if (pr) { presetSheet(pr.dataset.preset); return; }
   const pg = t.closest("[data-preset-go]"); if (pg) { applyPreset(pg.dataset.presetGo); return; }
+  const ps = t.closest("[data-preset-swap]"); if (ps) { const st = S(), P = PRESETS[ps.dataset.presetSwap]; if (!P) return;
+    if (!confirm("Να σβηστεί ο τωρινός κατάλογος και να μπει ο «" + P.n + "»; Οι παλιές παραγγελίες δεν αλλάζουν και μπορείς να το αναιρέσεις.")) return;
+    st.undoImport = { at: Date.now(), menu: JSON.parse(JSON.stringify(st.menu)), products: JSON.parse(JSON.stringify(st.products)) };
+    st.menu.splice(0); for (const k of Object.keys(st.products)) delete st.products[k]; ed.path = [];
+    applyPreset(ps.dataset.presetSwap); return; }
   const mk = t.closest("#edGrid [data-mk]"); if (mk) { e.stopPropagation(); const id = mk.dataset.mk; ed.marked.has(id) ? ed.marked.delete(id) : ed.marked.add(id); A.render(); return; }
   const tile = t.closest("#edGrid .tile");
   if (tile) {

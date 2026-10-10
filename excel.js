@@ -390,7 +390,7 @@ document.addEventListener("click", async e => {
   }
   if (k === "undo") {
     const st = S(), u = st.undoImport; if (!u) return;
-    if (!confirm("Να γυρίσει ο κατάλογος όπως ήταν πριν το ανέβασμα της " + new Date(u.at).toLocaleString("el-GR") + ";")) return;
+    if (!confirm("Να γυρίσει ο κατάλογος όπως ήταν πριν την αλλαγή της " + new Date(u.at).toLocaleString("el-GR") + ";")) return;
     st.menu.splice(0, st.menu.length, ...u.menu); st.products = u.products; delete st.undoImport;
     A.save({ catalog: true }); A.closeSheet(); A.render(); A.toast("↩️ Ο κατάλογος γύρισε όπως ήταν."); return;
   }
