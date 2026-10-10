@@ -89,7 +89,8 @@ function listHTML() {
     for (const n of nodes || []) {
       if (n.t === "p") { if (want.has(n.pid) && !used.has(n.pid)) { used.add(n.pid); here.push(st.products[n.pid]); } }
     }
-    if (here.length || (trail.length && !(nodes || []).some(n => n.t === "c"))) groups.push({ title: trail.map(x => (x.emoji ? x.emoji + " " : "") + x.name).join(" › ") || (st.menu.some(n => n.t === "c") ? "⚠️ Χύμα στην αρχική, χωρίς κατηγορία" : "🏠 Αρχική του μενού"), depth: trail.length, items: here, cat: trail.length ? trail[trail.length - 1].id : "", loose: !trail.length && st.menu.some(n => n.t === "c") });
+    if (here.length || (trail.length && !(nodes || []).some(n => n.t === "c"))) groups.push({ title: (trail.length > 1 ? "↳ " + (trail[trail.length - 1].emoji ? trail[trail.length - 1].emoji + " " : "") + trail[trail.length - 1].name : trail.map(x => (x.emoji ? x.emoji + " " : "") + x.name).join(" › ")) || (st.menu.some(n => n.t === "c") ? "⚠️ Χύμα στην αρχική, χωρίς κατηγορία" : "🏠 Αρχική του μενού"), depth: trail.length, items: here, cat: trail.length ? trail[trail.length - 1].id : "", loose: !trail.length && st.menu.some(n => n.t === "c") });
+    else if (trail.length) groups.push({ title: (trail.length > 1 ? "↳ " : "") + (trail[trail.length - 1].emoji ? trail[trail.length - 1].emoji + " " : "") + trail[trail.length - 1].name, depth: trail.length, items: [], cat: trail[trail.length - 1].id, hdr: 1 });
     for (const n of nodes || []) if (n.t === "c") walk(n.kids, trail.concat(n));
   };
   walk(st.menu, []);
@@ -99,7 +100,8 @@ function listHTML() {
   <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-ea="newProd">🛒 ＋ Νέο προϊόν</button><button type="button" class="btn grow" data-ea="newCat">📁 ＋ Νέα κατηγορία</button></div>
 `;
   if (q) for (const g of groups) if (!g.items.length) g.skip = 1;
-  return head + (L.length > 1 && !q ? `<p class="note" style="margin:0 2px 10px">Κράτα το <b>⠿</b> και σύρε για να αλλάξεις σειρά ή να πας ένα προϊόν σε άλλη κατηγορία· ή πάτα <b>📁</b>. Πάτα τον <b>τίτλο</b> μιας κατηγορίας για να την μετονομάσεις ή να τη διαγράψεις.</p>` : "") + (groups.length ? groups.filter(g => !g.skip).map(g => `<div class="card pgrp" data-gcat="${g.warn ? "!" : g.cat}" style="padding:10px 14px;border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><div style="display:flex;align-items:center;gap:8px;margin:2px 0 6px"><h3${g.cat ? ` data-gedit="${g.cat}" role="button" title="Αλλαγή ονόματος ή διαγραφή"` : ""} style="margin:0;flex:1;min-width:0;font-size:${g.depth > 1 ? 15.5 : 17}px;${g.cat ? "cursor:pointer" : ""}">${esc(g.title)} <span class="note gcnt" style="font-weight:400">· ${g.items.length}</span>${g.cat ? ` <span style="font-size:13px;color:var(--brand)">✏️</span>` : ""}</h3>${g.warn ? "" : g.loose ? `<button type="button" class="btn sm amber" data-ea="tidy" style="padding:7px 11px">🧹 Τακτοποίηση</button>` : `<button type="button" class="btn sm amber" data-addto="${g.cat}" style="padding:7px 11px">＋ Προϊόν</button>`}</div>${g.loose ? `<p class="note" style="margin:0 0 4px">Αυτά φαίνονται στον πελάτη ανάμεσα στις κατηγορίες. Σύρε τα με το ⠿ μέσα σε κατηγορία ή πάτα «Τακτοποίηση».</p>` : ""}<div class="pitems">${(g.warn ? g.items.sort((a, b) => a.name.localeCompare(b.name, "el")) : g.items).map(prow).join("")}</div></div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
+  const nSub = id => { const f = K.findNode(st.menu, id); return f ? (f.node.kids || []).filter(n => n.t === "c").length : 0; };
+  return head + (L.length > 1 && !q ? `<p class="note" style="margin:0 2px 10px">Κράτα το <b>⠿</b> και σύρε για να αλλάξεις σειρά ή να πας ένα προϊόν σε άλλη κατηγορία· ή πάτα <b>📁</b>. Με τα <b>▲▼</b> αλλάζεις σειρά στις κατηγορίες. Πάτα τον <b>τίτλο</b> μιας κατηγορίας για να την μετονομάσεις ή να τη διαγράψεις.</p>` : "") + (groups.length ? groups.filter(g => !g.skip).map(g => `<div class="card pgrp${g.hdr ? " phdr" : ""}" data-gcat="${g.warn ? "!" : g.cat}" style="padding:${g.hdr ? "8px 14px" : "10px 14px"};${g.hdr ? "background:color-mix(in srgb,var(--accent) 14%,#fff);margin-bottom:6px;" : ""}${g.depth > 1 ? "margin-left:" + Math.min(3, g.depth - 1) * 10 + "px;" : ""}border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><div style="display:flex;align-items:center;gap:8px;margin:2px 0 6px">${g.cat ? (() => { const f = K.findNode(st.menu, g.cat), sib = f ? f.list.filter(n => n.t === "c") : [], i = f ? sib.indexOf(f.node) : -1; return `<div class="cmv"><button type="button" data-cmv="${g.cat}" data-dir="-1" aria-label="Κατηγορία πιο πάνω"${i <= 0 ? " disabled" : ""}>▲</button><button type="button" data-cmv="${g.cat}" data-dir="1" aria-label="Κατηγορία πιο κάτω"${i < 0 || i >= sib.length - 1 ? " disabled" : ""}>▼</button></div>`; })() : ""}<h3${g.cat ? ` data-gedit="${g.cat}" role="button" title="Αλλαγή ονόματος ή διαγραφή"` : ""} style="margin:0;flex:1;min-width:0;font-size:${g.depth > 1 ? 15.5 : 17}px;${g.cat ? "cursor:pointer" : ""}">${esc(g.title)} <span class="note gcnt" style="font-weight:400">· ${g.hdr ? nSub(g.cat) + " υποκατ." : g.items.length}</span>${g.cat ? ` <span style="font-size:13px;color:var(--brand)">✏️</span>` : ""}</h3>${g.warn || g.hdr ? "" : g.loose ? `<button type="button" class="btn sm amber" data-ea="tidy" style="padding:7px 11px">🧹 Τακτοποίηση</button>` : `<button type="button" class="btn sm amber" data-addto="${g.cat}" style="padding:7px 11px">＋ Προϊόν</button>`}</div>${g.loose ? `<p class="note" style="margin:0 0 4px">Αυτά φαίνονται στον πελάτη ανάμεσα στις κατηγορίες. Σύρε τα με το ⠿ μέσα σε κατηγορία ή πάτα «Τακτοποίηση».</p>` : ""}${g.hdr ? "" : `<div class="pitems">`}${(g.warn ? g.items.sort((a, b) => a.name.localeCompare(b.name, "el")) : g.items).map(prow).join("")}${g.hdr ? "" : "</div>"}</div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
     + (L.length ? `<p class="note">Πράσινος διακόπτης = <b>διαθέσιμο</b>. Κλείσ' τον όταν τελειώσει ένα προϊόν: ο πελάτης το βλέπει «Εξαντλήθηκε» και δεν μπορεί να το παραγγείλει. Η τιμή αλλάζει μόλις φύγεις από το πλαίσιο.</p>` : "");
 }
 /* ---------- τακτοποίηση: προϊόντα χύμα στην αρχική ---------- */
@@ -156,6 +158,18 @@ function moveProd(pid, from, to, beforePid, afterPid) {
   dest.splice(at, 0, node);
   A.save({ catalog: true }); A.render();
   if (from !== to) A.toast("✓ " + st.products[pid].name + " → «" + catName(to) + "»");
+}
+function catMove(id, dir) {
+  const f = K.findNode(S().menu, id); if (!f) return;
+  const L = f.list, i = L.indexOf(f.node); let j = i + dir;
+  while (j >= 0 && j < L.length && L[j].t !== "c") j += dir;
+  if (j < 0 || j >= L.length) return;
+  L.splice(i, 1); L.splice(j, 0, f.node);
+  A.save({ catalog: true });
+  const before = document.querySelector(`[data-gcat="${id}"]`), y = before ? before.getBoundingClientRect().top : 0;
+  A.render();
+  const after = document.querySelector(`[data-gcat="${id}"]`);
+  if (after) { window.scrollBy(0, after.getBoundingClientRect().top - y); after.animate([{ boxShadow: "0 0 0 3px var(--accent)" }, { boxShadow: "0 0 0 0 transparent" }], { duration: 900 }); }
 }
 function pmoveSheet(pid, from) {
   const p = S().products[pid]; if (!p) return;
@@ -619,6 +633,7 @@ document.addEventListener("click", e => {
     if (n.t === "c") { ed.path.push(n.id); window.scrollTo(0, 0); A.render(); } else prodSheet(n.pid, n.id);
     return;
   }
+  const cm = t.closest("[data-cmv]"); if (cm) { catMove(cm.dataset.cmv, +cm.dataset.dir); return; }
   const ge = t.closest("[data-gedit]"); if (ge) { const f = K.findNode(S().menu, ge.dataset.gedit); if (f) catSheet(f.node); return; }
   const pm = t.closest("[data-pmove]"); if (pm) { pmoveSheet(pm.dataset.pmove, (pm.closest("[data-gcat]") || {}).dataset ? pm.closest("[data-gcat]").dataset.gcat : "!"); return; }
   const pmt = t.closest("[data-pmvto]"); if (pmt) { const m = A._pmv || {}; A.closeSheet(); moveProd(m.pid, m.from, pmt.dataset.pmvto, null, null); return; }
