@@ -78,7 +78,7 @@ function listHTML() {
   const prow = p => `<div class="prow">${p.photo ? `<img src="${esc(p.photo)}" alt="">` : `<span class="pe">${esc(p.emoji || "📦")}</span>`}
      <div class="pt" data-pedit="${p.id}"><b>${esc(p.name)}</b><span>ανά ${esc(p.unit)}${p.hidden ? " · κρυφό" : ""}</span></div>
      <input class="pp" inputmode="decimal" data-pprice="${p.id}" value="${(+p.price || 0).toFixed(2).replace(".", ",")}" aria-label="Τιμή">
-     <div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:62px"><label class="tog g" title="Διαθέσιμο" style="flex:none"><input type="checkbox" data-pavail="${p.id}"${p.soldout ? "" : " checked"}><span></span></label><small style="font-size:11px;font-weight:700;color:${p.soldout ? "var(--bad)" : "var(--ok)"}">${p.soldout ? "Εξαντλήθηκε" : "Διαθέσιμο"}</small></div></div>`;
+     <div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:62px"><label class="tog g av" title="Διαθέσιμο" style="flex:none"><input type="checkbox" data-pavail="${p.id}"${p.soldout ? "" : " checked"}><span></span></label><small style="font-size:11px;font-weight:700;color:${p.soldout ? "var(--bad)" : "var(--ok)"}">${p.soldout ? "Εξαντλήθηκε" : "Διαθέσιμο"}</small></div></div>`;
   /* ομάδες όπως στο μενού: «Κατηγορία › Υποκατηγορία» */
   const groups = [];
   const walk = (nodes, trail) => {
@@ -301,7 +301,7 @@ function prodSheet(pid, nodeId) {
     <p class="note">Μόνο δικές σου φωτογραφίες ή με άδεια χρήσης.</p>
     <label class="f">Εικονίδιο (αν δεν υπάρχει φωτογραφία)</label>${emojiPicker(x.emoji)}<input class="t" id="emFree" value="${esc(x.emoji || "")}" maxlength="4" style="margin-top:6px;width:150px">
     <label class="f" for="pK">Άλλες λέξεις που γράφουν οι πελάτες (για τα μηνύματα Viber)</label><input class="t" id="pK" value="${esc(x.keys || "")}" maxlength="100" placeholder="π.χ. αυγουλάκια, φρέσκα"></div>
-   <div class="card"><div class="sw"><span>Εξαντλήθηκε</span><label class="tog"><input type="checkbox" id="pSo"${x.soldout ? " checked" : ""}><span></span></label></div>
+   <div class="card"><div class="sw"><span id="pAvL" style="font-weight:800;color:${x.soldout ? "var(--bad)" : "var(--ok)"}">${x.soldout ? "❌ Εξαντλήθηκε" : "✅ Διαθέσιμο"}</span><label class="tog g av"><input type="checkbox" id="pAv"${x.soldout ? "" : " checked"}><span></span></label></div>
     <div class="sw"><span>Κρυφό (δεν φαίνεται στον πελάτη)</span><label class="tog"><input type="checkbox" id="pHi"${x.hidden ? " checked" : ""}><span></span></label></div>
     <div class="sw"><span>Τρόφιμο που αλλοιώνεται γρήγορα</span><label class="tog g"><input type="checkbox" id="pPe"${x.perish !== false ? " checked" : ""}><span></span></label></div>
     <p class="note">Για τα ευπαθή τρόφιμα ο πελάτης ενημερώνεται ότι δεν ισχύει το δικαίωμα υπαναχώρησης.</p></div>
@@ -328,7 +328,7 @@ function prodSave() {
   const now = Date.now();
   if (!p) { pid = "p" + K.uid(5); p = st.products[pid] = { id: pid, hist: [], created: now }; }
   const old = p.price;
-  Object.assign(p, { name, unit, price: K.round2(price), step: +$("#pS").value, vat: +$("#pV").value, desc: $("#pD").value.trim(), emoji: $("#emFree").value.trim(), keys: $("#pK").value.trim(), soldout: $("#pSo").checked, hidden: $("#pHi").checked, perish: $("#pPe").checked });
+  Object.assign(p, { name, unit, price: K.round2(price), step: +$("#pS").value, vat: +$("#pV").value, desc: $("#pD").value.trim(), emoji: $("#emFree").value.trim(), keys: $("#pK").value.trim(), soldout: !$("#pAv").checked, hidden: $("#pHi").checked, perish: $("#pPe").checked });
   if (b.dataset.photo) p.photo = b.dataset.photo;
   if (b.dataset.phDel) p.photo = "";
   if (old !== p.price) p.hist.push([now, p.price]);
@@ -476,6 +476,7 @@ document.addEventListener("click", e => {
 }, true);
 document.addEventListener("change", e => {
   const t = e.target;
+  if (t.id === "pAv") { const l = $("#pAvL"); if (l) { l.textContent = t.checked ? "✅ Διαθέσιμο" : "❌ Εξαντλήθηκε"; l.style.color = t.checked ? "var(--ok)" : "var(--bad)"; } }
   if (t.matches("[data-pavail]")) { const p = S().products[t.dataset.pavail]; if (p) { p.soldout = !t.checked; A.save({ catalog: true }); A.toast(p.name + (p.soldout ? ": εξαντλήθηκε" : ": διαθέσιμο")); const sm = t.closest("div").querySelector("small"); if (sm) { sm.textContent = p.soldout ? "Εξαντλήθηκε" : "Διαθέσιμο"; sm.style.color = p.soldout ? "var(--bad)" : "var(--ok)"; } } }
   if (t.matches("[data-pprice]")) setPrice(t.dataset.pprice, t.value);
 });
