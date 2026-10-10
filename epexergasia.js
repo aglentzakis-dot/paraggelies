@@ -171,6 +171,17 @@ function catMove(id, dir) {
   const after = document.querySelector(`[data-gcat="${id}"]`);
   if (after) { window.scrollBy(0, after.getBoundingClientRect().top - y); after.animate([{ boxShadow: "0 0 0 3px var(--accent)" }, { boxShadow: "0 0 0 0 transparent" }], { duration: 900 }); }
 }
+/* διαθέσιμο ⇄ εξαντλήθηκε· όταν εξαντλείται, ρωτά αν θα εξαφανιστεί από τον κατάλογο των πελατών */
+function setAvail(p, on) {
+  p.soldout = !on;
+  if (on) { if (p.hidden && p.hidBySo) { p.hidden = false; delete p.hidBySo; A.toast("✓ " + p.name + ": διαθέσιμο και ξαναφαίνεται στους πελάτες"); } else A.toast(p.name + ": διαθέσιμο"); A.save({ catalog: true }); A.render(); return; }
+  A.save({ catalog: true }); A.render();
+  if (p.hidden) { A.toast(p.name + ": εξαντλήθηκε"); return; }
+  A._soP = p.id;
+  A.sheet("«" + p.name + "» εξαντλήθηκε", `<div class="card"><p style="margin-top:0;font-weight:700">Τι να βλέπουν οι πελάτες σου;</p>
+    <div class="card list" style="margin:0"><div class="it" data-soq="show"><div class="ic">👁</div><div class="t"><b>Να φαίνεται με «Εξαντλήθηκε»</b><span>Το βλέπουν γκρίζο και δεν μπορούν να το παραγγείλουν. Καλό όταν θα ξαναέρθει σύντομα.</span></div></div>
+    <div class="it" data-soq="hide"><div class="ic">🙈</div><div class="t"><b>Να εξαφανιστεί από τον κατάλογο</b><span>Δεν το βλέπουν καθόλου. Μόλις το ξανακάνεις διαθέσιμο, εμφανίζεται πάλι μόνο του.</span></div></div></div></div>`);
+}
 function pmoveSheet(pid, from) {
   const p = S().products[pid]; if (!p) return;
   A._pmv = { pid, from };
@@ -434,6 +445,7 @@ function prodSheet(pid, nodeId) {
     <label class="f">Εικονίδιο (αν δεν υπάρχει φωτογραφία)</label>${emojiPicker(x.emoji)}<input class="t" id="emFree" value="${esc(x.emoji || "")}" maxlength="4" style="margin-top:6px;width:150px">
     <label class="f" for="pK">Άλλες λέξεις που γράφουν οι πελάτες (για τα μηνύματα Viber)</label><input class="t" id="pK" value="${esc(x.keys || "")}" maxlength="100" placeholder="π.χ. αυγουλάκια, φρέσκα"></div>
    <div class="card"><div class="sw"><span id="pAvL" style="font-weight:800;color:${x.soldout ? "var(--bad)" : "var(--ok)"}">${x.soldout ? "❌ Εξαντλήθηκε" : "✅ Διαθέσιμο"}</span><label class="tog g av"><input type="checkbox" id="pAv"${x.soldout ? "" : " checked"}><span></span></label></div>
+    <div id="pSoQ" class="warnbox" style="display:none;margin:6px 0"><b>Τι να βλέπουν οι πελάτες;</b><div class="row" style="margin-top:6px"><button type="button" class="btn sm soft grow" data-soq="show">👁 «Εξαντλήθηκε»</button><button type="button" class="btn sm amber grow" data-soq="hide">🙈 Να εξαφανιστεί</button></div></div>
     <div class="sw"><span>Κρυφό (δεν φαίνεται στον πελάτη)</span><label class="tog"><input type="checkbox" id="pHi"${x.hidden ? " checked" : ""}><span></span></label></div>
     <div class="sw"><span>Τρόφιμο που αλλοιώνεται γρήγορα</span><label class="tog g"><input type="checkbox" id="pPe"${x.perish !== false ? " checked" : ""}><span></span></label></div>
     <p class="note">Για τα ευπαθή τρόφιμα ο πελάτης ενημερώνεται ότι δεν ισχύει το δικαίωμα υπαναχώρησης.</p></div>
@@ -444,7 +456,7 @@ function prodSheet(pid, nodeId) {
    <div id="pErr"></div>`,
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-ea="prodSave">Αποθήκευση</button>`,
    el => {
-     pickBind(el); el.dataset.pid = pid || ""; el.dataset.node = nodeId || "";
+     pickBind(el); el.dataset.pid = pid || ""; el.dataset.hidBySo = x.hidBySo ? "1" : ""; el.dataset.node = nodeId || "";
      el.querySelector("#pU").addEventListener("change", e => { el.querySelector("#pU2").style.display = e.target.value === "*" ? "" : "none"; syncStep("u"); });
      const syncStep = from => { const P = el.querySelector("#pP"), St = el.querySelector("#pS"), SP = el.querySelector("#pSP"), N = el.querySelector("#pSN");
        const pr = K.parseNum(P.value), st = K.parseNum(St.value), sp = K.parseNum(SP.value);
@@ -471,6 +483,7 @@ function prodSave() {
   if (!p) { pid = "p" + K.uid(5); p = st.products[pid] = { id: pid, hist: [], created: now }; }
   const old = p.price;
   Object.assign(p, { name, unit, price: K.round2(price), step: (() => { const v = K.parseNum($("#pS").value); return isFinite(v) && v > 0 ? Math.round(v * 1000) / 1000 : 1; })(), vat: +$("#pV").value, desc: $("#pD").value.trim(), emoji: $("#emFree").value.trim(), keys: $("#pK").value.trim(), soldout: !$("#pAv").checked, hidden: $("#pHi").checked, perish: $("#pPe").checked });
+  if (p.hidden && b.dataset.hidBySo === "1") p.hidBySo = true; else delete p.hidBySo;
   if (b.dataset.photo) p.photo = b.dataset.photo;
   if (b.dataset.phDel) p.photo = "";
   if (old !== p.price) p.hist.push([now, p.price]);
@@ -633,6 +646,9 @@ document.addEventListener("click", e => {
     if (n.t === "c") { ed.path.push(n.id); window.scrollTo(0, 0); A.render(); } else prodSheet(n.pid, n.id);
     return;
   }
+  const sq = t.closest("[data-soq]"); if (sq) {
+    if ($("#pSoQ") && $("#pSoQ").contains(sq)) { const hi = $("#pHi"); if (sq.dataset.soq === "hide") { hi.checked = true; $("#shB").dataset.hidBySo = "1"; } $("#pSoQ").style.display = "none"; A.toast(sq.dataset.soq === "hide" ? "Θα εξαφανιστεί μόλις πατήσεις Αποθήκευση" : "Θα φαίνεται «Εξαντλήθηκε»"); return; }
+    const p = S().products[A._soP]; A.closeSheet(); if (p && sq.dataset.soq === "hide") { p.hidden = true; p.hidBySo = true; A.save({ catalog: true }); A.render(); A.toast("🙈 " + p.name + ": δεν φαίνεται πια στους πελάτες"); } else if (p) A.toast(p.name + ": φαίνεται «Εξαντλήθηκε»"); return; }
   const cm = t.closest("[data-cmv]"); if (cm) { catMove(cm.dataset.cmv, +cm.dataset.dir); return; }
   const ge = t.closest("[data-gedit]"); if (ge) { const f = K.findNode(S().menu, ge.dataset.gedit); if (f) catSheet(f.node); return; }
   const pm = t.closest("[data-pmove]"); if (pm) { pmoveSheet(pm.dataset.pmove, (pm.closest("[data-gcat]") || {}).dataset ? pm.closest("[data-gcat]").dataset.gcat : "!"); return; }
@@ -647,8 +663,11 @@ document.addEventListener("click", e => {
 document.addEventListener("change", e => {
   const t = e.target;
   if (t.id === "pCat") { const i = $("#pCatNew"); if (i) { i.style.display = t.value === "+" ? "" : "none"; if (t.value === "+") i.focus(); } return; }
-  if (t.id === "pAv") { const l = $("#pAvL"); if (l) { l.textContent = t.checked ? "✅ Διαθέσιμο" : "❌ Εξαντλήθηκε"; l.style.color = t.checked ? "var(--ok)" : "var(--bad)"; } }
-  if (t.matches("[data-pavail]")) { const p = S().products[t.dataset.pavail]; if (p) { p.soldout = !t.checked; A.save({ catalog: true }); A.toast(p.name + (p.soldout ? ": εξαντλήθηκε" : ": διαθέσιμο")); const sm = t.closest("label").parentElement.querySelector("small"); if (sm) { sm.textContent = p.soldout ? "Εξαντλήθηκε" : "Διαθέσιμο"; sm.style.color = p.soldout ? "var(--bad)" : "var(--ok)"; } } }
+  if (t.id === "pAv") { const l = $("#pAvL"); if (l) { l.textContent = t.checked ? "✅ Διαθέσιμο" : "❌ Εξαντλήθηκε"; l.style.color = t.checked ? "var(--ok)" : "var(--bad)"; }
+    const q = $("#pSoQ"), hi = $("#pHi"), b = $("#shB");
+    if (!t.checked && hi && !hi.checked && q) q.style.display = "";
+    if (t.checked) { if (q) q.style.display = "none"; if (hi && hi.checked && b.dataset.hidBySo === "1") { hi.checked = false; b.dataset.hidBySo = ""; } } }
+  if (t.matches("[data-pavail]")) { const p = S().products[t.dataset.pavail]; if (p) setAvail(p, t.checked); }
   if (t.matches("[data-pprice]")) setPrice(t.dataset.pprice, t.value);
 });
 document.addEventListener("input", e => { if (e.target.id === "edQ") { ed.q = e.target.value; const p = e.target.selectionStart; A.render(); const i = $("#edQ"); i.focus(); i.setSelectionRange(p, p); } });

@@ -161,7 +161,11 @@
   K.num = n => { n = Math.round((+n || 0) * 1000) / 1000; return n.toLocaleString("el-GR", { maximumFractionDigits: 3 }); };
   K.round2 = n => Math.round((+n || 0) * 100 + 1e-9) / 100;
   K.UNITS = ["τεμ.", "κιλό", "λίτρο", "δωδεκάδα", "εξάδα", "θήκη 30", "βάζο", "μπουκάλι", "κιβώτιο", "συσκευασία", "φραντζόλα", "μερίδα"];
-  K.parseNum = s => { const v = parseFloat(String(s).replace(/\s/g, "").replace(",", ".")); return isFinite(v) ? v : NaN; };
+  /* ελληνική γραφή: «.» χιλιάδες, «,» δεκαδικά — το «1.000» είναι χίλια, το «4.5» τέσσερα και μισό */
+  K.parseNum = s => { let t = String(s == null ? "" : s).replace(/[\s€]/g, "");
+    if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+    else if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, "");
+    const v = parseFloat(t); return isFinite(v) && /^-?(\d+\.?\d*|\.\d+)$/.test(t) ? v : NaN; };
   K.WD = ["Κυριακή", "Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
   K.MON = ["Ιαν", "Φεβ", "Μαρ", "Απρ", "Μαΐ", "Ιουν", "Ιουλ", "Αυγ", "Σεπ", "Οκτ", "Νοε", "Δεκ"];
   K.ymd = d => { const p = n => String(n).padStart(2, "0"); return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); };
@@ -415,7 +419,7 @@
         const img = p.photo ? `<img class="ph" src="${K.esc(p.photo)}" alt="">` : (n.emoji || p.emoji ? `<span class="em">${K.esc(n.emoji || p.emoji)}</span>` : "");
         const ctl = ctx.edit ? "" : so ? `<div class="so">Εξαντλήθηκε</div>` :
           `<div class="qty"><button type="button" class="qb" data-minus="${p.id}" aria-label="Λιγότερο"${q ? "" : " disabled"}>−</button><span class="qv" data-qv="${p.id}">${q ? K.num(q) : "0"}</span><button type="button" class="qb plus" data-plus="${p.id}" aria-label="Περισσότερο">+</button></div>`;
-        out.push(`<div class="tile prod sz-${sz}${so ? " soldout" : ""}${q ? " has" : ""}${p.hidden ? " hid" : ""}${sel}" data-node="${n.id}" data-pid="${p.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<div class="tx"><div class="nm">${K.esc(n.name || p.name)}</div><div class="pr">${K.money(p.price)} <small>/ ${K.esc(p.unit)}</small></div>${p.desc && sz !== "s" ? `<div class="ds">${K.esc(p.desc)}</div>` : ""}</div>${ctl}${ctx.edit && (so || p.hidden) ? `<div class="flag">${so ? "Εξαντλήθηκε" : "Κρυφό"}</div>` : ""}</div>`);
+        out.push(`<div class="tile prod sz-${sz}${so ? " soldout" : ""}${q ? " has" : ""}${p.hidden ? " hid" : ""}${sel}" data-node="${n.id}" data-pid="${p.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<div class="tx"><div class="nm">${K.esc(n.name || p.name)}</div><div class="pr">${K.money(p.price)} <small>/ ${K.esc(p.unit)}</small></div>${+p.step && +p.step !== 1 ? `<div class="stp">κάθε ＋ ${K.num(p.step)} ${K.esc(p.unit)} = <b>${K.money(p.price * p.step)}</b></div>` : ""}${p.desc && sz !== "s" ? `<div class="ds">${K.esc(p.desc)}</div>` : ""}</div>${ctl}${ctx.edit && (so || p.hidden) ? `<div class="flag">${so ? "Εξαντλήθηκε" : "Κρυφό"}</div>` : ""}</div>`);
       } else {
         const cnt = ctx.count ? ctx.count(n) : 0;
         const img = n.photo ? `<img class="ph" src="${K.esc(n.photo)}" alt="">` : n.emoji ? `<span class="em">${K.esc(n.emoji)}</span>` : "";
