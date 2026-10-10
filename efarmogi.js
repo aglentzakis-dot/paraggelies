@@ -263,7 +263,7 @@ function render() {
   if (S.ui.test && !rb) { $(".top").insertAdjacentHTML("beforeend", `<button type="button" class="lnk" id="roleBtn" data-act="role" style="background:#fff;color:#17324D">👤 Πελάτης</button>`); }
   else if (!S.ui.test && rb) rb.remove();
   $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
-  const tb2 = $('#tabs [data-tab="totals"]'); if (tb2 && !tb2.dataset.rn) { tb2.innerHTML = '<span class="i">💶</span>Ταμείο'; tb2.dataset.rn = 1; }
+  const gb = $("#gearBtn"); if (gb) gb.style.background = tab === "more" ? "var(--accent)" : "rgba(255,255,255,.12)";
   const nNew = S.orders.filter(o => o.st === "new" || o.st === "dup").length;
   const ob = $('#tabs [data-tab="orders"]'); const d = ob.querySelector(".dot"); if (d) d.remove();
   if (nNew) ob.insertAdjacentHTML("beforeend", `<span class="dot">${nNew}</span>`);
@@ -594,7 +594,9 @@ function totalsView() {
   const sales = K.round2(ords.reduce((a, o) => a + o.total, 0)), owed = K.round2(ords.filter(o => !o.paid).reduce((a, o) => a + o.total, 0));
   const kpi = (c, l, v, col) => `<div class="card" style="margin:0;padding:10px"><div class="note" style="margin:0;display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:5px;background:${c}"></span>${l}</div><div style="font-weight:800;font-size:19px;color:${col}">${K.money(v)}</div></div>`;
   const row = (l, v, col, b) => `<div class="qrow"><div class="qn">${b ? `<b>${l}</b>` : l}</div><b style="color:${col};${b ? "font-size:19px" : ""}">${v < 0 ? "− " : ""}${K.money(Math.abs(v))}</b></div>`;
-  return `<h2 style="margin:2px 2px 10px;font-size:20px">💶 Ταμείο</h2>
+  const debt = Object.values(S.customers).map(c => ({ c, v: custStats(c.key).owed })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+  const debtSum = K.round2(debt.reduce((a, x) => a + x.v, 0));
+  return `<div class="row" style="margin:2px 2px 10px;align-items:center"><h2 style="margin:0;font-size:20px" class="grow">💶 Ταμείο</h2><button type="button" class="btn sm" data-act="owedSheet" style="background:${debtSum ? "#FBE7E3" : "#E3F1E8"};color:${debtSum ? "#C8412B" : "#2E7D5B"};border:1px solid ${debtSum ? "#F1B3AD" : "#A8D8B7"}">${debtSum ? "🔴 Σου χρωστάνε " + K.money(debtSum) : "✓ Κανείς δεν χρωστά"}</button></div>
    <label style="display:flex;align-items:center;gap:8px;background:var(--brand);color:#fff;border-radius:14px;padding:12px 14px;font-weight:800;margin-bottom:10px">⏳<select id="totPer" style="flex:1;background:transparent;border:0;color:#fff;font:inherit;font-weight:800;appearance:none">${Object.entries(PERIODS).map(([k, v]) => `<option value="${k}" style="color:#000"${k === totPer ? " selected" : ""}>${v}</option>`).join("")}</select><span style="color:var(--accent)">▾</span></label>
    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">${kpi("#2E7D5B", "Εισπράξεις", inc, "#2E7D5B")}${kpi("#C8412B", "Έξοδα", out, "#C8412B")}${kpi("#2468B5", "Υπόλοιπο", inc - out, "#2468B5")}</div>
    <div class="row" style="margin-bottom:12px"><button type="button" class="btn grow" style="background:#E3F1E8;color:#2E7D5B;border:1px solid #A8D8B7" data-cash="in">＋ Είσπραξη</button><button type="button" class="btn grow" style="background:#FBE7E3;color:#C8412B;border:1px solid #F1B3AD" data-cash="out">＋ Έξοδο</button></div>
@@ -648,7 +650,8 @@ function custStats(k) {
 }
 function custsView() {
   const q = K.norm(custQ);
-  const L = Object.values(S.customers).filter(c => !q || K.norm(c.name + " " + c.phone + " " + (c.addr || "")).includes(q)).sort((a, b) => (b.last || 0) - (a.last || 0));
+  const owe = {}; for (const k of Object.keys(S.customers)) owe[k] = custStats(k).owed;
+  const L = Object.values(S.customers).filter(c => !q || K.norm(c.name + " " + c.phone + " " + (c.addr || "")).includes(q)).sort((a, b) => ((owe[b.key] > 0) - (owe[a.key] > 0)) || (owe[a.key] > 0 ? owe[b.key] - owe[a.key] : 0) || (b.last || 0) - (a.last || 0));
   const owedAll = K.round2(Object.keys(S.customers).reduce((a, k) => a + custStats(k).owed, 0));
   return `<div class="row" style="margin-bottom:10px"><input class="t grow" id="custQ" placeholder="🔍 Αναζήτηση πελάτη" value="${esc(custQ)}"><button type="button" class="btn amber" data-act="custNewBtn">＋ Νέος</button></div>
    ${owedAll > 0 ? `<div class="warnbox">Σου χρωστάνε συνολικά <b>${K.money(owedAll)}</b> από παραδομένες παραγγελίες.</div>` : ""}
@@ -1045,6 +1048,10 @@ const ACT = {
   lkPreview: () => { const u = $("#shB").dataset.url; closeSheet(); setTimeout(() => openPreview(u), 60); },
   pvClose: () => closePreview(false),
   role: () => switchRole(),
+  owedSheet: () => {
+    const debt = Object.values(S.customers).map(c => ({ c, v: custStats(c.key).owed })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+    sheet("🔴 Σου χρωστάνε", debt.length ? `<div class="card list">${debt.map(x => `<div class="it" data-cust="${x.c.key}"><div class="ic">👤</div><div class="t"><b>${esc(x.c.name)}</b><span>${esc(x.c.phone)}</span></div><b style="color:#C8412B">${K.money(x.v)}</b></div>`).join("")}</div><div class="row" style="padding:0 4px"><b class="grow">Σύνολο</b><b style="color:#C8412B;font-size:19px">${K.money(debt.reduce((a, x) => a + x.v, 0))}</b></div>` : `<div class="okbox">✓ Κανείς δεν σου χρωστά.</div>`);
+  },
   demoStart: () => demoStart(),
   demoEnd: () => demoEnd(),
   cashSave: () => { const b = $("#shB"), v = K.parseNum($("#cxA").value); if (!isFinite(v) || v <= 0) { toast("Γράψε ποσό."); return; } const id = b.dataset.cid; let x = id && cashList().find(c => c.id === id); if (!x) { x = { id: "c" + K.uid(6), kind: b.dataset.ckind, src: "paraggelies", created: Date.now() }; cashList().push(x); } Object.assign(x, { d: $("#cxD").value || today(), amt: K.round2(v), cat: $("#cxC").value, note: $("#cxN").value.trim() }); save(); closeSheet(); render(); toast("✓ Καταχωρίστηκε"); },
@@ -1117,7 +1124,7 @@ A.ACT = ACT;
 const curOrd = () => S.orders.find(x => x.id === $("#shB").dataset.ord);
 document.addEventListener("click", async e => {
   const t = e.target;
-  const tb = t.closest("#tabs [data-tab]"); if (tb) { if (tab !== tb.dataset.tab) { tab = tb.dataset.tab; window.scrollTo(0, 0); render(); } return; }
+  const tb = t.closest("#tabs [data-tab], #gearBtn"); if (tb) { if (tab !== tb.dataset.tab) { tab = tb.dataset.tab; window.scrollTo(0, 0); render(); } return; }
   if (t.id === "sheetbg") { closeSheet(); return; }
   const fm = t.closest("[data-fm]"); if (fm) { formQty(fm.dataset.fm, -1); return; }
   const fp = t.closest("[data-fp]"); if (fp) { formQty(fp.dataset.fp, 1); return; }

@@ -48,10 +48,12 @@ A.menuView = function (m) {
   const crumbs = `${ed.path.length ? `<div class="note" style="margin:0 2px 4px">📁 Είσαι μέσα σε κατηγορία (επίπεδο ${ed.path.length + 1}). Ό,τι προσθέσεις εδώ μπαίνει μέσα της.</div>` : ""}<div class="crumbs"><button type="button" data-crumb="-1">🏠 Αρχική</button>${path.map((n, i) => `<span class="sep">›</span><button type="button" data-crumb="${i}">${esc(n.name || "Χωρίς όνομα")}</button>`).join("")}${path.length ? `<button type="button" data-ea="catEdit" style="margin-left:auto">✏️ Ρυθμίσεις κατηγορίας</button>` : ""}</div>`;
   const empty = !st.menu.length;
   m.innerHTML = seg + crumbs +
-    (ed.hint && L.length ? `<div class="note" style="margin:0 0 10px">Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά. Πάτα μια κατηγορία για να μπεις μέσα. <a href="#" data-ea="hintOff">Εντάξει</a></div>` : "") +
+    (ed.hint && L.length ? `<div class="note" style="margin:0 0 10px"><b>Πάτα ένα προϊόν</b> για να αλλάξεις όνομα και τιμή. <b>Πάτα μια κατηγορία</b> για να μπεις μέσα της. Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά. Πάτα μια κατηγορία για να μπεις μέσα. <a href="#" data-ea="hintOff">Εντάξει</a></div>` : "") +
     (empty ? presetsHTML() : "") +
     `<div class="grid" id="edGrid" style="--c1:${esc(st.shop.c1)};--c2:${esc(st.shop.c2)};--on1:${K.contrast(st.shop.c1)};--on2:${K.contrast(st.shop.c2)}">${K.tilesHTML(L, { edit: true, marked: ed.marked, prod: id => st.products[id] })}</div>
-    <div class="row" style="margin:6px 0 12px"><button type="button" class="btn amber grow" data-ea="add">＋ Κουμπί ${ed.path.length ? "εδώ" : "στην αρχική"}</button><button type="button" class="btn ghost" data-ea="preview">👁 Προεπισκόπηση</button></div>
+    <div class="card" style="margin:6px 0 12px;padding:12px"><div class="note" style="margin:0 0 8px">Προσθήκη ${ed.path.length ? "μέσα στο <b>«" + esc(curCat().name) + "»</b>" : "στην <b>αρχική</b>"}:</div>
+     <div class="row"><button type="button" class="btn amber grow" data-ea="addProd">🛒 ＋ Προϊόν με τιμή</button><button type="button" class="btn grow" data-ea="addCat">📁 ＋ ${ed.path.length ? "Υποκατηγορία" : "Κατηγορία"}</button></div>
+     <div class="row" style="margin-top:8px"><button type="button" class="btn soft sm grow" data-ea="add">Άλλα: υπάρχον προϊόν, έτοιμο μενού…</button><button type="button" class="btn ghost sm" data-ea="preview">👁 Προεπισκόπηση</button></div></div>
     ${L.length ? `<p class="note">Σύνολο ${liveProducts().length} προϊόντα${A.isPro() ? "" : " · δωρεάν έως " + A.FREE_PRODUCTS}.</p>` : ""}`;
   actbar();
   bindDrag($("#edGrid"));
@@ -270,8 +272,9 @@ function prodSheet(pid, nodeId) {
   const node = nodeId ? K.findNode(st.menu, nodeId).node : null;
   const unitKnown = K.UNITS.includes(x.unit);
   A.sheet(p ? "Προϊόν" : "Νέο προϊόν", `
-   <div class="card"><label class="f" for="pN">Όνομα</label><input class="t" id="pN" value="${esc(x.name)}" maxlength="60" placeholder="π.χ. Αυγά ελευθέρας βοσκής">
-    <div class="two"><div><label class="f" for="pP">Τιμή (€)</label><input class="t" id="pP" inputmode="decimal" value="${x.price !== "" ? K.num(x.price) : ""}" placeholder="0,00"></div>
+   ${!p && curCat() ? `<div class="note" style="margin:0 2px 8px">Μπαίνει μέσα στο <b>«${esc(curCat().name)}»</b>.</div>` : ""}
+   <div class="card"><label class="f" for="pN">Όνομα προϊόντος</label><input class="t" id="pN" value="${esc(x.name)}" maxlength="60" placeholder="π.χ. Αυγά ελευθέρας βοσκής">
+    <div class="two"><div><label class="f" for="pP">💶 Τιμή (€)</label><input class="t" id="pP" inputmode="decimal" value="${x.price !== "" ? K.num(x.price) : ""}" placeholder="0,00" style="font-size:22px;font-weight:800;border-color:var(--accent)"></div>
      <div><label class="f" for="pU">Μονάδα</label><select class="t" id="pU">${K.UNITS.map(u => `<option${u === x.unit ? " selected" : ""}>${u}</option>`).join("")}<option value="*"${unitKnown ? "" : " selected"}>Άλλη…</option></select></div></div>
     <input class="t" id="pU2" value="${unitKnown ? "" : esc(x.unit)}" placeholder="Γράψε μονάδα" maxlength="20" style="margin-top:6px;${unitKnown ? "display:none" : ""}">
     <div class="two"><div><label class="f" for="pS">Βήμα ποσότητας</label><select class="t" id="pS">${[1, 0.5, 0.25, 0.1, 2, 5, 6, 10, 12].map(s => `<option value="${s}"${+x.step === s ? " selected" : ""}>${K.num(s)}</option>`).join("")}</select></div>
@@ -287,6 +290,7 @@ function prodSheet(pid, nodeId) {
     <p class="note">Για τα ευπαθή τρόφιμα ο πελάτης ενημερώνεται ότι δεν ισχύει το δικαίωμα υπαναχώρησης.</p></div>
    ${node ? `<div class="card"><h3>Το κουμπί στο μενού</h3><label class="f" for="nName">Όνομα στο κουμπί (κενό = όνομα προϊόντος)</label><input class="t" id="nName" value="${esc(node.name || "")}" maxlength="40">
     <label class="f">Μέγεθος</label>${sizePicker(node.size)}<label class="f">Χρώμα</label>${colorPicker(node.color)}</div>` : ""}
+   ${p && node ? `<div class="card"><h3>📦 Μεγέθη ή παραλλαγές</h3><p class="note" style="margin-top:0">Θέλεις και άλλο προϊόν μέσα σε αυτό; π.χ. «Μέλι» σε 500 γρ. και 1 κιλό, ή «Αυγά» σε δωδεκάδα και θήκη 30. Το κουμπί γίνεται κατηγορία «${esc(x.name)}» και μέσα της μπαίνουν τα μεγέθη, το καθένα με δική του τιμή.</p><button type="button" class="btn amber wide" data-ea="toVariants">＋ Πρόσθεσε μέγεθος ή παραλλαγή</button></div>` : ""}
    ${p ? `<button type="button" class="btn red wide" data-ea="prodDel">Διαγραφή προϊόντος</button>${(p.hist || []).length > 1 ? `<details class="card" style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">Ιστορικό τιμών</summary>${p.hist.slice().reverse().map(([t, v]) => `<div class="note">${new Date(t).toLocaleString("el-GR")} · ${K.money(v)}</div>`).join("")}</details>` : ""}` : ""}
    <div id="pErr"></div>`,
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-ea="prodSave">Αποθήκευση</button>`,
@@ -408,6 +412,16 @@ const EA = {
     A.save({ catalog: true }); A.closeSheet(); A.render();
   },
   prodSave,
+  toVariants: () => {
+    const b = $("#shB"), st = S(), f = K.findNode(st.menu, b.dataset.node); if (!f) return;
+    const n = f.node, p = st.products[n.pid]; if (!p) return;
+    const cat = { id: newId(), t: "c", name: p.name, emoji: n.emoji || p.emoji || "", size: n.size || "m", color: n.color || "", kids: [] };
+    f.list.splice(f.list.indexOf(n), 1, cat);
+    n.size = "m"; n.color = ""; n.name = p.unit ? p.name + " · " + p.unit : ""; cat.kids.push(n);
+    const path = K.pathTo(st.menu, cat.id); ed.path = path.map(x => x.id); ed.view = "menu"; ed.marked.clear();
+    A.save({ catalog: true }); A.closeSheet(); A.render();
+    setTimeout(() => { prodSheet(null, null); const i = $("#pN"); if (i) { i.value = p.name + " "; i.focus(); } A.toast("Γράψε το νέο μέγεθος και την τιμή του", 3500); }, 120);
+  },
   prodDel: () => {
     const pid = $("#shB").dataset.pid, p = S().products[pid]; if (!p) return;
     if (!confirm("Οριστική διαγραφή του «" + p.name + "» από τον κατάλογο και το μενού; Οι παλιές παραγγελίες δεν αλλάζουν.")) return;
