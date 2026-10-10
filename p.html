@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.19">
+<meta name="app-version" content="1.20">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.19">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.19">
-<link rel="stylesheet" href="koino.css?v=1.19">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.20">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.20">
+<link rel="stylesheet" href="koino.css?v=1.20">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -79,13 +79,16 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 .how{background:var(--card);border-left:5px solid var(--c2);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14.5px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .foot details.seller summary{cursor:pointer;font-weight:700;color:var(--ink);padding:6px 0}
 .foot details.seller div{margin:4px 0}
+.sect{margin:16px 2px 8px;font-size:19px;display:flex;align-items:center;gap:6px}
+.sect::after{content:"";flex:1;height:2px;background:var(--c2);opacity:.6;border-radius:2px;margin-left:6px}
+.sect.d2{font-size:16.5px;margin-top:12px}.sect.d3{font-size:15px;opacity:.85}
 .home-add{display:block;margin:4px auto 0;border:0;background:transparent;color:var(--c1);font-weight:700;text-decoration:underline;cursor:pointer;padding:8px}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.19"></script>
+<script src="katalogos.js?v=1.20"></script>
 <script>
 (function(){
 "use strict";
@@ -165,6 +168,20 @@ function footer(){const s=C.s;const perish=Object.values(P).some(p=>p.perish);
   <button type="button" class="home-add" data-act="home">📲 Βάλ' το στην αρχική οθόνη</button>
   <div class="gl">Παραγγελίες με GlenApps</div></footer>`}
 
+/* μέσα σε κατηγορία: οι υποκατηγορίες γίνονται τίτλοι και τα προϊόντα τους φαίνονται αμέσως, χωρίς δεύτερο πάτημα */
+function sectionsHTML(nodes,parent){
+  const ctx={prod:id=>P[id],qty,count:n=>K.countIn(n,qty)};
+  const prods=n=>(n||[]).filter(x=>x.t==="p"),cats=n=>(n||[]).filter(x=>x.t==="c");
+  const has=n=>prods(n.kids).some(x=>P[x.pid])||cats(n.kids).some(has);
+  let html="";const top=prods(nodes);
+  if(top.length)html+=`<div class="grid">${K.tilesHTML(top,ctx)}</div>`;
+  const walk=(list,depth,parentName)=>{for(const c of cats(list)){if(!has(c))continue;
+    const same=K.norm(c.name)===K.norm(parentName||"")&&cats(list).length===1;
+    if(!same)html+=`<h2 class="sect d${Math.min(depth,3)}">${c.emoji?esc(c.emoji)+" ":""}${esc(c.name)}</h2>`;
+    const ps=prods(c.kids);if(ps.length)html+=`<div class="grid">${K.tilesHTML(ps,ctx)}</div>`;
+    walk(c.kids,same?depth:depth+1,c.name)}};
+  walk(nodes,1,parent&&parent.name);
+  return html||`<p class="empty">Δεν υπάρχουν είδη εδώ ακόμα.</p>`}
 function curNodes(){if(!view.length)return M;const f=K.findNode(M,view[view.length-1]);return f&&f.node.kids?f.node.kids:M}
 function render(){
   document.querySelectorAll("body > .bar").forEach(e=>e.remove());
@@ -180,7 +197,7 @@ function render(){
    ${!path.length?routeBox():""}
    ${!path.length?(()=>{const L=store.get(SK+":sent",[]).filter(x=>x.ok&&x.d>=K.ymd(new Date()));return L.length?`<div class="how" style="border-left-color:#1f7a3d">✅ Έχεις στείλει παραγγελία για ${esc([...new Set(L.map(x=>K.dayLabel(x.d)))].join(" και "))}. Ό,τι στείλεις ακόμα για την ίδια ημέρα θα προστεθεί σε αυτή.</div>`:""})():""}
    ${!path.length&&!t.n&&M.length?`<div class="how">🛒 <b>Πώς παραγγέλνεις:</b> πάτα μια κατηγορία, βάλε ποσότητες με <b>+</b> και στο τέλος πάτα <b>«Συνέχεια»</b>.</div>`:""}
-   ${M.length?`<div class="grid" id="grid">${K.tilesHTML(nodes,{prod:id=>P[id],qty,count:n=>K.countIn(n,qty)})}</div>`:`<div class="sec" style="text-align:center"><div style="font-size:40px">📦</div><b>Ο κατάλογος είναι άδειος</b><p class="note">Ο πωλητής δεν έχει βάλει ακόμα προϊόντα. Ζήτησέ του να σου στείλει νέο σύνδεσμο.</p></div>`}</main>`+footer()+bar();
+   ${M.length?(view.length?sectionsHTML(nodes,path[path.length-1]):`<div class="grid" id="grid">${K.tilesHTML(nodes,{prod:id=>P[id],qty,count:n=>K.countIn(n,qty)})}</div>`):`<div class="sec" style="text-align:center"><div style="font-size:40px">📦</div><b>Ο κατάλογος είναι άδειος</b><p class="note">Ο πωλητής δεν έχει βάλει ακόμα προϊόντα. Ζήτησέ του να σου στείλει νέο σύνδεσμο.</p></div>`}</main>`+footer()+bar();
 }
 function bar(){const t=totals();if(!t.n)return"";return`<div class="bar"><div class="sum"><b>${K.money(t.t)}</b><span>${t.n} ${t.n===1?"είδος":"είδη"} στο καλάθι</span></div><button type="button" class="btn alt" data-act="check">Συνέχεια →</button></div>`}
 function refreshTile(id){const q=qty(id);document.querySelectorAll(`[data-qv="${id}"]`).forEach(e=>e.textContent=q?K.num(q):"0");document.querySelectorAll(`.tile[data-pid="${id}"]`).forEach(t=>{t.classList.toggle("has",!!q);const m=t.querySelector("[data-minus]");if(m)m.disabled=!q});
