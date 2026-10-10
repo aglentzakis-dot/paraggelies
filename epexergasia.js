@@ -98,6 +98,7 @@ function listHTML() {
   if (rest.length) groups.push({ title: "⚠️ Δεν είναι στο μενού", depth: 0, items: rest, warn: 1 });
   const head = `<div class="row" style="margin-bottom:10px"><input class="t grow" id="edQ" placeholder="🔍 Αναζήτηση προϊόντος" value="${esc(ed.q)}"></div>
   <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-ea="newProd">🛒 ＋ Νέο προϊόν</button><button type="button" class="btn grow" data-ea="newCat">📁 ＋ Νέα κατηγορία</button></div>
+  <button type="button" class="btn soft wide" data-xl="open" style="margin-bottom:10px">📊 Όλος ο κατάλογος με Excel (κατέβασμα / ανέβασμα)</button>
 `;
   if (q) for (const g of groups) if (!g.items.length) g.skip = 1;
   const nSub = id => { const f = K.findNode(st.menu, id); return f ? (f.node.kids || []).filter(n => n.t === "c").length : 0; };
@@ -241,7 +242,8 @@ function presetGrid() {
 }
 function presetsHTML() {
   return `<div class="card"><h3>Διάλεξε το επάγγελμά σου</h3><p class="note" style="margin-top:0">Μπαίνει έτοιμο μενού με κατηγορίες και προϊόντα. Μετά αλλάζεις ό,τι θέλεις: ονόματα, τιμές, σειρά, μεγέθη. Οι τιμές είναι ενδεικτικές.</p>${presetGrid()}
-   <p class="note">Ή πάτα «＋ Κουμπί» για να φτιάξεις τα δικά σου από την αρχή.</p></div>`;
+   <p class="note">Ή πάτα «＋ Κουμπί» για να φτιάξεις τα δικά σου από την αρχή.</p>
+   <button type="button" class="btn soft wide" data-xl="open">📊 Ή γράψε τον κατάλογό σου σε Excel και ανέβασέ τον</button></div>`;
 }
 function presetPicker() {
   const here = ed.path.length ? K.findNode(S().menu, ed.path[ed.path.length - 1]).node.name : "";
@@ -520,6 +522,7 @@ function addSheet() {
   A.sheet("Νέο κουμπί", `<div class="card list">
    <div class="it" data-ea="addCat"><div class="ic">📁</div><div class="t"><b>${ed.path.length ? "Υποκατηγορία μέσα στο «" + esc(curCat().name) + "»" : "Κατηγορία"}</b><span>Κουμπί που ανοίγει και έχει μέσα άλλα κουμπιά. Μπορείς να βάλεις υποκατηγορίες μέσα σε υποκατηγορίες, όσα επίπεδα θέλεις.</span></div></div>
    <div class="it" data-ea="addProd"><div class="ic">🛒</div><div class="t"><b>Νέο προϊόν</b><span>Με τιμή, μονάδα και κουμπιά − και +</span></div></div>
+   <div class="it" data-xl="open"><div class="ic">📊</div><div class="t"><b>Όλος ο κατάλογος από Excel</b><span>Κατέβασε πρότυπο, γράψε κατηγορίες, προϊόντα και τιμές, ανέβασέ το</span></div></div>
    <div class="it" data-ea="presets"><div class="ic">📋</div><div class="t"><b>Έτοιμο μενού από επάγγελμα</b><span>${Object.keys(PRESETS).length} επαγγέλματα: αυγά, γάλα, τυριά, ψάρια, φούρνος, νερά…</span></div></div></div>
    ${others.length ? `<div class="card list"><h3>Υπάρχον προϊόν και εδώ</h3>${others.map(p => `<div class="it" data-addex="${p.id}"><div class="ic">${esc(p.emoji || "📦")}</div><div class="t"><b>${esc(p.name)}</b><span>${K.money(p.price)} / ${esc(p.unit)}${productInMenu(p.id) ? "" : " · δεν είναι στο μενού"}</span></div></div>`).join("")}</div>` : ""}`);
 }
