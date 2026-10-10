@@ -392,6 +392,38 @@
     }
     return null;
   };
+  /* ---------- ζωντανός κατάλογος: ο πελάτης παίρνει κάθε αλλαγή χωρίς νέο σύνδεσμο ---------- */
+  K.CAT_SUFFIX = "_k";
+  K.CHUNK = 3000;
+  K.catalogPublish = async (st, C) => {
+    if (!st.nt || !st.nt.topic || !st.nt.spriv) return false;
+    const pk = await K.pack(C), g = await K.liveSign(st.nt.spriv, pk), n = Math.ceil(pk.length / K.CHUNK);
+    if (n > 20) return false;
+    for (let i = 0; i < n; i++) {
+      const r = await fetch(K.NTFY + "/" + st.nt.topic + K.CAT_SUFFIX, { method: "POST", body: JSON.stringify({ v: 2, id: C.ts, i, n, c: pk.slice(i * K.CHUNK, (i + 1) * K.CHUNK), g }) });
+      if (!r.ok) return false;
+    }
+    return true;
+  };
+  K.catalogFetch = async (C0, after) => {
+    if (!C0 || !C0.g || !C0.t) return null;
+    const r = await fetch(K.NTFY + "/" + C0.t + K.CAT_SUFFIX + "/json?poll=1&since=12h", { cache: "no-store" });
+    if (!r.ok) return null;
+    const sets = new Map();
+    for (const ln of (await r.text()).split("\n")) { if (!ln.trim()) continue;
+      try { const m = JSON.parse(ln); if (m.event !== "message") continue; const o = JSON.parse(m.message);
+        if (o.v !== 2 || typeof o.id !== "number" || typeof o.c !== "string" || !(o.n > 0 && o.n <= 20) || !(o.i >= 0 && o.i < o.n)) continue;
+        const k = o.id + "|" + o.g; if (!sets.has(k)) sets.set(k, { id: o.id, n: o.n, g: o.g, parts: [] }); sets.get(k).parts[o.i] = o.c; } catch {} }
+    const now = Date.now();
+    const L = [...sets.values()].filter(x => x.id > (after || 0) && x.id < now + 10 * 6e4 && x.parts.filter(v => typeof v === "string").length === x.n).sort((a, b) => b.id - a.id);
+    for (const x of L.slice(0, 10)) {
+      const pk = x.parts.join("");
+      if (!(await K.liveVerify(C0.g, pk, x.g))) continue;
+      try { const C = await K.unpack(pk); if (C && C.v === 1 && C.ts === x.id && C.k === C0.k && C.t === C0.t && C.g === C0.g) return { C, pk, g: x.g }; } catch {}
+    }
+    return null;
+  };
+  K.verifyPacked = async (C0, pk, g) => (await K.liveVerify(C0.g, pk, g)) ? K.unpack(pk) : null;
   K.ntfySend = async (topic, title, message, click) => {
     const r = await fetch(K.NTFY + "/", {
       method: "POST",
@@ -573,6 +605,8 @@
       const kind = K.priceKind(x, cu);
       const o = { n: x.name, u: x.unit, r: kind === "retail" ? +x.price || 0 : K.priceFor(x, cu, 0) };
       if (+x.step && +x.step !== 1) o.s = +x.step;
+      if (x.only) o.xo = 1;
+      if (kind !== "retail" && opts.cust) { opts.cust.pp = opts.cust.pp || {}; opts.cust.pp[id] = o.r; }
       if (kind !== "personal" && Array.isArray(x.tiers) && x.tiers.length) { const tq = x.tiers.filter(t => +t[0] > 0 && +t[1] > 0 && +t[1] < o.r).map(t => [+t[0], +t[1]]); if (tq.length) o.tq = tq; }
       if (+x.min > 0) o.mn = +x.min;
       if (!K.inSeason(x)) o.xs = 1;

@@ -64,6 +64,7 @@ function save(opt) {
   if (!DEMO) try { window.GlenDrive && GlenDrive.state().on && GlenDrive.changed(); } catch {}
   phoneBackupSoon();
   if ((opt && opt.catalog) || hasStock()) liveSoon();
+  if (opt && opt.catalog) catSoon();
 }
 A.save = save; A.S = () => S;
 /* ---------- ζωντανή διαθεσιμότητα: ο πελάτης βλέπει αμέσως τι τελείωσε, χωρίς νέο σύνδεσμο ---------- */
@@ -76,7 +77,18 @@ function liveSoon(ms, force) {
     if (!force && sig === S.link.liveSig && S.link.liveAt && Date.now() - S.link.liveAt < 4 * 36e5) return;
     if (await K.livePublish(S, o)) { S.link.liveAt = Date.now(); S.link.liveSig = sig; clearTimeout(saveT); saveT = setTimeout(write, 250); } } catch {} }, ms == null ? 4000 : ms);
 }
-function liveKeep() { if (!S.link.liveAt || Date.now() - S.link.liveAt > 4 * 36e5) liveSoon(500, true); }
+function liveKeep() { if (!S.link.liveAt || Date.now() - S.link.liveAt > 4 * 36e5) liveSoon(500, true); if (!S.link.catAt || Date.now() - S.link.catAt > 4 * 36e5) catSoon(1500, true); }
+/* ο κατάλογος (προϊόντα, τιμές, κατηγορίες, ημέρες παράδοσης) φτάνει μόνος του σε όσους έχουν ήδη τον σύνδεσμο */
+let catT = null;
+function catSoon(ms, force) {
+  if (!S.link.gSent || !S.nt.spriv) return;
+  clearTimeout(catT); catT = setTimeout(async () => { try {
+    const C = K.buildCatalog(S, { photos: false, logo: false, appUrl: BASE });
+    const sig = JSON.stringify(Object.assign({}, C, { ts: 0 }));
+    if (!force && sig === S.link.catSig) return;
+    if (await K.catalogPublish(S, C)) { S.link.catSig = sig; S.link.catAt = Date.now(); S.link.dirty = false; clearTimeout(saveT); saveT = setTimeout(write, 250); if (tab === "orders" || tab === "more") render(); }
+  } catch {} }, ms == null ? 8000 : ms);
+}
 setInterval(() => { try { S && liveKeep(); } catch {} }, 30 * 6e4);
 
 /* ---------- μικρά εργαλεία διεπαφής ---------- */
@@ -410,7 +422,7 @@ function ordersView() {
   const cnt = st => S.orders.filter(o => ordMatch(o, { st, day: ordFilter.day })).length;
   const days = [...new Set(S.orders.filter(o => o.st !== "cancel" && o.when.date && o.when.date >= addDays(today(), -1)).map(o => o.when.date))].sort().slice(0, 12);
   const list = S.orders.filter(o => ordMatch(o, ordFilter)).sort((a, b) => ordFilter.st === "all" || ordFilter.st === "paid" || ordFilter.st === "cancel" ? b.rx - a.rx : (a.when.date || "9").localeCompare(b.when.date || "9") || a.rx - b.rx);
-  const lk = S.link.dirty && S.link.sentAt ? `<div class="warnbox">Άλλαξαν προϊόντα ή τιμές μετά την τελευταία αποστολή καταλόγου. <button type="button" class="btn sm amber" data-act="link" style="margin-top:6px">Στείλε ξανά τον κατάλογο</button></div>` : "";
+  const lk = S.link.sentAt && !S.link.gSent ? `<div class="warnbox"><b>Στείλε μία τελευταία φορά τον κατάλογο στους πελάτες σου.</b> Από εκεί και πέρα κάθε αλλαγή σε προϊόντα, τιμές και ημέρες φτάνει μόνη της, χωρίς νέο σύνδεσμο. <button type="button" class="btn sm amber" data-act="link" style="margin-top:6px">Στείλε τον κατάλογο</button></div>` : "";
   const ntw = S.shop.name && !S.nt.on ? `<div class="warnbox">🔔 Οι ειδοποιήσεις δεν έχουν ενεργοποιηθεί ακόμα. <button type="button" class="btn sm amber" data-act="notif" style="margin-top:6px">Ενεργοποίηση</button></div>` : "";
   return demoBanner() + updBanner() + installBanner() + (DEMO ? "" : onboarding()) + (DEMO ? "" : lk + ntw) + remindersHTML() + `
    <div class="note" id="liveSt" style="margin:0 2px 8px">${liveText()}</div>
@@ -980,7 +992,7 @@ function moreView() {
   return `<div class="card list">
    ${it("🏪", "Στοιχεία πωλητή", sh.ok ? "Συμπληρωμένα" : "Λείπουν: " + sh.miss.join(", "), "shop")}
    ${it("🚚", "Παράδοση και ημέρες", deliveryText(), "deliv")}
-   ${it("📤", "Στείλε τον κατάλογο", S.link.sentAt ? "Στάλθηκε " + fmtTime(S.link.sentAt) + (S.link.dirty ? " · χρειάζεται νέος" : "") : "Δεν έχει σταλεί ακόμα", "link")}
+   ${it("📤", "Στείλε τον κατάλογο", S.link.sentAt ? (S.link.gSent ? "Οι αλλαγές φτάνουν μόνες τους στους πελάτες" + (S.link.catAt ? " · τελευταία " + fmtTime(S.link.catAt) : "") : "Στάλθηκε " + fmtTime(S.link.sentAt) + " · στείλ' τον μία τελευταία φορά") : "Δεν έχει σταλεί ακόμα", "link")}
    ${it("🔔", "Ειδοποιήσεις", S.nt.on ? "Ενεργές" : "Δεν έχουν ενεργοποιηθεί", "notif")}
    ${it("📋", "Παραγγελία από μήνυμα Viber", "Επικόλληση ή κοινοποίηση μηνύματος", "paste")}</div>
    <div class="card list">
@@ -1191,7 +1203,7 @@ async function linkSheet() {
   const msg = "🛒 Παραγγελίες «" + S.shop.name + "»\n" + url;
   sheet("📤 Στείλε τον κατάλογο στους πελάτες", `
    <div class="okbox">Αυτή είναι η σελίδα του καταστήματός σου για τους πελάτες. Στείλ' την μία φορά στο Viber και παραγγέλνουν από εκεί όσες φορές θέλουν. Νέα αποστολή χρειάζεται μόνο όταν αλλάζεις τιμές ή προϊόντα.</div>
-   ${S.link.dirty && S.link.sentAt ? `<div class="warnbox">Άλλαξες προϊόντα ή τιμές. Στείλε τον νέο σύνδεσμο στους πελάτες σου. Ακόμα κι αν κάποιος παραγγείλει από τον παλιό, γράφονται πάντα οι δικές σου τρέχουσες τιμές.</div>` : ""}
+   ${S.link.gSent ? `<div class="okbox">✓ Όσοι έχουν ήδη τον σύνδεσμο παίρνουν μόνοι τους κάθε αλλαγή (προϊόντα, τιμές, διαθεσιμότητα, ημέρες) μόλις τον ανοίξουν. Τον στέλνεις μόνο σε νέους πελάτες.</div>` : S.link.sentAt ? `<div class="warnbox">Στείλε τον μία τελευταία φορά στους πελάτες σου: από εκεί και πέρα οι αλλαγές φτάνουν μόνες τους.</div>` : ""}
    <div class="card"><div class="prev" style="--c1:${esc(S.shop.c1)};--on1:${K.contrast(S.shop.c1)}"><div class="ph">${S.shop.logo && S.link.logo ? `<img src="${esc(S.shop.logo)}" alt="">` : ""}<b>${esc(S.shop.name)}</b></div></div>
     <div class="note" style="margin:10px 0 4px">Έτσι θα φαίνεται στο Viber:</div>
     <div style="background:#efe9fb;border-radius:14px 14px 14px 4px;padding:10px 12px;font-size:14.5px;max-width:280px">🛒 Παραγγελίες «${esc(S.shop.name)}»<br><span style="color:#5b3fd1;word-break:break-all">${esc(short || long.slice(0, 60) + "…")}</span>
@@ -1208,7 +1220,7 @@ async function linkSheet() {
    <button type="button" class="btn ghost wide" data-act="lkPreview" style="margin-top:8px">⛶ Προεπισκόπηση σε όλη την οθόνη</button>`, "",
    el => { el.dataset.url = long; el.dataset.msg = msg; });
 }
-function linkSent() { S.link.sentAt = Date.now(); S.link.dirty = false; save(); }
+function linkSent() { S.link.sentAt = Date.now(); S.link.dirty = false; if (S.nt.spub) { if (!S.link.gSent) S.link.gSent = Date.now(); } save(); catSoon(1500, true); liveSoon(2500, true); }
 
 /* ---------- ειδοποιήσεις ---------- */
 const NT_PLAY = "https://play.google.com/store/apps/details?id=io.heckel.ntfy", NT_IOS = "https://apps.apple.com/app/ntfy/id1625396347";

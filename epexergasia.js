@@ -745,7 +745,7 @@ document.addEventListener("click", e => {
 }, true);
 document.addEventListener("change", e => {
   const t = e.target;
-  if (t.id === "pStOn") { const b = $("#pStBox"); if (b) b.style.display = t.checked ? "" : "none"; if (t.checked) setTimeout(() => { const i = $("#pStock"); i && i.focus(); }, 50); return; }
+  if (t.id === "pStOn") { const b = $("#pStBox"); if (b) b.style.display = t.checked ? "" : "none"; if (t.checked) { const i = $("#pStock"); i && i.focus(); } return; }
   if (t.id === "pOnly") { const b = $("#pOnlyBox"); if (b) b.style.display = t.checked ? "" : "none"; return; }
   if (t.id === "pCat") { const i = $("#pCatNew"); if (i) { i.style.display = t.value === "+" ? "" : "none"; if (t.value === "+") i.focus(); } return; }
   if (t.id === "pAv") { const l = $("#pAvL"); if (l) { l.textContent = t.checked ? "✅ Διαθέσιμο" : "❌ Εξαντλήθηκε"; l.style.color = t.checked ? "var(--ok)" : "var(--bad)"; }

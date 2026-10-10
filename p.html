@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.30">
+<meta name="app-version" content="1.31">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.30">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.30">
-<link rel="stylesheet" href="koino.css?v=1.30">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.31">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.31">
+<link rel="stylesheet" href="koino.css?v=1.31">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -89,14 +89,14 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.30"></script>
+<script src="katalogos.js?v=1.31"></script>
 <script>
 (function(){
 "use strict";
 const K=window.Kat,$=s=>document.querySelector(s),esc=K.esc;
 const APP_URL=new URL("./",location.href).href;
 const INFRAME=(()=>{try{return window.top!==window}catch{return true}})();
-let C=null,P=null,M=null,cart={},view=[],stage="shop",lastSent=null,sending=false,orderId=null,deferredPrompt=null;
+let C0=null,C=null,P=null,M=null,cart={},view=[],stage="shop",lastSent=null,sending=false,orderId=null,deferredPrompt=null;
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 let SK="";
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e});
@@ -114,13 +114,43 @@ async function load(){
   if(want&&got<want){bad("Ο σύνδεσμος κόπηκε στη μεταφορά: έφτασαν "+got+" από "+want+" χαρακτήρες. Ζήτησε από τον πωλητή να τον στείλει με το κουμπί «Αντιγραφή» ή να βγάλει το λογότυπο από τον σύνδεσμο.");return}
   try{C=await K.unpack(k)}catch(e){bad("Ο σύνδεσμος δεν διαβάστηκε σε αυτόν τον περιηγητή. Δοκίμασε: τρεις τελείες ⋮ πάνω δεξιά → «Άνοιγμα σε Chrome». (Τεχνική ένδειξη: "+esc(String(e&&e.message||e))+", "+got+(want?"/"+want:"")+")");return}
   if(!C||C.v!==1||!C.k||!C.t||!C.s||!C.s.n){bad("Ο σύνδεσμος δεν είναι έγκυρος.");return}
+  C0=C;SK="par:"+C.k.slice(0,16);
+  /* ο πιο πρόσφατος κατάλογος που είχε έρθει ζωντανά από τον πωλητή (αν είναι νεότερος από τον σύνδεσμο) */
+  try{const L=store.get(SK+":live",null);if(L&&L.ts>C.ts&&L.pk&&L.g){const X=await K.verifyPacked(C0,L.pk,L.g);if(X&&X.ts===L.ts&&X.k===C0.k&&X.t===C0.t)C=mergeLive(X)}}catch{}
   const ex=K.expandCatalog(C);P=ex.products;M=ex.menu;
-  SK="par:"+C.k.slice(0,16);
   cart=store.get(SK+":cart",{});for(const id of Object.keys(cart))if(!P[id]||P[id].soldout)delete cart[id];
   brand();if(!INFRAME){history.replaceState(null,"");history.pushState({v:[],s:"shop"},"")}render();
-  liveUpdate();
+  liveAll();
   if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
+
+/* ---------- ζωντανός κατάλογος: κάθε αλλαγή του πωλητή φτάνει χωρίς νέο σύνδεσμο ---------- */
+function mergeLive(L){
+  L=JSON.parse(JSON.stringify(L));L.c=C0.c;L.u=L.u||C0.u;
+  if(!L.s.lg&&C0.s.lg)L.s.lg=C0.s.lg;
+  for(const[id,o]of Object.entries(L.p||{})){const a=(C0.p||{})[id];if(a&&a.f&&!o.f)o.f=a.f}
+  const catPh={};(function w(ns){for(const n of ns||[]){if(n.k){if(n.f)catPh[n.i]=n.f;w(n.k)}}})(C0.m);
+  (function w(ns){for(const n of ns||[]){if(n.k){if(!n.f&&catPh[n.i])n.f=catPh[n.i];w(n.k)}}})(L.m);
+  if(C0.c){
+    const pp=C0.c.pp||{};for(const[id,r]of Object.entries(pp))if(L.p[id]){L.p[id].r=r;delete L.p[id].tq}
+    const parentOf={};(function w(ns,par){for(const n of ns||[]){if(n.k)w(n.k,n.i);else if(n.p)parentOf[n.p]={node:n,par}}})(C0.m,null);
+    const catById={};(function w(ns){for(const n of ns||[]){if(n.k){catById[n.i]=n;w(n.k)}}})(L.m);
+    for(const[id,o]of Object.entries(C0.p||{}))if(o.xo&&!L.p[id]){L.p[id]=o;const x=parentOf[id];if(x){(x.par&&catById[x.par]?catById[x.par].k:L.m).push(x.node)}}
+  }
+  return L;
+}
+async function liveCatalog(){
+  let r=null;try{r=await K.catalogFetch(C0,C.ts)}catch{}
+  if(!r)return false;
+  store.set(SK+":live",{ts:r.C.ts,pk:r.pk,g:r.g});
+  C=mergeLive(r.C);const ex=K.expandCatalog(C);P=ex.products;M=ex.menu;liveTs=0;
+  for(const id of Object.keys(cart))if(!P[id]||P[id].soldout)delete cart[id];store.set(SK+":cart",cart);
+  const ok=ids=>{let L=M;for(const id of ids){const n=L.find(x=>x.id===id&&x.t==="c");if(!n)return false;L=n.kids}return true};
+  if(!ok(view))view=[];
+  brand();if(stage==="shop"||stage==="check")keepInputs(render);
+  return true;
+}
+async function liveAll(){await liveCatalog();await liveUpdate()}
 
 /* ---------- ζωντανή διαθεσιμότητα από τον πωλητή ---------- */
 let liveTs=0;
@@ -136,7 +166,7 @@ async function liveUpdate(){
   if(stage==="shop"||stage==="check")keepInputs(render);
   if(gone)toastMsg("Ενημερώθηκε η διαθεσιμότητα· άλλαξαν "+gone+" είδη στο καλάθι σου.");
 }
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&C)liveUpdate()});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&C)liveAll()});
 
 /* ---------- στοιχεία πωλητή: χρώματα, λογότυπο, όνομα στην αρχική οθόνη ---------- */
 function brand(){
@@ -367,7 +397,7 @@ document.addEventListener("click",e=>{
   if(b.dataset.day||b.dataset.slot||b.dataset.how||b.dataset.inv){saveCk();const ch=store.get(SK+":ck",{});if(b.dataset.day)ch.d=b.dataset.day;if(b.dataset.slot)ch.s=b.dataset.slot;if(b.dataset.how)ch.h=b.dataset.how;if(b.dataset.inv)ch.inv=b.dataset.inv;store.set(SK+":ck",ch);keepInputs(renderCheck);return}
   const a=b.dataset.act;if(!a)return;
   if(a==="back"){history.back()}
-  else if(a==="check"){go(view,"check");liveUpdate()}
+  else if(a==="check"){go(view,"check");liveAll()}
   else if(a==="shop"){saveCk();history.back()}
   else if(a==="send")send();
   else if(a==="retry"){stage="check";render();send()}
@@ -401,7 +431,7 @@ function toastMsg(m){let t=document.getElementById("toast");if(!t){t=document.cr
 
 load();
 /* για τους ελέγχους της εφαρμογής */
-window.__pg={get C(){return C},get P(){return P},get cart(){return cart},totals:()=>totals(),liveUpdate:()=>liveUpdate(),get liveTs(){return liveTs}};
+window.__pg={get C(){return C},get P(){return P},get cart(){return cart},totals:()=>totals(),liveUpdate:()=>liveUpdate(),liveAll:()=>liveAll(),get C0(){return C0},get liveTs(){return liveTs}};
 })();
 </script>
 </body>
