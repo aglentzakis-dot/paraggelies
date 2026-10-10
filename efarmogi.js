@@ -11,7 +11,19 @@ const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAl
 const VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || "1.0";
 const BASE = new URL("./", location.href).href.replace(/index\.html$/, "");
 const TRIAL_DAYS = 30, FREE_PRODUCTS = 10;
-const PRO_PRICE = "18 € για έναν χρόνο · 30 € για δύο χρόνια";
+/* τιμές Pro: κανονική 79 €/χρόνο· εισαγωγική 49 € τον πρώτο χρόνο έως OFFER_END· με σύσταση 49 € και τον δεύτερο χρόνο */
+const PRO_FULL = 79, PRO_INTRO = 49, OFFER_END = "2028-10-11";
+const PRO_TERMS = `<p><b>Κανονική τιμή:</b> ${PRO_FULL} € τον χρόνο.</p>
+ <p><b>Εισαγωγική προσφορά:</b> όποιος αγοράσει Pro για πρώτη φορά έως ${OFFER_END.split("-").reverse().join("/")} πληρώνει ${PRO_INTRO} € για τον πρώτο χρόνο. Ισχύει μία φορά ανά επιχείρηση (ΑΦΜ) και ηλεκτρονικό ταχυδρομείο. Από τον δεύτερο χρόνο η ανανέωση γίνεται στην κανονική τιμή.</p>
+ <p><b>Σύσταση:</b> όποιος αγοράσει για πρώτη φορά με τον κωδικό σύστασης άλλου επαγγελματία που έχει ενεργό Pro πληρώνει ${PRO_INTRO} € και τον δεύτερο χρόνο, αν ανανεώσει έως 30 ημέρες μετά τη λήξη του πρώτου. Ο κωδικός δηλώνεται στην πρώτη αγορά και δεν προστίθεται αργότερα. Δεν ισχύει ο δικός σου κωδικός ούτε για δεύτερο λογαριασμό της ίδιας επιχείρησης. Κωδικός που διαδίδεται με ανεπιθύμητα μαζικά μηνύματα ή με παραπλανητικό τρόπο μπορεί να ακυρωθεί.</p>
+ <p>Οι προσφορές δεν συνδυάζονται μεταξύ τους και δεν εξαργυρώνονται σε χρήματα. Δεν υπάρχει αυτόματη ανανέωση ούτε αυτόματη χρέωση: κάθε χρόνο αποφασίζεις εσύ αν θα ανανεώσεις. Οι τιμές περιλαμβάνουν ΦΠΑ, όπου οφείλεται, και για κάθε πληρωμή εκδίδεται απόδειξη. Οι τιμές μπορεί να αλλάξουν για το μέλλον· όσοι έχουν ήδη πληρώσει ή δικαιούνται τιμή σύστασης την κρατούν για τον χρόνο που τους αναλογεί.</p>`;
+const refCode = async em => "GA-" + (await sha256hex("REF|" + emailNorm(em))).slice(0, 6).toUpperCase();
+function proPriceNow() {
+  const L = S.lic || {}, first = !L.n && !L.until, offer = today() <= OFFER_END;
+  if (first) return offer ? { v: PRO_INTRO, why: "τον πρώτο χρόνο (εισαγωγική προσφορά)" } : { v: PRO_FULL, why: "τον χρόνο" };
+  if (L.ref && (L.n || 1) === 1) return { v: PRO_INTRO, why: "τον δεύτερο χρόνο (τιμή σύστασης)" };
+  return { v: PRO_FULL, why: "τον χρόνο" };
+}
 const PRO_MAIL = "aglentzakis.apps@gmail.com";
 const LIC_PUB = { kty: "EC", crv: "P-256", x: "vz6Lkoa7PzVQ1xGOcUyYmYPdOYYjbsp5t1xSsgc8cwg", y: "x9KzKNLFp5OKklXt6VcEaFlwr3wzvRjb1OJ9t1cBR1Q" };
 const B32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -140,24 +152,32 @@ function lic() {
 }
 const isPro = () => lic().kind !== "free";
 A.isPro = isPro;
-const PRO_WHAT = { photos: "φωτογραφίες στον σύνδεσμο", products: "περισσότερα από " + FREE_PRODUCTS + " προϊόντα", viber: "κοινοποίηση μηνυμάτων από το Viber", excel: "εξαγωγή σε Excel" };
+const PRO_WHAT = { report: "ανάλυση σε PDF και Excel και αποστολή στον λογιστή", photos: "φωτογραφίες στον σύνδεσμο", products: "περισσότερα από " + FREE_PRODUCTS + " προϊόντα", viber: "κοινοποίηση μηνυμάτων από το Viber", excel: "εξαγωγή σε Excel" };
 function proGate(what) { if (isPro()) return true; proSheet(what); return false; }
 A.proGate = proGate; A.FREE_PRODUCTS = FREE_PRODUCTS;
 function proSheet(what) {
-  const l = lic();
+  const l = lic(), pr = proPriceNow(), first = !S.lic.n && !S.lic.until, offer = today() <= OFFER_END;
   sheet("⭐ Pro", `
    ${what ? `<div class="warnbox">Το «${esc(PRO_WHAT[what] || what)}» είναι λειτουργία Pro.</div>` : ""}
    <div class="card"><b>${l.kind === "pro" ? "✓ Pro μέχρι " + esc(S.lic.until.split("-").reverse().join("/")) : l.kind === "trial" ? "Δωρεάν δοκιμή: μένουν " + l.left + " ημέρες" : "Δωρεάν έκδοση"}</b>
    <p class="note">Ο αγοραστής δεν πληρώνει ποτέ τίποτα. Η δοκιμή και το Pro αφορούν μόνο τον πωλητή.</p></div>
    <div class="card"><h3>Τι είναι πάντα δωρεάν</h3><p class="note" style="margin:0">Σύνδεσμος παραγγελίας, ειδοποιήσεις, λίστα παραγγελιών, σύνολα ημέρας, πελάτες, έως ${FREE_PRODUCTS} προϊόντα, αντίγραφα ασφαλείας.</p>
-   <h3 style="margin-top:12px">Τι ανοίγει το Pro</h3><p class="note" style="margin:0">Απεριόριστα προϊόντα, φωτογραφίες στον σύνδεσμο, κοινοποίηση από το Viber, εξαγωγή σε Excel.</p>
-   <p style="margin:12px 0 0"><b>${esc(PRO_PRICE)}</b></p>
-   <p class="note">Το κλειδί «Παραγγελίες» ανοίγει μόνο αυτή την εφαρμογή. Για αγορά στείλε μήνυμα στο <a href="mailto:${PRO_MAIL}?subject=${encodeURIComponent("Κλειδί Pro Παραγγελίες")}">${PRO_MAIL}</a>. Μαζί με το κλειδί λαμβάνεις και απόδειξη της πληρωμής.</p></div>
+   <h3 style="margin-top:12px">Τι ανοίγει το Pro</h3><p class="note" style="margin:0">Απεριόριστα προϊόντα, φωτογραφίες στον σύνδεσμο, κοινοποίηση από το Viber, εξαγωγή σε Excel, ανάλυση εσόδων και εξόδων σε PDF και αποστολή στον λογιστή.</p></div>
+   <div class="card" style="border:2px solid var(--accent)">
+    <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:34px;font-weight:900;white-space:nowrap">${pr.v} €</span><span class="note" style="margin:0">${esc(pr.why)}</span></div>
+    ${first && offer ? `<p style="margin:4px 0 0">Εισαγωγική τιμή για αγορές έως ${OFFER_END.split("-").reverse().join("/")}. Από τον δεύτερο χρόνο: <b>${PRO_FULL} € τον χρόνο</b>.</p>
+     <div class="okbox">🤝 Σε σύστησε άλλος επαγγελματίας με Pro; Γράψε τον κωδικό του και πληρώνεις <b>${PRO_INTRO} € και τον δεύτερο χρόνο</b>.</div>
+     <label class="f" for="lref">Κωδικός σύστασης (αν έχεις)</label><input class="t" id="lref" value="${esc(S.lic.ref || "")}" placeholder="π.χ. GA-4F9A2C" maxlength="12" style="text-transform:uppercase">` : ""}
+    <button type="button" class="btn amber wide" data-act="buyPro" style="margin-top:10px">Αγορά Pro · ${pr.v} €</button>
+    <p class="note">Ανοίγει μήνυμα προς ${PRO_MAIL} με τα στοιχεία σου. Μόλις γίνει η πληρωμή λαμβάνεις το κλειδί και την απόδειξη. Το κλειδί «Παραγγελίες» ανοίγει μόνο αυτή την εφαρμογή.</p>
+    <details><summary class="note" style="cursor:pointer;font-weight:700">Όροι τιμών, προσφοράς και σύστασης</summary><div class="note">${PRO_TERMS}</div></details></div>
+   ${l.kind === "pro" && S.lic.email ? `<div class="card"><h3>🤝 Ο κωδικός σύστασής σου</h3><div class="lnkbox" id="myRef" style="font-size:20px;font-weight:900;text-align:center">…</div><p class="note">Δώσ' τον σε συναδέλφους: με αυτόν πληρώνουν ${PRO_INTRO} € και τον δεύτερο χρόνο. Στείλ' τον μόνο σε όσους γνωρίζεις, όχι με μαζικά μηνύματα.</p><button type="button" class="btn soft wide" data-act="refShare">Στείλε τον κωδικό</button></div>` : ""}
    <div class="card"><h3>Ενεργοποίηση κλειδιού</h3>
    <label class="f" for="lmail">Ηλεκτρονικό ταχυδρομείο αγοράς</label><input class="t" id="lmail" type="email" value="${esc(S.lic.email || "")}">
    <label class="f" for="lkey">Κλειδί</label><textarea class="t" id="lkey" rows="3" placeholder="PA2…">${esc(S.lic.key || "")}</textarea>
    <div id="lerr"></div></div>`,
-   `<button type="button" class="btn soft" data-act="shClose">Κλείσιμο</button><button type="button" class="btn amber" data-act="licGo">Ενεργοποίηση</button>`);
+   `<button type="button" class="btn soft" data-act="shClose">Κλείσιμο</button><button type="button" class="btn amber" data-act="licGo">Ενεργοποίηση</button>`,
+   async () => { const m = $("#myRef"); if (m) m.textContent = await refCode(S.lic.email); });
 }
 async function licGo() {
   const em = $("#lmail").value, key = $("#lkey").value;
@@ -166,6 +186,7 @@ async function licGo() {
   const until = await licVerify(em, key);
   if (!until) { $("#lerr").innerHTML = `<div class="errbox">Το κλειδί δεν ταιριάζει με αυτό το ταχυδρομείο.</div>`; return; }
   if (until < today()) { $("#lerr").innerHTML = `<div class="errbox">Το κλειδί έχει λήξει (${until.split("-").reverse().join("/")}).</div>`; return; }
+  if (S.lic.until !== until) S.lic.n = (S.lic.n || 0) + 1;
   Object.assign(S.lic, { email: emailNorm(em), key: licParse(key).clean, until });
   save(); closeSheet(); toast("✓ Pro ενεργό μέχρι " + until.split("-").reverse().join("/")); render();
 }
@@ -721,7 +742,7 @@ function totalsView() {
   const inc = K.round2(mv.filter(x => x.kind === "in").reduce((a, x) => a + x.amt, 0)), out = K.round2(mv.filter(x => x.kind === "out").reduce((a, x) => a + x.amt, 0));
   const ords = S.orders.filter(o => o.st !== "cancel" && o.st !== "dup" && (o.when.date || K.ymd(new Date(o.rx))) >= f && (o.when.date || K.ymd(new Date(o.rx))) <= t);
   const sales = K.round2(ords.reduce((a, o) => a + o.total, 0)), owed = K.round2(ords.filter(o => !o.paid).reduce((a, o) => a + o.total, 0));
-  const kpi = (c, l, v, col) => `<div class="card" style="margin:0;padding:10px"><div class="note" style="margin:0;display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:5px;background:${c}"></span>${l}</div><div style="font-weight:800;font-size:19px;color:${col}">${K.money(v)}</div></div>`;
+  const kpi = (c, l, v, col) => `<div class="card kpi" data-ana="${l === "Έσοδα" ? "in" : l === "Έξοδα" ? "out" : "all"}" role="button" style="margin:0;padding:10px;cursor:pointer"><div class="note" style="margin:0;display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:5px;background:${c}"></span>${l}</div><div style="font-weight:800;font-size:19px;color:${col}">${K.money(v)}</div><div class="note" style="margin:2px 0 0;font-size:11.5px">Ανάλυση ›</div></div>`;
   const row = (l, v, col, b) => `<div class="qrow"><div class="qn">${b ? `<b>${l}</b>` : l}</div><b style="color:${col};${b ? "font-size:19px" : ""}">${v < 0 ? "− " : ""}${K.money(Math.abs(v))}</b></div>`;
   const debt = Object.values(S.customers).map(c => ({ c, v: custStats(c.key).owed })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
   const debtSum = K.round2(debt.reduce((a, x) => a + x.v, 0));
@@ -744,7 +765,7 @@ function cashSheet(kind, id) {
   const kinds = CKINDS.filter(k => k.dir === kind), cur = ckOf(x.ck) || kinds[0];
   sheet(kind === "in" ? "＋ Έσοδο" : "＋ Έξοδο", `<div class="card"><label class="f" for="cxA" style="margin-top:0">Ποσό (€)</label><input class="t" id="cxA" inputmode="decimal" value="${x.amt !== "" ? K.num(x.amt) : ""}" style="font-size:22px;font-weight:800">
    <div class="two"><div><label class="f" for="cxD">Ημερομηνία</label><input class="t" id="cxD" type="date" value="${esc(x.d)}"></div><div><label class="f" for="cxV">ΦΠΑ</label><select class="t" id="cxV"><option value="">—</option>${[24, 13, 6, 0].map(v => `<option value="${v}"${String(x.vat) === String(v) ? " selected" : ""}>${v}%</option>`).join("")}</select></div></div></div>
-   <div class="card"><h3>Κατηγορία</h3><div class="chips" style="flex-wrap:wrap">${kinds.map(k => `<button type="button" class="chip${k.id === cur.id ? " on" : ""}" data-ck="${k.id}">${k.emoji} ${esc(k.name)}</button>`).join("")}</div>
+   <div class="card"><h3>Κατηγορία</h3><div class="cxg">${kinds.map(k => `<button type="button" class="cxt${k.id === cur.id ? " on" : ""}" data-ck="${k.id}"><span class="e">${k.emoji}</span><span class="n">${esc(k.name)}</span></button>`).join("")}</div>
     <div id="cxSubs">${subsHTML(cur, x.sub)}</div></div>
    <div class="card"><label class="f" for="cxN" style="margin-top:0">Σημείωση</label><input class="t" id="cxN" value="${esc(x.note || "")}" maxlength="80" placeholder="π.χ. προμηθευτής, αριθμός παραστατικού"></div>
    <p class="note">Οι ίδιες κατηγορίες με το βιβλίο «Εταιρεία» της εφαρμογής Ταμεία.</p>
@@ -753,6 +774,107 @@ function cashSheet(kind, id) {
    el => { el.dataset.cid = id || ""; el.dataset.ckind = kind; el.dataset.xck = cur.id; el.dataset.xsub = x.sub || ""; setTimeout(() => { const i = el.querySelector("#cxA"); i && i.focus(); }, 80); });
 }
 function subsHTML(k, sel) { return k.subs.length ? `<label class="f">Είδος</label><div class="chips" style="flex-wrap:wrap">${k.subs.map(sb => `<button type="button" class="chip${sb === sel ? " on" : ""}" data-csub="${esc(sb)}">${esc(sb)}</button>`).join("")}</div>` : ""; }
+
+/* ---------- έσοδο: είσπραξη από πελάτη ή άλλο έσοδο ---------- */
+function debtors() { return Object.values(S.customers).map(c => ({ c, v: custStats(c.key).owed })).filter(x => x.v > 0).sort((a, b) => b.v - a.v); }
+function incomeChooser() {
+  const D = debtors(), sum = K.round2(D.reduce((a, x) => a + x.v, 0));
+  sheet("＋ Έσοδο", `<div class="bigopts">
+    <button type="button" class="bigopt" data-act="collectList"><span class="e">💶</span><span class="t"><b>Είσπραξη από πελάτη</b><small>${sum ? "Σου χρωστάνε " + K.money(sum) + " · " + D.length + (D.length === 1 ? " πελάτης" : " πελάτες") : "Κανείς δεν σου χρωστά"}</small></span><span class="g">›</span></button>
+    <button type="button" class="bigopt" data-cashnew="in"><span class="e">➕</span><span class="t"><b>Άλλο έσοδο</b><small>Πώληση χωρίς παραγγελία, ενοίκιο, επιδότηση, τόκοι…</small></span><span class="g">›</span></button></div>`);
+}
+function collectList() {
+  const D = debtors(), sum = K.round2(D.reduce((a, x) => a + x.v, 0));
+  sheet("💶 Είσπραξη", D.length ? `<p class="note" style="margin-top:0">Πρώτα όσοι χρωστάνε τα περισσότερα. Πάτα έναν πελάτη για να σημειώσεις τι πλήρωσε.</p>
+    <div class="card list">${D.map(x => `<div class="it" data-coll="${esc(x.c.key)}"><div class="ic">👤</div><div class="t"><b>${esc(x.c.name)}</b><span>${esc(x.c.phone || "")} · ${custUnpaid(x.c.key).length} ${custUnpaid(x.c.key).length === 1 ? "παραγγελία" : "παραγγελίες"}</span></div><b style="color:#C8412B;font-size:17px">${K.money(x.v)}</b></div>`).join("")}</div>
+    <div class="row" style="padding:0 4px"><b class="grow">Σύνολο</b><b style="color:#C8412B;font-size:19px">${K.money(sum)}</b></div>` : `<div class="okbox">✓ Κανείς δεν σου χρωστά.</div>`, `<button type="button" class="btn soft" data-cash="in">← Πίσω</button>`);
+}
+function custUnpaid(k) { return S.orders.filter(o => custKey(o.cust.phone) === k && o.st !== "cancel" && o.st !== "dup" && ((o.st === "done" && !o.paid) || (o.paid && diffOf(o)))).sort((a, b) => (a.when.date || "").localeCompare(b.when.date || "") || a.rx - b.rx); }
+function collectCust(k) {
+  const c = S.customers[k]; if (!c) return;
+  const L = custUnpaid(k), via = S.ui.payVia || "Μετρητά";
+  const amt = o => o.paid ? diffOf(o) : o.total;
+  sheet("💶 " + c.name, `<div class="card">${L.map(o => `<label class="ck" style="align-items:center"><input type="checkbox" data-colo="${o.id}" data-amt="${amt(o)}" checked><span style="flex:1"><b>#${o.no}</b> · ${esc(fmtWhen(o))}${o.paid ? " · διαφορά" : ""}</span><b>${K.money(amt(o))}</b></label>`).join("")}</div>
+    <div class="card"><h3>Πώς πλήρωσε</h3><div class="chips">${["Μετρητά", "Κάρτα", "Τράπεζα"].map(v => `<button type="button" class="chip${v === via ? " on" : ""}" data-pv="${v}">${v === "Μετρητά" ? "💵" : v === "Κάρτα" ? "💳" : "🏦"} ${v}</button>`).join("")}</div></div>`,
+    `<button type="button" class="btn soft" data-act="collectList">← Πίσω</button><button type="button" class="btn green" data-act="collectGo" id="colBtn">✓ Εισπράχθηκαν ${K.money(L.reduce((a, o) => a + amt(o), 0))}</button>`,
+    el => { el.dataset.cust = k; });
+}
+function collectSum() { let t = 0; $$("[data-colo]").forEach(i => { if (i.checked) t += +i.dataset.amt || 0; }); const b = $("#colBtn"); if (b) b.textContent = "✓ Εισπράχθηκαν " + K.money(K.round2(t)); }
+
+/* ---------- ανάλυση εσόδων και εξόδων, με PDF και Excel για τον λογιστή ---------- */
+function anaData(kind) {
+  const mv = cashMoves().filter(x => kind === "all" || x.kind === kind);
+  const groups = {};
+  for (const x of mv) {
+    const k = x.ord ? "sales|Παραγγελίες" : (x.ck || "other") + "|" + (x.sub || "");
+    const top = x.ord ? "💶 Πωλήσεις από παραγγελίες" : (ckOf(x.ck) ? ckOf(x.ck).emoji + " " + ckOf(x.ck).name : x.cat || "Άλλο");
+    const g = groups[top] || (groups[top] = { name: top, kind: x.kind, sum: 0, subs: {}, n: 0 });
+    g.sum = K.round2(g.sum + x.amt); g.n++;
+    const sb = x.ord ? "" : (x.sub || ""); if (sb) g.subs[sb] = K.round2((g.subs[sb] || 0) + x.amt);
+  }
+  /* ΦΠΑ: από τις γραμμές των παραγγελιών και από τις κινήσεις με ΦΠΑ */
+  const vat = {};
+  const addV = (kd, rate, gross) => { if (rate === "" || rate == null || !isFinite(+rate)) return; const r = +rate, k = kd + "|" + r; const v = vat[k] || (vat[k] = { kind: kd, rate: r, gross: 0 }); v.gross = K.round2(v.gross + gross); };
+  for (const x of mv) {
+    if (x.ord) { const o = S.orders.find(y => y.id === x.ord); if (o) { const f = o.total ? x.amt / o.total : 1; for (const l of o.lines) addV("in", +l.vat || 0, l.sum * f); } }
+    else addV(x.kind, x.vat, x.amt);
+  }
+  const G = Object.values(groups).sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "in" ? -1 : 1) || b.sum - a.sum);
+  const inc = K.round2(mv.filter(x => x.kind === "in").reduce((a, x) => a + x.amt, 0)), out = K.round2(mv.filter(x => x.kind === "out").reduce((a, x) => a + x.amt, 0));
+  return { mv, G, inc, out, vat: Object.values(vat).sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "in" ? -1 : 1) || b.rate - a.rate) };
+}
+const vatNet = v => K.round2(v.gross / (1 + v.rate / 100)), vatAmt = v => K.round2(v.gross - vatNet(v));
+function anaSheet(kind) {
+  const A2 = anaData(kind), [f, t] = perRange(), ttl = kind === "in" ? "Ανάλυση εσόδων" : kind === "out" ? "Ανάλυση εξόδων" : "Έσοδα και έξοδα";
+  const max = Math.max(1, ...A2.G.map(g => g.sum));
+  sheet("📊 " + ttl, `<div class="chips">${Object.entries(PERIODS).map(([k, v]) => `<button type="button" class="chip${k === totPer ? " on" : ""}" data-anaper="${k}" data-anak="${kind}">${v}</button>`).join("")}</div>
+   <div class="card">${kind !== "out" ? `<div class="qrow"><div class="qn"><b>Έσοδα</b></div><b style="color:#2E7D5B;font-size:19px">${K.money(A2.inc)}</b></div>` : ""}${kind !== "in" ? `<div class="qrow"><div class="qn"><b>Έξοδα</b></div><b style="color:#C8412B;font-size:19px">${K.money(A2.out)}</b></div>` : ""}${kind === "all" ? `<div class="qrow"><div class="qn"><b>Υπόλοιπο</b></div><b style="color:#2468B5;font-size:19px">${K.money(A2.inc - A2.out)}</b></div>` : ""}</div>
+   ${A2.G.length ? `<div class="card"><h3>Ανά κατηγορία</h3>${A2.G.map(g => `<div class="anr"><div class="anh"><b>${esc(g.name)}</b><b style="color:${g.kind === "in" ? "#2E7D5B" : "#C8412B"}">${K.money(g.sum)}</b></div><div class="anb"><i style="width:${Math.round(g.sum / max * 100)}%;background:${g.kind === "in" ? "#2E7D5B" : "#C8412B"}"></i></div>${Object.entries(g.subs).sort((a, b) => b[1] - a[1]).map(([n, v]) => `<div class="ans"><span>${esc(n)}</span><span>${K.money(v)}</span></div>`).join("")}</div>`).join("")}</div>` : `<div class="card" style="text-align:center;color:var(--mute)">Καμία κίνηση σε αυτή την περίοδο.</div>`}
+   ${A2.vat.length ? `<div class="card"><h3>ΦΠΑ ανά συντελεστή</h3>${A2.vat.map(v => `<div class="qrow"><div class="qn"><b>${v.kind === "in" ? "Έσοδα" : "Έξοδα"} ${v.rate}%</b><span>καθαρό ${K.money(vatNet(v))} · ΦΠΑ ${K.money(vatAmt(v))}</span></div><b>${K.money(v.gross)}</b></div>`).join("")}<p class="note" style="margin:6px 0 0">Ενδεικτικός υπολογισμός από τις τιμές με ΦΠΑ. Τον τελικό τον κάνει ο λογιστής σου.</p></div>` : ""}
+   <div class="card"><h3>⭐ Για τον λογιστή</h3><div class="row" style="flex-wrap:wrap"><button type="button" class="btn soft sm grow" data-anaout="pdf" data-anak="${kind}">📄 PDF</button><button type="button" class="btn soft sm grow" data-anaout="xlsx" data-anak="${kind}">📊 Excel</button><button type="button" class="btn amber sm grow" data-anaout="send" data-anak="${kind}">📧 Στείλε στον λογιστή</button></div>
+    ${S.shop.acct ? `<p class="note" style="margin:6px 0 0">Λογιστής: ${esc(S.shop.acct)} · <a href="#" data-act="acctSet">αλλαγή</a></p>` : ""}</div>
+   <p class="note">Περίοδος: ${f === "0000" ? "όλες οι κινήσεις" : esc(f.split("-").reverse().join("/")) + " έως " + esc(t.split("-").reverse().join("/"))}.</p>`);
+}
+function anaHTML(kind) {
+  const A2 = anaData(kind), [f, t] = perRange(), sh = S.shop, ttl = kind === "in" ? "Ανάλυση εσόδων" : kind === "out" ? "Ανάλυση εξόδων" : "Έσοδα και έξοδα";
+  const per = f === "0000" ? "Όλες οι κινήσεις" : f.split("-").reverse().join("/") + " – " + t.split("-").reverse().join("/");
+  const m = v => K.money(v);
+  return `<!DOCTYPE html><html lang="el"><head><meta charset="UTF-8"><title>${esc(ttl)} ${esc(per)}</title><style>@page{size:A4;margin:14mm}body{font:12.5px/1.45 system-ui,"Segoe UI",Arial,sans-serif;color:#111}h1{font-size:20px;margin:0}h2{font-size:15px;margin:18px 0 6px;border-bottom:2px solid #17324D;padding-bottom:3px}table{width:100%;border-collapse:collapse}td,th{padding:4px 6px;border-bottom:1px solid #ddd;text-align:left}th{background:#f1f3f5}.r{text-align:right;white-space:nowrap}.in{color:#1f6b45}.out{color:#b3261e}.sub td{color:#555;font-size:11.5px;padding-left:22px}.hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}.small{color:#666;font-size:11px}</style></head><body>
+   <div class="hd"><div><h1>${esc(ttl)}</h1><div>${esc(per)}</div></div><div class="small" style="text-align:right">${esc(sh.name || "")}${sh.legal ? "<br>" + esc(sh.legal) : ""}${sh.afm ? "<br>ΑΦΜ " + esc(sh.afm) : ""}${sh.addr ? "<br>" + esc(sh.addr) : ""}</div></div>
+   <h2>Σύνοψη</h2><table>${kind !== "out" ? `<tr><td>Έσοδα</td><td class="r in"><b>${m(A2.inc)}</b></td></tr>` : ""}${kind !== "in" ? `<tr><td>Έξοδα</td><td class="r out"><b>${m(A2.out)}</b></td></tr>` : ""}${kind === "all" ? `<tr><td><b>Υπόλοιπο</b></td><td class="r"><b>${m(A2.inc - A2.out)}</b></td></tr>` : ""}</table>
+   <h2>Ανά κατηγορία</h2><table><tr><th>Κατηγορία</th><th class="r">Κινήσεις</th><th class="r">Ποσό</th></tr>${A2.G.map(g => `<tr><td><b>${esc(g.name)}</b></td><td class="r">${g.n}</td><td class="r ${g.kind}"><b>${m(g.sum)}</b></td></tr>${Object.entries(g.subs).sort((a, b) => b[1] - a[1]).map(([n, v]) => `<tr class="sub"><td>${esc(n)}</td><td></td><td class="r">${m(v)}</td></tr>`).join("")}`).join("")}</table>
+   ${A2.vat.length ? `<h2>ΦΠΑ ανά συντελεστή (ενδεικτικά)</h2><table><tr><th></th><th class="r">Καθαρό</th><th class="r">ΦΠΑ</th><th class="r">Σύνολο</th></tr>${A2.vat.map(v => `<tr><td>${v.kind === "in" ? "Έσοδα" : "Έξοδα"} ${v.rate}%</td><td class="r">${m(vatNet(v))}</td><td class="r">${m(vatAmt(v))}</td><td class="r">${m(v.gross)}</td></tr>`).join("")}</table>` : ""}
+   <h2>Κινήσεις</h2><table><tr><th>Ημερομηνία</th><th>Κατηγορία</th><th>Σημείωση</th><th class="r">Ποσό</th></tr>${A2.mv.map(x => `<tr><td>${esc(x.d.split("-").reverse().join("/"))}</td><td>${esc(x.cat)}</td><td>${esc(x.note || "")}</td><td class="r ${x.kind}">${x.kind === "out" ? "− " : ""}${m(x.amt)}</td></tr>`).join("")}</table>
+   <p class="small">Παραγγελίες με GlenApps · ${esc(new Date().toLocaleString("el-GR"))}. Δεν αποτελεί φορολογικό παραστατικό.</p></body></html>`;
+}
+function anaXlsx(kind) {
+  const A2 = anaData(kind), rows = [["Ημερομηνία", "Είδος", "Κατηγορία", "Σημείωση", "ΦΠΑ %", "Ποσό €"]];
+  for (const x of A2.mv) rows.push([x.d.split("-").reverse().join("/"), x.kind === "in" ? "Έσοδο" : "Έξοδο", x.cat, x.note || "", x.vat === "" || x.vat == null ? "" : +x.vat, x.kind === "out" ? -x.amt : x.amt]);
+  const cat = [["Κατηγορία", "Είδος", "Κινήσεις", "Ποσό €"]]; for (const g of A2.G) { cat.push([g.name, g.kind === "in" ? "Έσοδο" : "Έξοδο", g.n, g.sum]); for (const [n, v] of Object.entries(g.subs)) cat.push(["   " + n, "", "", v]); }
+  const vt = [["", "Συντελεστής %", "Καθαρό €", "ΦΠΑ €", "Σύνολο €"]]; for (const v of A2.vat) vt.push([v.kind === "in" ? "Έσοδα" : "Έξοδα", v.rate, vatNet(v), vatAmt(v), v.gross]);
+  return GXlsx.write([{ name: "Κινήσεις", head: true, cols: [12, 9, 40, 30, 8, 12], num: [5], rows }, { name: "Ανά κατηγορία", head: true, cols: [40, 10, 10, 12], num: [3], rows: cat }, { name: "ΦΠΑ", head: true, cols: [10, 14, 12, 12, 12], num: [2, 3, 4], rows: vt }]);
+}
+function anaName(kind, ext) { const [f, t] = perRange(); return "tameio-" + (kind === "in" ? "esoda" : kind === "out" ? "exoda" : "kiniseis") + "-" + (f === "0000" ? "ola" : f + "-eos-" + t) + "." + ext; }
+function printHTML(html) {
+  const old = $("#prFrame"); if (old) old.remove();
+  const f = document.createElement("iframe"); f.id = "prFrame"; f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(f); const d = f.contentWindow.document; d.open(); d.write(html); d.close();
+  setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch { toast("Η εκτύπωση δεν άνοιξε."); } }, 300);
+}
+async function anaOut(how, kind) {
+  if (!proGate("report")) return;
+  if (how === "pdf") { printHTML(anaHTML(kind)); toast("Στο παράθυρο εκτύπωσης διάλεξε «Αποθήκευση ως PDF».", 4500); return; }
+  const blob = anaXlsx(kind), name = anaName(kind, "xlsx");
+  if (how === "xlsx") { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); toast("⬇️ Κατέβηκε το Excel."); return; }
+  /* αποστολή στον λογιστή */
+  let mail = S.shop.acct || ""; if (!mail) { mail = (prompt("Ηλεκτρονικό ταχυδρομείο του λογιστή σου:") || "").trim(); if (mail) { S.shop.acct = mail; save(); } }
+  const [f, t] = perRange(), per = f === "0000" ? "όλες οι κινήσεις" : f.split("-").reverse().join("/") + " έως " + t.split("-").reverse().join("/");
+  const subj = "Έσοδα και έξοδα " + (S.shop.name || "") + " · " + per, body = "Καλησπέρα,\n\nσας στέλνω τα έσοδα και τα έξοδα για την περίοδο " + per + " (συνημμένο Excel).\n\n" + (S.shop.legal || S.shop.name || "") + (S.shop.afm ? "\nΑΦΜ " + S.shop.afm : "");
+  const file = new File([blob], name, { type: blob.type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: subj, text: body }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  location.href = "mailto:" + encodeURIComponent(mail) + "?subject=" + encodeURIComponent(subj) + "&body=" + encodeURIComponent(body + "\n\n(Επισύναψε το αρχείο " + name + " από τις Λήψεις.)");
+}
 
 function prepView() {
   const act = S.orders.filter(o => o.st !== "cancel" && o.st !== "dup");
@@ -1063,9 +1185,15 @@ let dvFor = "";
 const dayChips = (sel, attr) => `<div class="chips" style="flex-wrap:wrap">${[1, 2, 3, 4, 5, 6, 0].map(i => `<label class="chip${(sel || []).includes(i) ? " on" : ""}"><input type="checkbox" ${attr}="${i}"${(sel || []).includes(i) ? " checked" : ""} hidden>${K.WD[i]}</label>`).join("")}</div>`;
 function bindChips(el) { el.querySelectorAll(".chip input[type=checkbox]").forEach(i => i.addEventListener("change", () => i.parentElement.classList.toggle("on", i.checked))); }
 function holidaysHTML(d) {
-  const y = new Date().getFullYear(), t = today();
-  const rows = [y, y + 1].map(yy => `<h3 style="margin:10px 0 4px;font-size:14px">${yy}</h3>` + K.grHolidays(yy).map(h => `<label class="ck" style="margin:4px 0;${h.date < t ? "opacity:.45" : ""}"><input type="checkbox" data-hol="${h.id}"${K.holOn(d, h) ? " checked" : ""}><span>${esc(K.dayLabel(h.date).replace(/^(Σήμερα|Αύριο), /, ""))} · <b>${esc(h.name)}</b></span></label>`).join("")).join("");
+  const y = new Date().getFullYear(), t = today(), end = addDays(t, 366), seen = new Set();
+  const list = [y, y + 1].flatMap(yy => K.grHolidays(yy)).filter(h => h.date >= t && h.date <= end).sort((a, b) => a.date.localeCompare(b.date)).filter(h => !seen.has(h.id) && seen.add(h.id));
+  const MN = ["Ιαν", "Φεβ", "Μαρ", "Απρ", "Μαΐ", "Ιουν", "Ιουλ", "Αυγ", "Σεπ", "Οκτ", "Νοε", "Δεκ"];
+  const nOn = list.filter(h => K.holOn(d, h)).length;
+  const rows = list.map(h => { const dt = K.fromYmd(h.date), on = K.holOn(d, h), days = Math.round((dt - K.fromYmd(t)) / 864e5);
+    return `<label class="holr${on ? "" : " off"}"><span class="hd"><b>${dt.getDate()}</b><small>${MN[dt.getMonth()]}</small></span><span class="hn"><b>${esc(h.name)}</b><small>${esc(K.WD[dt.getDay()])}${days === 0 ? " · σήμερα" : days === 1 ? " · αύριο" : " · σε " + days + " ημέρες"}</small></span><span class="tog g"><input type="checkbox" data-hol="${h.id}"${on ? " checked" : ""}><span></span></span></label>`; }).join("");
   return `<div class="card"><h3>🎌 Κλειστές ημέρες</h3>
+    <label class="ck"><input type="checkbox" id="dvHolOn"${d.holOff ? "" : " checked"}><span><b>Κλειστά τις αργίες</b> (επίσημες αργίες, Καθαρά Δευτέρα, Πάσχα, Αγίου Πνεύματος)</span></label>
+    <details class="holx" style="margin:6px 0 8px"><summary class="btn soft wide" style="list-style:none;display:flex;justify-content:space-between"><span>📅 Ποιες αργίες κλείνεις</span><span id="holCnt">${nOn} από ${list.length} ›</span></summary><p class="note" style="margin:8px 2px 4px">Πράσινο = κλειστά εκείνη την ημέρα. Ισχύει κάθε χρόνο.</p><div id="holBox" style="${d.holOff ? "opacity:.5;pointer-events:none" : ""}">${rows}</div></details>
     <label class="ck"><input type="checkbox" id="dvHolOn"${d.holOff ? "" : " checked"}><span><b>Κλειστά τις αργίες</b> (επίσημες αργίες, Καθαρά Δευτέρα, Πάσχα, Αγίου Πνεύματος)</span></label>
     <details style="margin:4px 0 8px"><summary class="note" style="cursor:pointer">Διάλεξε ποιες αργίες (μία μία)</summary><div id="holBox" style="${d.holOff ? "opacity:.5;pointer-events:none" : ""}">${rows}</div></details>
     <label class="f">Δικές σου κλειστές ημερομηνίες (άδεια, ασθένεια…)</label>
@@ -1452,6 +1580,17 @@ const ACT = {
   phOff: async () => { await PH.set(null); backupSheet(); },
   seeNew: () => A.seeNew(),
   dvOpen: () => dvSheet(ordFilter.day || today()),
+  collectList: () => collectList(),
+  buyPro: async () => { const r = $("#lref"); if (r) { const v = r.value.trim().toUpperCase(); if (v && !/^GA-[0-9A-F]{6}$/.test(v)) { toast("Ο κωδικός σύστασης έχει τη μορφή GA-XXXXXX."); return; } if (v) S.lic.ref = v; else delete S.lic.ref; save(); }
+    const pr = proPriceNow(), em = ($("#lmail") && $("#lmail").value.trim()) || S.lic.email || "", sh = S.shop;
+    const body = "Θέλω κλειδί Pro για την εφαρμογή «Παραγγελίες».\n\nΗλεκτρονικό ταχυδρομείο για το κλειδί: " + (em || "…") + "\nΕπιχείρηση: " + (sh.name || "…") + (sh.legal ? " (" + sh.legal + ")" : "") + "\nΑΦΜ: " + (sh.afm || "…") + "\nΤηλέφωνο: " + (sh.phone || "…") + "\nΤιμή: " + pr.v + " € " + pr.why + (S.lic.ref ? "\nΚωδικός σύστασης: " + S.lic.ref : "") + (S.lic.until ? "\nΤωρινό κλειδί λήγει: " + S.lic.until.split("-").reverse().join("/") : "");
+    location.href = "mailto:" + PRO_MAIL + "?subject=" + encodeURIComponent("Κλειδί Pro Παραγγελίες" + (S.lic.until ? " (ανανέωση)" : "")) + "&body=" + encodeURIComponent(body); },
+  refShare: async () => { const c = await refCode(S.lic.email), t = "Για τις παραγγελίες των πελατών μου χρησιμοποιώ τις «Παραγγελίες» της GlenApps. Με τον κωδικό σύστασής μου " + c + " πληρώνεις " + PRO_INTRO + " € και τον δεύτερο χρόνο του Pro: " + BASE;
+    if (navigator.share) { try { await navigator.share({ text: t }); return; } catch (e) { if (e && e.name === "AbortError") return; } } try { await navigator.clipboard.writeText(t); toast("✓ Αντιγράφηκε"); } catch { prompt("", t); } },
+  collectGo: () => { const k = $("#shB").dataset.cust, via = S.ui.payVia || "Μετρητά"; let n = 0, sum = 0;
+    $$("[data-colo]").forEach(i => { if (!i.checked) return; const o = S.orders.find(x => x.id === i.dataset.colo); if (!o) return; sum += +i.dataset.amt || 0; if (!o.paid) setStatus(o, "paid"); else setStatus(o, "paydiff"); o.payVia = via; o.log.push([Date.now(), "Τρόπος πληρωμής: " + via]); n++; });
+    if (!n) { toast("Διάλεξε τουλάχιστον μία παραγγελία."); return; } save(); render(); toast("✓ Εισπράχθηκαν " + K.money(K.round2(sum)) + " (" + via + ")"); collectList(); },
+  acctSet: () => { const m = (prompt("Ηλεκτρονικό ταχυδρομείο του λογιστή σου:", S.shop.acct || "") || "").trim(); S.shop.acct = m; save(); toast(m ? "✓ Αποθηκεύτηκε" : "Αφαιρέθηκε"); },
   presetsGo: () => { tab = "menu"; render(); setTimeout(() => { const b = document.createElement("button"); b.dataset.ea = "presets"; b.hidden = true; document.body.appendChild(b); b.click(); b.remove(); }, 50); },
   remHideAll: () => { S.ui.remHide = { d: today(), ids: remindersList().map(r => r.id).concat((S.ui.remHide && S.ui.remHide.d === today() ? S.ui.remHide.ids : [])) }; save(); render(); toast("Θα ξαναεμφανιστούν αύριο."); },
   phRestore: async () => { const L = await PH.list(); sheet("Επαναφορά από φάκελο", `<div class="card list">${L.map((f, i) => `<div class="it" data-phf="${esc(f.n)}"><div class="ic">📄</div><div class="t"><b>${esc(f.n)}</b>${i === 0 ? `<span>νεότερο</span>` : ""}</div></div>`).join("") || `<p class="note">Δεν βρέθηκαν αντίγραφα.</p>`}</div>`); A._phl = L; },
@@ -1488,7 +1627,13 @@ document.addEventListener("click", async e => {
   const cpl = t.closest("[data-cpl]"); if (cpl) { const k = $("#shB").dataset.cust, c = S.customers[k]; if (c) { ACT.custSave(true); if (cpl.dataset.cpl === "w") c.pl = "w"; else delete c.pl; save(); openCust(k); toast(c.pl === "w" ? "Χονδρική: παίρνει τις τιμές χονδρικής όπου υπάρχουν." : "Λιανική."); } return; }
   const ckb = t.closest("[data-ck]"); if (ckb) { const b = $("#shB"); b.dataset.xck = ckb.dataset.ck; b.dataset.xsub = ""; $$("[data-ck]").forEach(x => x.classList.toggle("on", x === ckb)); $("#cxSubs").innerHTML = subsHTML(ckOf(ckb.dataset.ck), ""); return; }
   const csb = t.closest("[data-csub]"); if (csb) { const b = $("#shB"); b.dataset.xsub = b.dataset.xsub === csb.dataset.csub ? "" : csb.dataset.csub; $$("[data-csub]").forEach(x => x.classList.toggle("on", x.dataset.csub === b.dataset.xsub)); return; }
-  const cs = t.closest("[data-cash]"); if (cs) { cashSheet(cs.dataset.cash); return; }
+  const cs = t.closest("[data-cash]"); if (cs) { if (cs.dataset.cash === "in") incomeChooser(); else cashSheet(cs.dataset.cash); return; }
+  const cn = t.closest("[data-cashnew]"); if (cn) { cashSheet(cn.dataset.cashnew); return; }
+  const co = t.closest("[data-coll]"); if (co) { collectCust(co.dataset.coll); return; }
+  const pv = t.closest("[data-pv]"); if (pv) { S.ui.payVia = pv.dataset.pv; $$("[data-pv]").forEach(x => x.classList.toggle("on", x === pv)); return; }
+  const an = t.closest("[data-ana]"); if (an) { anaSheet(an.dataset.ana); return; }
+  const ap = t.closest("[data-anaper]"); if (ap) { totPer = ap.dataset.anaper; anaSheet(ap.dataset.anak); render(); return; }
+  const ao = t.closest("[data-anaout]"); if (ao) { anaOut(ao.dataset.anaout, ao.dataset.anak); return; }
   const ce = t.closest("[data-cashed]"); if (ce) { cashSheet(null, ce.dataset.cashed); return; }
   const cd = t.closest("[data-cldel]"); if (cd) { S.deliv.closed = (S.deliv.closed || []).filter(x => x !== cd.dataset.cldel); save({ catalog: true }); keepDeliv(); return; }
   const gf = t.closest("[data-gdf]"); if (gf) { try { restoreText(await GlenDrive.download(gf.dataset.gdf)); } catch { toast("Δεν κατέβηκε."); } return; }
@@ -1500,6 +1645,8 @@ document.addEventListener("click", async e => {
 });
 document.addEventListener("input", e => { if (e.target.id === "custQ") { custQ = e.target.value; const p = e.target.selectionStart; render(); const i = $("#custQ"); i.focus(); i.setSelectionRange(p, p); } });
 document.addEventListener("change", e => {
+  if (e.target.matches("[data-colo]")) collectSum();
+  if (e.target.matches("[data-hol]")) { const r = e.target.closest(".holr"); if (r) r.classList.toggle("off", !e.target.checked); const c = $("#holCnt"); if (c) c.textContent = $$("[data-hol]:checked").length + " από " + $$("[data-hol]").length + " ›"; }
   if (e.target.id === "totPer") { totPer = e.target.value; render(); return; }
   if (e.target.id === "lkPh") { if (e.target.checked && !proGate("photos")) { e.target.checked = false; return; } S.link.photos = e.target.checked; save(); linkSheet(); }
   if (e.target.id === "lkLg") { S.link.logo = e.target.checked; save(); linkSheet(); }
