@@ -362,7 +362,7 @@ function ordCard(o) {
    <div class="h"><b>#${o.no} · ${esc(o.cust.name)}</b><span class="tot">${K.money(o.total)}</span></div>
    <div class="m">${o.when.how === "pick" ? "🏪" : "🚚"} ${esc(fmtWhen(o))}${o.when.how !== "pick" && o.cust.addr ? " · " + esc(o.cust.addr) : ""}</div>
    <div class="it">${esc(items)}</div>
-   <div class="row">${o.test ? `<span class="pill warn">🧪 Δοκιμή</span>` : ""}${o.when.extra ? `<span class="pill new">⚡ Έκτακτη</span>` : ""}${o.inv && o.inv.t === "i" ? `<span class="pill done">📄 Τιμολόγιο</span>` : ""}<span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}${o.warn && o.warn.length ? `<span class="pill warn">⚠️ ${o.warn.length}</span>` : ""}${o.cust.note ? `<span class="pill">📝</span>` : ""}<span class="grow"></span>${next ? `<button type="button" class="btn sm ${next[0] === "paid" ? "green" : "amber"}" data-next="${o.id}" data-to="${next[0]}">${next[1]}</button>` : ""}</div></div>`;
+   <div class="row">${o.test ? `<span class="pill warn">🧪 Δοκιμή</span>` : ""}${o.when.extra ? `<span class="pill new">⚡ Έκτακτη</span>` : ""}${o.inv && o.inv.t === "i" ? `<span class="pill done">📄 Τιμολόγιο</span>` : ""}<span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}${diffOf(o) > 0 ? `<span class="pill new">χρωστά ${K.money(diffOf(o))}</span>` : diffOf(o) < 0 ? `<span class="pill warn">επιστροφή ${K.money(-diffOf(o))}</span>` : ""}${o.warn && o.warn.length ? `<span class="pill warn">⚠️ ${o.warn.length}</span>` : ""}${o.cust.note ? `<span class="pill">📝</span>` : ""}<span class="grow"></span>${next ? `<button type="button" class="btn sm ${next[0] === "paid" ? "green" : "amber"}" data-next="${o.id}" data-to="${next[0]}">${next[1]}</button>` : ""}</div></div>`;
 }
 /* η κατάσταση πάει μόνο μπροστά: νέα → ετοιμάζεται → παραδόθηκε· κάθε βήμα με επιβεβαίωση */
 const RANK = { dup: -1, new: 0, prep: 1, done: 2, cancel: 3 };
@@ -371,8 +371,13 @@ const STEP_MSG = {
   done: o => "Παραδόθηκε η παραγγελία #" + o.no + " (" + o.cust.name + ");\n\nΔεν γυρίζει πίσω.",
   cancel: o => "Ακύρωση της παραγγελίας #" + o.no + " (" + o.cust.name + ");\n\nΗ ακύρωση είναι οριστική."
 };
+const paidOf = o => o.paid ? (o.paidAmt != null ? o.paidAmt : o.total) : 0;
+/* διαφορά παραγγελίας που άλλαξε μετά την πληρωμή: θετική = χρωστά, αρνητική = του επιστρέφεις */
+const diffOf = o => o.paid ? K.round2(o.total - paidOf(o)) : 0;
+A.diffOf = diffOf;
 function setStatus(o, st) {
-  if (st === "paid") { o.paid = true; o.paidAt = Date.now(); o.log.push([Date.now(), "Πληρώθηκε"]); save(); return true; }
+  if (st === "paid") { o.paid = true; o.paidAt = Date.now(); o.paidAmt = o.total; o.log.push([Date.now(), "Πληρώθηκε " + K.money(o.total)]); save(); return true; }
+  if (st === "paydiff") { const d = diffOf(o); o.paidAmt = o.total; o.paidAt = Date.now(); o.log.push([Date.now(), d > 0 ? "Πληρώθηκε η διαφορά " + K.money(d) : "Επιστράφηκε η διαφορά " + K.money(-d)]); save(); return true; }
   if (st === "unpaid") { if (!confirm("Να σημειωθεί ξανά ως απλήρωτη η παραγγελία #" + o.no + ";")) return false; o.paid = false; o.paidAt = 0; o.log.push([Date.now(), "Σημειώθηκε απλήρωτη"]); save(); return true; }
   if (st === o.st) return false;
   if (o.st === "cancel") { toast("Η παραγγελία έχει ακυρωθεί οριστικά."); return false; }
@@ -408,7 +413,8 @@ function openOrder(id) {
     <p class="note">Οι τιμές γράφτηκαν από τον δικό σου κατάλογο, όπως ίσχυαν ${fmtTime(o.at)}.</p></div>
    <h3 style="margin:4px 2px 6px;font-size:15px">Κατάσταση</h3>
    <div class="chips">${stBtn("new", "Νέα")}${stBtn("prep", "Ετοιμάζεται")}${stBtn("done", "Παραδόθηκε")}${stBtn("cancel", "Ακυρώθηκε")}</div>
-   <div class="row" style="margin:0 0 12px">${o.paid ? `<button type="button" class="btn soft grow" data-ordpaid="0">Σημείωσε απλήρωτη</button>` : `<button type="button" class="btn green grow" data-ordpaid="1">€ Πληρώθηκε</button>`}</div>
+   ${diffOf(o) ? `<div class="${diffOf(o) > 0 ? "errbox" : "warnbox"}"><b>Η παραγγελία άλλαξε μετά την πληρωμή.</b><br>Πληρώθηκαν ${K.money(paidOf(o))}, νέο σύνολο ${K.money(o.total)}.<br>${diffOf(o) > 0 ? "Ο πελάτης <b>χρωστά " + K.money(diffOf(o)) + "</b>." : "Του <b>επιστρέφεις " + K.money(-diffOf(o)) + "</b>."}<div style="margin-top:8px"><button type="button" class="btn sm ${diffOf(o) > 0 ? "green" : "amber"}" data-ordpaid="diff">${diffOf(o) > 0 ? "€ Πλήρωσε τη διαφορά " + K.money(diffOf(o)) : "↩ Επιστράφηκαν " + K.money(-diffOf(o))}</button></div></div>` : ""}
+   <div class="row" style="margin:0 0 12px">${o.paid ? `<span class="pill paid" style="font-size:14px;padding:8px 12px">✓ Πληρωμένη ${K.money(paidOf(o))}</span><button type="button" class="btn ghost grow" style="border-color:var(--bad);color:var(--bad)" data-ordpaid="0">✕ Σημείωσε απλήρωτη</button>` : `<button type="button" class="btn green grow" data-ordpaid="1">€ Πληρώθηκε ${K.money(o.total)}</button>`}</div>
    <div class="card" style="border-left:5px solid var(--accent)"><h3 style="margin:0 0 4px">💬 Ενημέρωση πελάτη</h3>
     <p class="note" style="margin:0 0 10px">Στέλνει στον πελάτη έτοιμο μήνυμα με την κατάσταση της παραγγελίας («${esc(ST[o.st])}»), τον κωδικό και το σύνολο.</p>
     <div class="row">${msgButtons(o)}</div></div>
@@ -534,7 +540,9 @@ function formSave() {
   const when = { date: F.date, slot: F.slot, how: F.how };
   if (F.id) {
     const o = S.orders.find(x => x.id === F.id); if (!o) return closeSheet();
-    Object.assign(o, { cust, when, lines, total }); o.log.push([Date.now(), "Αλλαγή από εσένα"]);
+    const was = o.total; if (o.paid && o.paidAmt == null) o.paidAmt = was;
+    Object.assign(o, { cust, when, lines, total }); o.log.push([Date.now(), "Αλλαγή από εσένα" + (was !== total ? ": " + K.money(was) + " → " + K.money(total) : "")]);
+    if (diffOf(o)) setTimeout(() => toast(diffOf(o) > 0 ? "⚠️ Ο πελάτης χρωστά τώρα τη διαφορά " + K.money(diffOf(o)) : "⚠️ Του επιστρέφεις " + K.money(-diffOf(o)), 4500), 300);
     upsertCustomer(cust, Date.now()); save(); closeSheet(); toast("✓ Αποθηκεύτηκε"); render(); openOrder(o.id); return;
   }
   const o = { id: K.uid(12), no: ++S.seq, at: Date.now(), rx: Date.now(), cust, when, lines, total, st: "new", paid: false, src: F.src === "viber" ? "viber" : "manual", warn: [], log: [[Date.now(), F.src === "viber" ? "Από μήνυμα Viber" : "Καταχώριση από εσένα"]] };
@@ -574,7 +582,7 @@ function perRange() {
 const cashList = () => S.cash || (S.cash = []);
 function cashMoves() {
   const [f, t] = perRange(), inR = d => d >= f && d <= t, mv = [];
-  for (const o of S.orders) if (o.paid && o.st !== "cancel" && o.st !== "dup") { const d = K.ymd(new Date(o.paidAt || o.rx)); if (inR(d)) mv.push({ d, kind: "in", amt: o.total, cat: "Παραγγελία #" + o.no, note: o.cust.name, ord: o.id }); }
+  for (const o of S.orders) if (o.paid && o.st !== "cancel" && o.st !== "dup") { const d = K.ymd(new Date(o.paidAt || o.rx)); if (inR(d)) mv.push({ d, kind: "in", amt: paidOf(o), cat: "Παραγγελία #" + o.no, note: o.cust.name, ord: o.id }); }
   for (const c of cashList()) if (inR(c.d)) mv.push(Object.assign({ man: 1 }, c));
   return mv.sort((a, b) => b.d.localeCompare(a.d));
 }
@@ -635,7 +643,8 @@ function prepView() {
 function custStats(k) {
   const L = S.orders.filter(o => custKey(o.cust.phone) === k && o.st !== "dup");
   const act = L.filter(o => o.st !== "cancel");
-  return { n: act.length, sum: K.round2(act.reduce((a, o) => a + o.total, 0)), owed: K.round2(act.filter(o => o.st === "done" && !o.paid).reduce((a, o) => a + o.total, 0)), list: L.sort((a, b) => b.rx - a.rx) };
+  const owed = K.round2(act.filter(o => o.st === "done" && !o.paid).reduce((a, o) => a + o.total, 0) + act.reduce((a, o) => a + diffOf(o), 0));
+  return { n: act.length, sum: K.round2(act.reduce((a, o) => a + o.total, 0)), owed, list: L.sort((a, b) => b.rx - a.rx) };
 }
 function custsView() {
   const q = K.norm(custQ);
@@ -643,17 +652,17 @@ function custsView() {
   const owedAll = K.round2(Object.keys(S.customers).reduce((a, k) => a + custStats(k).owed, 0));
   return `<div class="row" style="margin-bottom:10px"><input class="t grow" id="custQ" placeholder="🔍 Αναζήτηση πελάτη" value="${esc(custQ)}"><button type="button" class="btn amber" data-act="custNewBtn">＋ Νέος</button></div>
    ${owedAll > 0 ? `<div class="warnbox">Σου χρωστάνε συνολικά <b>${K.money(owedAll)}</b> από παραδομένες παραγγελίες.</div>` : ""}
-   <div class="card list">${L.length ? L.map(c => { const s = custStats(c.key); return `<div class="it" data-cust="${c.key}"><div class="ic">👤</div><div class="t"><b>${esc(c.name)}</b><span>${esc(c.phone)} · ${s.n} ${s.n === 1 ? "παραγγελία" : "παραγγελίες"} · ${K.money(s.sum)}</span></div>${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : ""}</div>`; }).join("") : `<p class="note">Οι πελάτες προστίθενται μόνοι τους με την πρώτη τους παραγγελία, ή με «＋ Νέος».</p>`}</div>`;
+   <div class="card list">${L.length ? L.map(c => { const s = custStats(c.key); return `<div class="it" data-cust="${c.key}"><div class="ic">👤</div><div class="t"><b>${esc(c.name)}</b><span>${esc(c.phone)} · ${s.n} ${s.n === 1 ? "παραγγελία" : "παραγγελίες"} · ${K.money(s.sum)}</span></div>${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : s.owed < 0 ? `<span class="pill warn">επιστροφή ${K.money(-s.owed)}</span>` : ""}</div>`; }).join("") : `<p class="note">Οι πελάτες προστίθενται μόνοι τους με την πρώτη τους παραγγελία, ή με «＋ Νέος».</p>`}</div>`;
 }
 function openCust(k) {
   const c = S.customers[k]; if (!c) return;
   const s = custStats(k);
-  sheet(c.name, `<div class="stats"><div class="card"><div class="lbl">Παραγγελίες</div><div class="big-num">${s.n}</div></div><div class="card"><div class="lbl">Χρωστά</div><div class="big-num" style="color:${s.owed ? "var(--bad)" : "inherit"}">${K.money(s.owed)}</div></div></div>
+  sheet(c.name, `<div class="stats"><div class="card"><div class="lbl">Παραγγελίες</div><div class="big-num">${s.n}</div></div><div class="card"><div class="lbl">${s.owed < 0 ? "Του επιστρέφεις" : "Χρωστά"}</div><div class="big-num" style="color:${s.owed > 0 ? "var(--bad)" : s.owed < 0 ? "#b26b00" : "inherit"}">${K.money(Math.abs(s.owed))}</div></div></div>
    <div class="card"><label class="f" for="cuN">Όνομα</label><input class="t" id="cuN" value="${esc(c.name)}"><label class="f" for="cuP">Τηλέφωνο</label><input class="t" id="cuP" value="${esc(c.phone)}"><label class="f" for="cuA">Διεύθυνση</label><input class="t" id="cuA" value="${esc(c.addr || "")}"><label class="f" for="cuNo">Σημειώσεις (μόνο για σένα)</label><input class="t" id="cuNo" value="${esc(c.notes || "")}"></div>
    <div class="card"><h3>🚚 Πότε περνάς</h3><p style="margin:0 0 8px">${c.route && c.route.days && c.route.days.length ? esc(c.route.days.map(x => K.WD[x]).join(", ")) + (c.route.slot ? " · " + esc(c.route.slot) : "") + (c.route.note ? " · " + esc(c.route.note) : "") + (c.route.ex !== false ? " · ⚡ δέχεται έκτακτη" : "") : `<span class="note">Δεν έχεις δηλώσει ημέρες· βλέπει τις γενικές.</span>`}</p>
     <div class="row"><button type="button" class="btn soft sm grow" data-act="custRoute">📅 Ημέρες</button><button type="button" class="btn amber sm grow" data-act="custLink">🔗 Ο δικός του σύνδεσμος</button></div></div>
    <div class="row" style="margin-bottom:12px"><a class="btn soft grow" href="tel:${esc(c.phone)}">📞 Κλήση</a><button type="button" class="btn amber grow" data-act="custNew">＋ Παραγγελία</button>${s.list.length ? `<button type="button" class="btn ghost grow" data-act="custRepeat">🔁 Ξανά την τελευταία</button>` : ""}</div>
-   ${s.owed > 0 ? `<button type="button" class="btn green wide" data-act="custPayAll" style="margin-bottom:12px">€ Πλήρωσε όλες (${K.money(s.owed)})</button>` : ""}
+   ${s.owed > 0 ? `<button type="button" class="btn green wide" data-act="custPayAll" style="margin-bottom:12px">€ Πλήρωσε όλα όσα χρωστά (${K.money(s.owed)})</button>` : s.owed < 0 ? `<button type="button" class="btn amber wide" data-act="custPayAll" style="margin-bottom:12px">↩ Επιστράφηκαν ${K.money(-s.owed)}</button>` : ""}
    <div class="card list"><h3>Ιστορικό</h3>${s.list.map(o => `<div class="it" data-ord="${o.id}"><div class="t"><b>#${o.no} · ${K.money(o.total)}</b><span>${esc(fmtWhen(o))} · ${esc(o.lines.map(l => K.num(l.q) + " " + l.name).join(", "))}</span></div><span class="pill ${o.paid ? "paid" : o.st}">${o.paid ? "Πληρωμένη" : ST[o.st]}</span></div>`).join("") || `<p class="note">Καμία παραγγελία.</p>`}</div>
    <button type="button" class="btn red wide" data-act="custDel">Διαγραφή πελάτη και των παραγγελιών του</button>
    <p class="note">Η διαγραφή ικανοποιεί αίτημα διαγραφής του πελάτη (GDPR). Πρόσεξε: αν χρειάζεσαι τις παραγγελίες για τα βιβλία σου, κάνε πρώτα εξαγωγή.</p>`,
@@ -1090,7 +1099,7 @@ const ACT = {
   custSave: () => { const c = S.customers[$("#shB").dataset.cust]; if (!c) return; c.name = $("#cuN").value.trim() || c.name; c.phone = $("#cuP").value.trim() || c.phone; c.addr = $("#cuA").value.trim(); c.notes = $("#cuNo").value.trim(); save(); closeSheet(); render(); },
   custNew: () => { const c = S.customers[$("#shB").dataset.cust]; if (c) orderForm({ name: c.name, phone: c.phone, addr: c.addr || "" }); },
   custRepeat: () => { const k = $("#shB").dataset.cust, s = custStats(k); const o = s.list.find(x => x.st !== "cancel") || s.list[0]; if (o) repeatOrder(o); },
-  custPayAll: () => { const k = $("#shB").dataset.cust; S.orders.filter(o => custKey(o.cust.phone) === k && o.st === "done" && !o.paid).forEach(o => setStatus(o, "paid")); save(); openCust(k); render(); toast("✓ Πληρώθηκαν"); },
+  custPayAll: () => { const k = $("#shB").dataset.cust; S.orders.filter(o => custKey(o.cust.phone) === k && o.st !== "cancel" && o.st !== "dup").forEach(o => { if (o.st === "done" && !o.paid) setStatus(o, "paid"); else if (diffOf(o)) setStatus(o, "paydiff"); }); save(); openCust(k); render(); toast("✓ Πληρώθηκαν"); },
   custDel: () => { const k = $("#shB").dataset.cust, c = S.customers[k]; if (!c || !confirm("Οριστική διαγραφή του πελάτη «" + c.name + "» και όλων των παραγγελιών του;")) return; S.orders = S.orders.filter(o => custKey(o.cust.phone) !== k); delete S.customers[k]; save(); closeSheet(); render(); toast("Διαγράφηκε."); },
   xlsDay: () => { if (!proGate("excel")) return; download("paraggelies-" + totDay + ".csv", csv(xlsDay(totDay)), "text/csv"); },
   xlsGo: () => { download("paraggelies-" + $("#xF").value + "-eos-" + $("#xT").value + ".csv", csv(xlsOrders($("#xF").value, $("#xT").value)), "text/csv"); closeSheet(); },
@@ -1117,7 +1126,7 @@ document.addEventListener("click", async e => {
   const od = t.closest("[data-oday]"); if (od) { ordFilter.day = od.dataset.oday; render(); return; }
   const td = t.closest("[data-tday]"); if (td) { totDay = td.dataset.tday; render(); return; }
   const ost = t.closest("[data-ordst]"); if (ost) { const o = curOrd(); if (o) { setStatus(o, ost.dataset.ordst); openOrder(o.id); render(); } return; }
-  const op = t.closest("[data-ordpaid]"); if (op) { const o = curOrd(); if (o) { setStatus(o, op.dataset.ordpaid === "1" ? "paid" : "unpaid"); openOrder(o.id); render(); } return; }
+  const op = t.closest("[data-ordpaid]"); if (op) { const o = curOrd(); if (o) { setStatus(o, op.dataset.ordpaid === "1" ? "paid" : op.dataset.ordpaid === "diff" ? "paydiff" : "unpaid"); openOrder(o.id); render(); } return; }
   const ds = t.closest("[data-diag-share]"); if (ds) { const u = $("#shB")._diag[+ds.dataset.diagShare]; try { await navigator.share({ text: u }); } catch (e) { if (!e || e.name !== "AbortError") { try { await navigator.clipboard.writeText(u); toast("Αντιγράφηκε"); } catch {} } } return; }
   const dc = t.closest("[data-diag-copy]"); if (dc) { try { await navigator.clipboard.writeText($("#shB")._diag[+dc.dataset.diagCopy]); toast("✓ Αντιγράφηκε. Επικόλλησέ το στο Viber."); } catch { toast("Δεν έγινε αντιγραφή."); } return; }
   const cs = t.closest("[data-cash]"); if (cs) { cashSheet(cs.dataset.cash); return; }
