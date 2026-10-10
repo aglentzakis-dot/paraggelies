@@ -1,0 +1,382 @@
+/*
+  Παραγγελίες — κοινός πυρήνας (πωλητής και πελάτης)
+  © 2026 Ανδρέας Μ. Γλεντζάκης (Andreas M. Glentzakis). Με την επιφύλαξη παντός δικαιώματος. All rights reserved.
+  Απαγορεύεται η αντιγραφή, τροποποίηση και διάθεση, εν όλω ή εν μέρει, χωρίς προηγούμενη γραπτή άδεια του κατόχου.
+  Copying, modification and distribution, in whole or in part, without the owner's prior written permission are prohibited.
+*/
+(function () {
+  "use strict";
+  const K = {};
+  K.NTFY = "https://ntfy.sh";
+  K.MAX_LINES = 60;
+  K.MAX_QTY = 999;
+
+  /* ---------- βασικά ---------- */
+  K.esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  K.uid = (n = 9) => { const a = crypto.getRandomValues(new Uint8Array(n)); return K.b64u.enc(a); };
+  K.b64u = {
+    enc(u8) { let s = ""; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); },
+    dec(t) { t = String(t).replace(/-/g, "+").replace(/_/g, "/"); while (t.length % 4) t += "="; const s = atob(t), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+  };
+  async function streamBytes(u8, Ctor, fmt) {
+    const cs = new Ctor(fmt), w = cs.writable.getWriter();
+    w.write(u8); w.close();
+    return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+  }
+  K.deflate = u8 => streamBytes(u8, CompressionStream, "deflate-raw");
+  K.inflate = u8 => streamBytes(u8, DecompressionStream, "deflate-raw");
+  /* συμπίεση αντικειμένου σε κείμενο για σύνδεσμο */
+  K.pack = async obj => "1" + K.b64u.enc(await K.deflate(new TextEncoder().encode(JSON.stringify(obj))));
+  K.unpack = async str => {
+    str = String(str || "");
+    if (str[0] !== "1") throw new Error("μορφή");
+    const raw = await K.inflate(K.b64u.dec(str.slice(1)));
+    if (raw.length > 3e6) throw new Error("μέγεθος");
+    return JSON.parse(new TextDecoder().decode(raw));
+  };
+
+  /* ---------- κρυπτογράφηση: μόνο ο πωλητής διαβάζει την παραγγελία ----------
+     Ο σύνδεσμος έχει μόνο το δημόσιο κλειδί του πωλητή. Ο πελάτης φτιάχνει
+     προσωρινό ζεύγος κλειδιών (ECDH P-256) και κρυπτογραφεί με AES-GCM.
+     Όποιος έχει τον σύνδεσμο ΔΕΝ μπορεί να διαβάσει παραγγελίες άλλων. */
+  const EC = { name: "ECDH", namedCurve: "P-256" };
+  K.genKeys = async () => {
+    const kp = await crypto.subtle.generateKey(EC, true, ["deriveKey"]);
+    const pub = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey));
+    const priv = await crypto.subtle.exportKey("jwk", kp.privateKey);
+    return { pub: K.b64u.enc(pub), priv };
+  };
+  const aesFrom = (privKey, pubKey) => crypto.subtle.deriveKey({ name: "ECDH", public: pubKey }, privKey, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  K.seal = async (sellerPubB64, obj) => {
+    const sp = await crypto.subtle.importKey("raw", K.b64u.dec(sellerPubB64), EC, false, []);
+    const eph = await crypto.subtle.generateKey(EC, true, ["deriveKey"]);
+    const ephPub = new Uint8Array(await crypto.subtle.exportKey("raw", eph.publicKey));
+    const key = await aesFrom(eph.privateKey, sp);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const body = await K.deflate(new TextEncoder().encode(JSON.stringify(obj)));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, body));
+    const out = new Uint8Array(65 + 12 + ct.length);
+    out.set(ephPub, 0); out.set(iv, 65); out.set(ct, 77);
+    return "1" + K.b64u.enc(out);
+  };
+  K.open = async (privJwk, str) => {
+    str = String(str || "");
+    if (str[0] !== "1" || str.length > 8000) throw new Error("μορφή");
+    const u = K.b64u.dec(str.slice(1));
+    if (u.length < 65 + 12 + 17) throw new Error("μορφή");
+    const priv = await crypto.subtle.importKey("jwk", privJwk, EC, false, ["deriveKey"]);
+    const ep = await crypto.subtle.importKey("raw", u.slice(0, 65), EC, false, []);
+    const key = await aesFrom(priv, ep);
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: u.slice(65, 77) }, key, u.slice(77));
+    const raw = await K.inflate(new Uint8Array(pt));
+    if (raw.length > 200000) throw new Error("μέγεθος");
+    return JSON.parse(new TextDecoder().decode(raw));
+  };
+
+  /* ---------- μορφοποίηση ---------- */
+  K.money = n => (Math.round((+n || 0) * 100) / 100).toLocaleString("el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  K.num = n => { n = Math.round((+n || 0) * 1000) / 1000; return n.toLocaleString("el-GR", { maximumFractionDigits: 3 }); };
+  K.round2 = n => Math.round((+n || 0) * 100 + 1e-9) / 100;
+  K.UNITS = ["τεμ.", "κιλό", "λίτρο", "δωδεκάδα", "εξάδα", "θήκη 30", "βάζο", "μπουκάλι", "κιβώτιο", "συσκευασία", "φραντζόλα", "μερίδα"];
+  K.parseNum = s => { const v = parseFloat(String(s).replace(/\s/g, "").replace(",", ".")); return isFinite(v) ? v : NaN; };
+  K.WD = ["Κυριακή", "Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
+  K.MON = ["Ιαν", "Φεβ", "Μαρ", "Απρ", "Μαΐ", "Ιουν", "Ιουλ", "Αυγ", "Σεπ", "Οκτ", "Νοε", "Δεκ"];
+  K.ymd = d => { const p = n => String(n).padStart(2, "0"); return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); };
+  K.fromYmd = s => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(s || ""); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+  K.dayLabel = (s, today) => {
+    const d = K.fromYmd(s); if (!d) return "";
+    const t = today ? new Date(today) : new Date(); t.setHours(0, 0, 0, 0);
+    const diff = Math.round((d - t) / 864e5);
+    const base = K.WD[d.getDay()] + " " + d.getDate() + " " + K.MON[d.getMonth()];
+    return diff === 0 ? "Σήμερα, " + base : diff === 1 ? "Αύριο, " + base : base;
+  };
+  /* διαθέσιμες ημέρες παράδοσης από τις ρυθμίσεις του πωλητή */
+  K.availDays = (d, now) => {
+    d = d || {};
+    const days = Array.isArray(d.days) && d.days.length ? d.days : [1, 2, 3, 4, 5, 6];
+    const closed = new Set(d.closed || []);
+    const out = [], t = now ? new Date(now) : new Date();
+    let from = +d.min || 0;
+    if (d.cut && from === 0) { const [h, m] = String(d.cut).split(":").map(Number); if (t.getHours() * 60 + t.getMinutes() >= h * 60 + (m || 0)) from = 1; }
+    const max = Math.min(+d.max || 14, 60);
+    for (let i = from; i <= max; i++) {
+      const x = new Date(t); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() + i);
+      const y = K.ymd(x);
+      if (days.includes(x.getDay()) && !closed.has(y)) out.push(y);
+    }
+    return out;
+  };
+
+  /* ---------- τιμές ---------- */
+  /* τιμή που ίσχυε τη στιγμή ts (ιστορικό τιμών του πωλητή) */
+  K.priceAt = (p, ts) => {
+    const h = (p && p.hist) || [];
+    let price = p ? +p.price || 0 : 0;
+    if (h.length) {
+      const sorted = h.slice().sort((a, b) => a[0] - b[0]);
+      let found = null;
+      for (const [t, v] of sorted) if (t <= ts) found = v;
+      if (found != null) price = found; else price = sorted[0][1];
+    }
+    return price;
+  };
+  K.stepOk = (q, step) => { step = +step || 1; const r = q / step; return Math.abs(r - Math.round(r)) < 1e-6; };
+
+  /* ---------- έλεγχος εισερχόμενης παραγγελίας ----------
+     Ο πωλητής ΠΟΤΕ δεν δέχεται τιμές από τον πελάτη: οι τιμές γράφονται από
+     τον δικό του κατάλογο, όπως ίσχυαν τη στιγμή της υποβολής. */
+  K.checkOrder = (O, st, now) => {
+    now = now || Date.now();
+    const warn = [];
+    if (!O || typeof O !== "object" || O.v !== 1) return { err: "Άγνωστη μορφή παραγγελίας." };
+    if (typeof O.id !== "string" || !/^[A-Za-z0-9_-]{8,40}$/.test(O.id)) return { err: "Λείπει ο κωδικός της παραγγελίας." };
+    const c = O.c || {};
+    const name = String(c.n || "").trim().slice(0, 80), phone = String(c.p || "").replace(/[^\d+]/g, "").slice(0, 20);
+    if (!name) return { err: "Λείπει το όνομα του πελάτη." };
+    if (phone.replace(/\D/g, "").length < 10) return { err: "Λείπει έγκυρο τηλέφωνο." };
+    if (!O.cons) return { err: "Ο πελάτης δεν αποδέχτηκε την ενημέρωση απορρήτου." };
+    if (!Array.isArray(O.l) || !O.l.length) return { err: "Η παραγγελία είναι άδεια." };
+    if (O.l.length > K.MAX_LINES) return { err: "Πάρα πολλά είδη." };
+    let at = +O.at || now;
+    if (at > now + 10 * 6e4 || at < now - 7 * 864e5) { warn.push("Η ώρα υποβολής δεν ήταν έγκυρη· μπήκαν οι σημερινές τιμές."); at = now; }
+    const lines = [], seen = new Set();
+    let total = 0;
+    for (const row of O.l) {
+      if (!Array.isArray(row)) continue;
+      const [pid, qRaw, seenPrice] = row;
+      const p = st.products[pid];
+      if (!p || p.del) { warn.push("Ένα είδος δεν υπάρχει πια στον κατάλογο και παραλείφθηκε."); continue; }
+      if (seen.has(pid)) continue; seen.add(pid);
+      let q = +qRaw;
+      if (!isFinite(q) || q <= 0) continue;
+      if (q > K.MAX_QTY) { q = K.MAX_QTY; warn.push("Πολύ μεγάλη ποσότητα στο «" + p.name + "»· ελέγξτε."); }
+      if (!K.stepOk(q, p.step)) warn.push("Ασυνήθιστη ποσότητα στο «" + p.name + "».");
+      if (p.soldout) warn.push("Το «" + p.name + "» είναι σημειωμένο ως εξαντλημένο.");
+      const price = K.priceAt(p, at);
+      if (seenPrice != null && Math.abs(+seenPrice - price) > 0.004) warn.push("Ο πελάτης είδε άλλη τιμή στο «" + p.name + "» (" + K.money(seenPrice) + ")· γράφτηκε η δική σας " + K.money(price) + ". Στείλτε του τον νέο σύνδεσμο.");
+      const sum = K.round2(q * price);
+      total += sum;
+      lines.push({ pid, name: p.name, unit: p.unit, q, price, vat: +p.vat || 0, sum });
+    }
+    if (!lines.length) return { err: "Κανένα έγκυρο είδος στην παραγγελία." };
+    const w = O.w || {};
+    const date = /^\d{4}-\d\d-\d\d$/.test(w.d || "") ? w.d : "";
+    return {
+      ok: true, warn, at,
+      order: {
+        id: O.id, at, rx: now,
+        cust: { name, phone, addr: String(c.a || "").trim().slice(0, 160), note: String(c.note || "").trim().slice(0, 400) },
+        when: { date, slot: String(w.s || "").slice(0, 30), how: w.h === "pick" ? "pick" : "del" },
+        lines, total: K.round2(total), cv: +O.cv || 0
+      }
+    };
+  };
+  /* αποτύπωμα για εντοπισμό διπλών (ίδιο τηλέφωνο, ίδια είδη, ίδια ημέρα, μέσα σε 15 λεπτά) */
+  K.fingerprint = o => [String(o.cust.phone).replace(/\D/g, "").slice(-10), o.when.date, o.lines.map(l => l.pid + ":" + l.q).sort().join(",")].join("|");
+
+  /* ---------- ειδοποιήσεις (ntfy, όπως στο Δρομολόγιο) ---------- */
+  K.ntfySend = async (topic, title, message, click) => {
+    const r = await fetch(K.NTFY + "/", {
+      method: "POST",
+      body: JSON.stringify({ topic, title, message, click, tags: ["shopping_cart"], priority: 4 })
+    });
+    if (!r.ok) throw new Error("ntfy " + r.status);
+    return r.json().catch(() => ({}));
+  };
+  K.ntfyPoll = async (topic, since) => {
+    const r = await fetch(K.NTFY + "/" + encodeURIComponent(topic) + "/json?poll=1&since=" + encodeURIComponent(since || "12h"), { cache: "no-store" });
+    if (!r.ok) throw new Error("ntfy " + r.status);
+    const t = await r.text();
+    return t.split("\n").filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(m => m && m.event === "message");
+  };
+
+  /* ---------- κανονικοποίηση ελληνικών και ανάλυση μηνύματος ---------- */
+  K.norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ς/g, "σ").replace(/[^a-z0-9α-ω\s.,/:+-]/g, " ").replace(/\s+/g, " ").trim();
+  const stem = w => w.length <= 3 ? w : w.slice(0, Math.max(3, w.length - 2));
+  const WORDNUM = { ενα: 1, μια: 1, μιαν: 1, ενασ: 1, δυο: 2, τρια: 3, τρεισ: 3, τεσσερα: 4, τεσσερισ: 4, πεντε: 5, εξι: 6, επτα: 7, εφτα: 7, οκτω: 8, οχτω: 8, εννια: 9, εννεα: 9, δεκα: 10, εντεκα: 11, δωδεκα: 12, δεκαπεντε: 15, εικοσι: 20, τριαντα: 30, σαραντα: 40, πενηντα: 50, μισο: 0.5, μιση: 0.5, μισα: 0.5, μισοκιλο: 0.5, εναμισο: 1.5, εναμιση: 1.5, εναμισι: 1.5, μιαμισι: 1.5, ενασημισο: 1.5, μιαμιση: 1.5 };
+  const WDN = { κυριακη: 0, δευτερα: 1, τριτη: 2, τεταρτη: 3, πεμπτη: 4, παρασκευη: 5, σαββατο: 6 };
+  /* οι κανονικές εκφράσεις \b δεν πιάνουν ελληνικά, γι' αυτό δουλεύουμε με λέξεις */
+  const words = s => s.split(/[\s.,/:+-]+/).filter(Boolean);
+  K.parseMsg = (text, st, now) => {
+    const res = { lines: [], date: "", cust: null, phone: "", rest: [] };
+    const t0 = now ? new Date(now) : new Date(); t0.setHours(12, 0, 0, 0);
+    const all = K.norm(text), W = words(all);
+    const has = w => W.includes(w), pre = w => W.some(x => x.startsWith(w));
+    const addD = n => { const d = new Date(t0); d.setDate(d.getDate() + n); return K.ymd(d); };
+    if (has("μεθαυριο")) res.date = addD(2);
+    else if (has("αυριο")) res.date = addD(1);
+    else if (has("σημερα") || has("αποψε")) res.date = addD(0);
+    else {
+      for (const [w, n] of Object.entries(WDN)) {
+        if (pre(w)) { let diff = (n - t0.getDay() + 7) % 7; if ((has("αλλη") || has("επομενη")) && diff === 0) diff = 7; res.date = addD(diff); break; }
+      }
+      const dm = /(?:^|\s)(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?(?=\s|$)/.exec(all);
+      if (!res.date && dm) {
+        let y = dm[3] ? +dm[3] : t0.getFullYear(); if (y < 100) y += 2000;
+        const d = new Date(y, +dm[2] - 1, +dm[1], 12);
+        if (d.getMonth() === +dm[2] - 1) { if (!dm[3] && d < t0 - 864e5) d.setFullYear(y + 1); res.date = K.ymd(d); }
+      }
+    }
+    const ph = /(?:\+?30)?(69\d{8}|2\d{9})/.exec(String(text).replace(/[\s().-]/g, ""));
+    if (ph) res.phone = ph[1];
+    const custs = Object.values(st.customers || {});
+    let best = null, bestScore = 0;
+    for (const c of custs) {
+      let score = 0;
+      if (res.phone && String(c.phone).replace(/\D/g, "").endsWith(res.phone)) score = 100;
+      const cn = K.norm(c.name);
+      if (cn && (" " + all + " ").includes(" " + cn + " ")) score = Math.max(score, 50 + cn.length);
+      else { const first = cn.split(" ")[0]; if (first && first.length >= 3 && pre(stem(first))) score = Math.max(score, 10 + first.length); }
+      if (score > bestScore) { bestScore = score; best = c; }
+    }
+    if (best) res.cust = best;
+    const prods = Object.values(st.products || {}).filter(p => !p.del);
+    const pTok = prods.map(p => ({ p, toks: [...new Set(words(K.norm(p.name + " " + (p.keys || ""))).filter(w => w.length >= 3 && !/^\d/.test(w)).map(stem))] }));
+    const segs = String(text).split(/\n|(?<!\d),|,(?!\d)|;|\+/).flatMap(x => K.norm(x).split(/ και | κ /)).map(x => x.trim()).filter(Boolean);
+    const used = new Map();
+    for (const seg of segs) {
+      const ws = words(seg);
+      let bp = null, bs = 0;
+      for (const { p, toks } of pTok) {
+        let s = 0;
+        for (const tk of toks) if (ws.some(w => w.startsWith(tk))) s += tk.length;
+        if (s > bs) { bs = s; bp = p; }
+      }
+      if (!bp || bs < 3) { if (seg.length > 2) res.rest.push(seg); continue; }
+      const clean = seg.replace(/(?:^|\s)\d{1,2}[/.-]\d{1,2}(?:[/.-]\d{2,4})?(?=\s|$)/g, " ").replace(/(69\d{8}|2\d{9})/g, " ");
+      let q = null;
+      const cw = words(clean);
+      for (let i = 0; i < cw.length; i++) {
+        const w = cw[i];
+        if (/^\d+$/.test(w)) { q = +w; break; }
+        if (w === "ενα" && cw[i + 1] && /^μισ/.test(cw[i + 1])) { q = 1.5; break; }
+        if (WORDNUM[w] != null) { q = WORDNUM[w]; if (q >= 1 && q % 1 === 0 && cw[i + 1] && /^μισ/.test(cw[i + 1])) q += 0.5; break; }
+      }
+      const dec = /(\d+)[.,](\d+)/.exec(clean.replace(/(?:^|\s)\d{1,2}[/.-]\d{1,2}(?=\s|$)/g, " "));
+      if (dec) q = K.parseNum(dec[1] + "." + dec[2]);
+      if (q == null) q = 1;
+      if (cw.some(w => /^γρ/.test(w)) && /κιλ/.test(K.norm(bp.unit)) && q >= 50) q = q / 1000;
+      if (used.has(bp.id)) { used.get(bp.id).q += q; continue; }
+      const line = { pid: bp.id, q };
+      used.set(bp.id, line);
+      res.lines.push(line);
+    }
+    return res;
+  };
+
+  /* ---------- απόδοση μενού (κοινή για προεπισκόπηση και πελάτη) ---------- */
+  K.SIZES = { s: "Μικρό", m: "Μεσαίο", l: "Μεγάλο", w: "Φαρδύ" };
+  K.findNode = (nodes, id, parent) => {
+    for (const n of nodes || []) {
+      if (n.id === id) return { node: n, parent, list: nodes };
+      if (n.kids) { const f = K.findNode(n.kids, id, n); if (f) return f; }
+    }
+    return null;
+  };
+  K.pathTo = (nodes, id) => {
+    for (const n of nodes || []) {
+      if (n.id === id) return [n];
+      if (n.kids) { const p = K.pathTo(n.kids, id); if (p) return [n].concat(p); }
+    }
+    return null;
+  };
+  /* ctx: {prod(pid)→προϊόν, qty(pid)→ποσότητα, edit, marked:Set, count(node)} */
+  K.tilesHTML = (nodes, ctx) => {
+    const out = [];
+    for (const n of nodes || []) {
+      const sz = K.SIZES[n.size] ? n.size : "m";
+      const mk = ctx.edit ? `<button type="button" class="mk${ctx.marked && ctx.marked.has(n.id) ? " on" : ""}" data-mk="${n.id}" aria-label="Μαρκάρισμα">✓</button>` : "";
+      const sel = ctx.marked && ctx.marked.has(n.id) ? " marked" : "";
+      if (n.t === "p") {
+        const p = ctx.prod(n.pid);
+        if (!p || (p.hidden && !ctx.edit)) continue;
+        const q = ctx.qty ? ctx.qty(p.id) : 0;
+        const so = !!p.soldout;
+        const img = p.photo ? `<img class="ph" src="${K.esc(p.photo)}" alt="">` : (n.emoji || p.emoji ? `<span class="em">${K.esc(n.emoji || p.emoji)}</span>` : "");
+        const ctl = ctx.edit ? "" : so ? `<div class="so">Εξαντλήθηκε</div>` :
+          `<div class="qty"><button type="button" class="qb" data-minus="${p.id}" aria-label="Λιγότερο"${q ? "" : " disabled"}>−</button><span class="qv" data-qv="${p.id}">${q ? K.num(q) : "0"}</span><button type="button" class="qb plus" data-plus="${p.id}" aria-label="Περισσότερο">+</button></div>`;
+        out.push(`<div class="tile prod sz-${sz}${so ? " soldout" : ""}${q ? " has" : ""}${p.hidden ? " hid" : ""}${sel}" data-node="${n.id}" data-pid="${p.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<div class="tx"><div class="nm">${K.esc(n.name || p.name)}</div><div class="pr">${K.money(p.price)} <small>/ ${K.esc(p.unit)}</small></div>${p.desc && sz !== "s" ? `<div class="ds">${K.esc(p.desc)}</div>` : ""}</div>${ctl}${ctx.edit && (so || p.hidden) ? `<div class="flag">${so ? "Εξαντλήθηκε" : "Κρυφό"}</div>` : ""}</div>`);
+      } else {
+        const cnt = ctx.count ? ctx.count(n) : 0;
+        const img = n.photo ? `<img class="ph" src="${K.esc(n.photo)}" alt="">` : n.emoji ? `<span class="em">${K.esc(n.emoji)}</span>` : "";
+        out.push(`<div role="button" tabindex="0" class="tile cat sz-${sz}${sel}" data-node="${n.id}" data-open="${n.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<span class="nm">${K.esc(n.name || "Χωρίς όνομα")}</span>${cnt ? `<span class="badge">${K.num(cnt)}</span>` : ""}${ctx.edit ? `<span class="sub">${(n.kids || []).length} μέσα</span>` : ""}</div>`);
+      }
+    }
+    return out.join("") || (ctx.edit ? "" : `<p class="empty">Δεν υπάρχουν είδη εδώ ακόμα.</p>`);
+  };
+  /* πόσα τεμάχια από το καλάθι βρίσκονται μέσα σε μια κατηγορία */
+  K.countIn = (node, qty) => { let s = 0; for (const k of node.kids || []) s += k.t === "p" ? (qty(k.pid) ? 1 : 0) : K.countIn(k, qty); return s; };
+
+  /* ---------- χρώματα ---------- */
+  K.contrast = hex => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return "#fff";
+    const n = parseInt(m[1], 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#1b1b1b" : "#ffffff";
+  };
+
+  /* ---------- εικόνες: σμίκρυνση για τον σύνδεσμο ---------- */
+  K.shrinkImage = (file, size, quality) => new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas"), s = Math.min(img.width, img.height);
+      c.width = c.height = size;
+      const x = c.getContext("2d");
+      x.imageSmoothingQuality = "high";
+      x.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      let d = c.toDataURL("image/webp", quality || 0.7);
+      if (!d.startsWith("data:image/webp")) d = c.toDataURL("image/jpeg", quality || 0.7);
+      res(d);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("εικόνα")); };
+    img.src = url;
+  });
+
+  /* ---------- σύνδεσμος καταλόγου ---------- */
+  K.buildCatalog = (st, opts) => {
+    opts = opts || {};
+    const sh = st.shop || {};
+    const used = new Set();
+    const walk = ns => (ns || []).map(n => {
+      const o = { i: n.id, n: n.name || "" };
+      if (n.size && n.size !== "m") o.z = n.size;
+      if (n.emoji) o.e = n.emoji;
+      if (n.color) o.c = n.color;
+      if (n.t === "p") { const p = st.products[n.pid]; if (!p || p.hidden || p.del) return null; o.p = n.pid; used.add(n.pid); if (o.n === p.name) delete o.n; }
+      else { o.k = walk(n.kids).filter(Boolean); if (opts.photos && n.photo) o.f = n.photo; }
+      return o;
+    }).filter(Boolean);
+    const m = walk(st.menu);
+    const p = {};
+    for (const id of used) {
+      const x = st.products[id];
+      const o = { n: x.name, u: x.unit, r: +x.price || 0 };
+      if (+x.step && +x.step !== 1) o.s = +x.step;
+      if (x.vat != null && +x.vat !== 13) o.v = +x.vat;
+      if (x.soldout) o.x = 1;
+      if (x.desc) o.d = x.desc;
+      if (x.emoji) o.e = x.emoji;
+      if (x.perish === false) o.np = 1;
+      if (opts.photos && x.photo) o.f = x.photo;
+      p[id] = o;
+    }
+    const d = st.deliv || {};
+    return {
+      v: 1, ts: Date.now(),
+      s: { n: sh.name || "", l: sh.legal || "", a: sh.addr || "", f: sh.afm || "", t: sh.phone || "", vb: sh.viber || "", m: sh.email || "", lg: opts.logo !== false ? sh.logo || "" : "", c1: sh.c1 || "#17324D", c2: sh.c2 || "#F2B632", w: sh.welcome || "", vi: sh.vatIncl !== false ? 1 : 0, lic: sh.lic || "" },
+      d: { h: d.how || "both", days: d.days || [1, 2, 3, 4, 5, 6], sl: d.slots || [], min: +d.min || 0, max: +d.max || 14, cut: d.cut || "", cl: d.closed || [], ad: d.askAddr !== false ? 1 : 0, mo: +d.minOrder || 0, nt: d.note || "" },
+      m, p,
+      k: st.nt.pub, t: st.nt.topic, u: opts.appUrl || ""
+    };
+  };
+  /* από τον συμπαγή κατάλογο σε κοινή μορφή για την απόδοση */
+  K.expandCatalog = C => {
+    const products = {};
+    for (const [id, o] of Object.entries(C.p || {})) products[id] = { id, name: o.n, unit: o.u, price: +o.r || 0, step: +o.s || 1, vat: o.v != null ? +o.v : 13, soldout: !!o.x, desc: o.d || "", emoji: o.e || "", perish: !o.np, photo: o.f || "" };
+    const walk = ns => (ns || []).map(o => o.p ? { id: o.i, t: "p", pid: o.p, name: o.n || (products[o.p] || {}).name || "", size: o.z || "m", emoji: o.e || "", color: o.c || "" } : { id: o.i, t: "c", name: o.n, size: o.z || "m", emoji: o.e || "", color: o.c || "", photo: o.f || "", kids: walk(o.k) });
+    return { products, menu: walk(C.m) };
+  };
+
+  window.Kat = K;
+})();

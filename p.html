@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<!--
+  Παραγγελίες — σελίδα παραγγελίας για τον πελάτη του πωλητή
+  © 2026 Ανδρέας Μ. Γλεντζάκης (Andreas M. Glentzakis). Με την επιφύλαξη παντός δικαιώματος. All rights reserved.
+  Απαγορεύεται η αντιγραφή, τροποποίηση και διάθεση, εν όλω ή εν μέρει, χωρίς προηγούμενη γραπτή άδεια του κατόχου.
+-->
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="app-version" content="1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#17324D" id="themeColor">
+<meta name="robots" content="noindex">
+<title>Παραγγελία</title>
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.0">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.0">
+<link rel="stylesheet" href="koino.css?v=1.0">
+<style>
+:root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding-bottom:110px}
+button{font:inherit}
+.hdr{background:var(--c1);color:var(--on1);padding:calc(14px + env(safe-area-inset-top)) 16px 18px;display:flex;gap:12px;align-items:center}
+.hdr img{width:58px;height:58px;border-radius:14px;object-fit:cover;background:#fff;flex:0 0 58px}
+.hdr h1{margin:0;font-size:21px;line-height:1.15}
+.hdr p{margin:3px 0 0;font-size:14px;opacity:.85}
+main{max-width:640px;margin:0 auto;padding:12px 16px}
+.crumb{display:flex;align-items:center;gap:8px;margin:2px 0 10px;flex-wrap:wrap}
+.back{border:0;background:var(--card);border-radius:20px;padding:8px 14px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.1);cursor:pointer}
+.crumb .path{font-weight:800;font-size:17px}
+.again{width:100%;border:2px dashed var(--c1);background:transparent;color:var(--c1);border-radius:14px;padding:12px;font-weight:800;margin:0 0 12px;cursor:pointer}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--card);box-shadow:0 -4px 20px rgba(0,0,0,.12);display:flex;gap:10px;align-items:center;z-index:20}
+.bar .sum{flex:1;min-width:0}
+.bar .sum b{font-size:18px;display:block}
+.bar .sum span{font-size:13px;color:var(--mute)}
+.btn{border:0;border-radius:14px;padding:14px 18px;font-weight:800;font-size:16px;cursor:pointer;background:var(--c1);color:var(--on1)}
+.btn.alt{background:var(--c2);color:var(--on2)}
+.btn.ghost{background:transparent;color:var(--c1);border:2px solid var(--c1)}
+.btn.wide{width:100%}
+.btn:disabled{opacity:.45}
+.sec{background:var(--card);border-radius:16px;padding:14px;margin:0 0 12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.sec h2{margin:0 0 10px;font-size:17px}
+.line{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.line:last-child{border-bottom:0}
+.line .ln{flex:1;min-width:0}
+.line .ln b{display:block}
+.line .ln span{font-size:13px;color:var(--mute)}
+.line .lt{font-weight:800;min-width:70px;text-align:right}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:2px solid var(--line);background:var(--card);border-radius:12px;padding:9px 12px;font-weight:700;cursor:pointer;color:var(--ink)}
+.chip.on{border-color:var(--c1);background:var(--c1);color:var(--on1)}
+label.f{display:block;font-weight:700;font-size:14px;margin:10px 0 4px}
+input.t,textarea.t{width:100%;border:2px solid var(--line);border-radius:12px;padding:12px;font:inherit;background:#fff;color:var(--ink)}
+input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
+.ck{display:flex;gap:10px;align-items:flex-start;margin:10px 0;font-size:14px}
+.ck input{width:22px;height:22px;flex:0 0 22px;margin:1px 0 0;accent-color:var(--c1)}
+.err{color:#b3261e;font-weight:700;font-size:14px;margin:6px 0 0}
+.note{font-size:13px;color:var(--mute);margin:8px 0 0}
+.total{display:flex;justify-content:space-between;font-size:19px;font-weight:800;padding:10px 0 0}
+.foot{max-width:640px;margin:10px auto 0;padding:14px 16px 20px;font-size:12.5px;color:var(--mute);line-height:1.5}
+.foot a{color:var(--mute)}
+.foot .gl{margin-top:12px;text-align:center;font-size:11.5px;opacity:.8}
+.done{text-align:center;padding:24px 8px}
+.done .big{font-size:56px}
+.done h2{margin:6px 0}
+.code{display:inline-block;font:800 22px ui-monospace,monospace;letter-spacing:2px;background:var(--card);border-radius:10px;padding:6px 14px;margin:6px 0}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:50}
+.modal.open{display:flex}
+.modal .box{background:var(--card);border-radius:20px 20px 0 0;max-width:640px;width:100%;max-height:88vh;overflow:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+.modal h3{margin:0 0 10px}
+.bad{max-width:520px;margin:60px auto;padding:20px;text-align:center}
+.home-add{display:block;margin:4px auto 0;border:0;background:transparent;color:var(--c1);font-weight:700;text-decoration:underline;cursor:pointer;padding:8px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="modal" id="modal"><div class="box" id="mbox"></div></div>
+<script src="katalogos.js?v=1.0"></script>
+<script>
+(function(){
+"use strict";
+const K=window.Kat,$=s=>document.querySelector(s),esc=K.esc;
+const APP_URL=new URL("./",location.href).href;
+let C=null,P=null,M=null,cart={},view=[],stage="shop",lastSent=null,sending=false,orderId=null,deferredPrompt=null;
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+let SK="";
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e});
+
+function bad(msg){$("#app").innerHTML=`<div class="bad"><div style="font-size:48px">🔗</div><h2>Ο σύνδεσμος δεν άνοιξε</h2><p>${esc(msg)}</p><p class="note">Ζήτησε από τον πωλητή να σου στείλει ξανά τον σύνδεσμο παραγγελίας.</p></div>`}
+
+async function load(){
+  const h=new URLSearchParams(location.hash.slice(1));
+  const k=h.get("k");
+  if(!k){bad("Λείπει ο κατάλογος από τον σύνδεσμο.");return}
+  try{C=await K.unpack(k)}catch{bad("Ο σύνδεσμος είναι ελλιπής ή αλλοιωμένος. Ίσως κόπηκε κατά την αντιγραφή.");return}
+  if(!C||C.v!==1||!C.k||!C.t||!C.s||!C.s.n){bad("Ο σύνδεσμος δεν είναι έγκυρος.");return}
+  const ex=K.expandCatalog(C);P=ex.products;M=ex.menu;
+  SK="par:"+C.k.slice(0,16);
+  cart=store.get(SK+":cart",{});for(const id of Object.keys(cart))if(!P[id]||P[id].soldout)delete cart[id];
+  brand();render();
+  if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+
+/* ---------- στοιχεία πωλητή: χρώματα, λογότυπο, όνομα στην αρχική οθόνη ---------- */
+function brand(){
+  const s=C.s,r=document.documentElement.style;
+  const c1=/^#[0-9a-f]{6}$/i.test(s.c1)?s.c1:"#17324D",c2=/^#[0-9a-f]{6}$/i.test(s.c2)?s.c2:"#F2B632";
+  r.setProperty("--c1",c1);r.setProperty("--c2",c2);r.setProperty("--on1",K.contrast(c1));r.setProperty("--on2",K.contrast(c2));
+  $("#themeColor").content=c1;
+  document.title=s.n;
+  let ttl=document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if(!ttl){ttl=document.createElement("meta");ttl.name="apple-mobile-web-app-title";document.head.appendChild(ttl)}
+  ttl.content=s.n;
+  makeIcons(s.lg,c1,s.n).then(ic=>{
+    $("#fav").href=ic[192];$("#fav2").href=ic[180];
+    /* δυναμικό αρχείο εφαρμογής με το όνομα και το εικονίδιο του πωλητή — πρέπει να δοκιμαστεί σε Android */
+    const man={name:s.n,short_name:s.n.length>14?s.n.slice(0,14):s.n,id:"p-"+C.k.slice(0,20),start_url:location.href,scope:APP_URL,display:"standalone",background_color:"#F3F4F1",theme_color:c1,lang:"el",
+      icons:[{src:ic[192],sizes:"192x192",type:"image/png"},{src:ic[512],sizes:"512x512",type:"image/png"},{src:ic[512],sizes:"512x512",type:"image/png",purpose:"maskable"}]};
+    let l=document.querySelector('link[rel="manifest"]');
+    if(!l){l=document.createElement("link");l.rel="manifest";document.head.appendChild(l)}
+    l.href="data:application/manifest+json;charset=utf-8,"+encodeURIComponent(JSON.stringify(man));
+  }).catch(()=>{});
+}
+function makeIcons(logo,c1,name){
+  return new Promise(res=>{
+    const draw=img=>{const out={};for(const n of[180,192,512]){const c=document.createElement("canvas");c.width=c.height=n;const x=c.getContext("2d");
+      x.fillStyle=c1;x.fillRect(0,0,n,n);
+      if(img){const pad=n*.14,s=n-2*pad;x.save();x.beginPath();const rr=n*.16;x.roundRect?x.roundRect(pad,pad,s,s,rr):x.rect(pad,pad,s,s);x.clip();x.fillStyle="#fff";x.fillRect(pad,pad,s,s);x.drawImage(img,pad,pad,s,s);x.restore()}
+      else{x.fillStyle=K.contrast(c1);x.font=`800 ${n*.46}px system-ui,sans-serif`;x.textAlign="center";x.textBaseline="middle";x.fillText((name||"?").trim().charAt(0).toUpperCase(),n/2,n/2+n*.03)}
+      out[n]=c.toDataURL("image/png")}res(out)};
+    if(logo){const i=new Image();i.onload=()=>draw(i);i.onerror=()=>draw(null);i.src=logo}else draw(null)});
+}
+
+/* ---------- καλάθι ---------- */
+const qty=id=>cart[id]||0;
+function setQ(id,q){const p=P[id];if(!p)return;q=Math.max(0,Math.min(K.MAX_QTY,Math.round(q*1000)/1000));if(q<=0)delete cart[id];else cart[id]=q;store.set(SK+":cart",cart)}
+function totals(){let n=0,t=0;for(const[id,q]of Object.entries(cart)){const p=P[id];if(!p)continue;n++;t+=K.round2(q*p.price)}return{n,t:K.round2(t)}}
+
+function header(){const s=C.s;return`<header class="hdr">${s.lg?`<img src="${esc(s.lg)}" alt="">`:""}<div><h1>${esc(s.n)}</h1>${s.w?`<p>${esc(s.w)}</p>`:`<p>Παραγγελία χωρίς τηλεφωνήματα</p>`}</div></header>`}
+function footer(){const s=C.s;const perish=Object.values(P).some(p=>p.perish);
+  return`<footer class="foot">
+  <div><b>${esc(s.l||s.n)}</b>${s.a?" · "+esc(s.a):""}${s.f?" · ΑΦΜ "+esc(s.f):""}${s.t?` · <a href="tel:${esc(s.t)}">${esc(s.t)}</a>`:""}${s.m?` · ${esc(s.m)}`:""}</div>
+  <div>${s.vi?"Όλες οι τιμές περιλαμβάνουν ΦΠΑ.":"Οι τιμές δεν περιλαμβάνουν ΦΠΑ."} Οι τιμές και η διαθεσιμότητα επιβεβαιώνονται από τον πωλητή.</div>
+  <div>Η επιβεβαίωση της παραγγελίας δεν αποτελεί φορολογικό παραστατικό. Το νόμιμο παραστατικό εκδίδεται από τον πωλητή.</div>
+  ${perish?`<div>Για τρόφιμα που αλλοιώνονται γρήγορα δεν ισχύει το δικαίωμα υπαναχώρησης (ν. 2251/1994, άρθρο 3ιδ).</div>`:""}
+  <div>Υπεύθυνος για τα προϊόντα, τις τιμές και τα προσωπικά σας στοιχεία είναι ο πωλητής. <a href="aporrito.html#pelatis" target="_blank" rel="noopener">Απόρρητο</a> · <a href="oroi.html#agorastis" target="_blank" rel="noopener">Όροι</a></div>
+  <button type="button" class="home-add" data-act="home">📲 Βάλ' το στην αρχική οθόνη</button>
+  <div class="gl">Παραγγελίες με GlenApps</div></footer>`}
+
+function curNodes(){if(!view.length)return M;const f=K.findNode(M,view[view.length-1]);return f&&f.node.kids?f.node.kids:M}
+function render(){
+  document.querySelectorAll("body > .bar").forEach(e=>e.remove());
+  if(stage==="check")return renderCheck();
+  if(stage==="done")return renderDone();
+  const nodes=curNodes();
+  const path=view.map(id=>(K.findNode(M,id)||{}).node).filter(Boolean);
+  const last=store.get(SK+":last",null);
+  const t=totals();
+  $("#app").innerHTML=header()+`<main>
+   ${path.length?`<div class="crumb"><button type="button" class="back" data-act="back">← Πίσω</button><span class="path">${esc(path.map(n=>n.name).join(" › "))}</span></div>`:""}
+   ${!path.length&&last&&!t.n?`<button type="button" class="again" data-act="again">🔁 Ξανά τα ίδια με την προηγούμενη φορά</button>`:""}
+   <div class="grid" id="grid">${K.tilesHTML(nodes,{prod:id=>P[id],qty,count:n=>K.countIn(n,qty)})}</div></main>`+footer()+bar();
+}
+function bar(){const t=totals();if(!t.n)return"";return`<div class="bar"><div class="sum"><b>${K.money(t.t)}</b><span>${t.n} ${t.n===1?"είδος":"είδη"} στο καλάθι</span></div><button type="button" class="btn alt" data-act="check">Συνέχεια →</button></div>`}
+function refreshTile(id){const q=qty(id);document.querySelectorAll(`[data-qv="${id}"]`).forEach(e=>e.textContent=q?K.num(q):"0");document.querySelectorAll(`.tile[data-pid="${id}"]`).forEach(t=>{t.classList.toggle("has",!!q);const m=t.querySelector("[data-minus]");if(m)m.disabled=!q});
+  const old=document.querySelector(".bar");const html=bar();if(old)old.outerHTML=html||"";else if(html)document.body.insertAdjacentHTML("beforeend",html);
+  const again=document.querySelector(".again");if(again&&totals().n)again.remove()}
+
+/* ---------- ολοκλήρωση ---------- */
+function renderCheck(){
+  const d=C.d||{},s=C.s;const me=store.get(SK+":me",{});
+  const ch=store.get(SK+":ck",{});
+  const days=K.availDays({days:d.days,closed:d.cl,min:d.min,max:d.max,cut:d.cut});
+  if(!ch.d||!days.includes(ch.d))ch.d=days[0]||"";
+  const how=d.h==="pick"?"pick":d.h==="del"?"del":(ch.h||"del");ch.h=how;
+  if(d.sl&&d.sl.length&&!d.sl.includes(ch.s))ch.s=d.sl[0];
+  store.set(SK+":ck",ch);
+  const t=totals();
+  const lines=Object.entries(cart).filter(([id])=>P[id]).map(([id,q])=>{const p=P[id];return`<div class="line"><div class="ln"><b>${esc(p.name)}</b><span>${K.money(p.price)} / ${esc(p.unit)}</span></div><div class="qty"><button type="button" class="qb" data-minus="${id}">−</button><span class="qv">${K.num(q)}</span><button type="button" class="qb plus" data-plus="${id}">+</button></div><div class="lt">${K.money(q*p.price)}</div></div>`}).join("");
+  const perish=Object.keys(cart).some(id=>P[id]&&P[id].perish);
+  const needAddr=how==="del"&&d.ad;
+  $("#app").innerHTML=header()+`<main>
+  <div class="crumb"><button type="button" class="back" data-act="shop">← Συνέχεια αγορών</button></div>
+  <div class="sec"><h2>Η παραγγελία σου</h2>${lines}<div class="total"><span>Σύνολο</span><span>${K.money(t.t)}</span></div>
+   <p class="note">${s.vi?"Οι τιμές περιλαμβάνουν ΦΠΑ.":"Οι τιμές δεν περιλαμβάνουν ΦΠΑ."} Ισχύουν οι τρέχουσες τιμές του πωλητή.</p>
+   ${d.mo&&t.t<d.mo?`<p class="err">Ελάχιστη παραγγελία ${K.money(d.mo)}.</p>`:""}</div>
+  <div class="sec"><h2>Πότε</h2>
+   ${d.h==="both"?`<div class="chips" style="margin-bottom:10px"><button type="button" class="chip${how==="del"?" on":""}" data-how="del">🚚 Παράδοση</button><button type="button" class="chip${how==="pick"?" on":""}" data-how="pick">🏪 Παραλαβή</button></div>`:`<p class="note" style="margin:0 0 8px">${how==="pick"?"🏪 Παραλαβή από τον πωλητή":"🚚 Παράδοση"}</p>`}
+   ${days.length?`<div class="chips">${days.slice(0,10).map(x=>`<button type="button" class="chip${x===ch.d?" on":""}" data-day="${x}">${esc(K.dayLabel(x))}</button>`).join("")}</div>`:`<p class="err">Δεν υπάρχουν διαθέσιμες ημέρες αυτή τη στιγμή.</p>`}
+   ${d.sl&&d.sl.length?`<label class="f">Ώρα</label><div class="chips">${d.sl.map(x=>`<button type="button" class="chip${x===ch.s?" on":""}" data-slot="${esc(x)}">${esc(x)}</button>`).join("")}</div>`:""}
+   ${d.nt?`<p class="note">${esc(d.nt)}</p>`:""}</div>
+  <div class="sec"><h2>Τα στοιχεία σου</h2>
+   <label class="f" for="cn">Ονοματεπώνυμο</label><input class="t" id="cn" autocomplete="name" value="${esc(me.n||"")}" maxlength="80">
+   <label class="f" for="cp">Κινητό τηλέφωνο</label><input class="t" id="cp" type="tel" inputmode="tel" autocomplete="tel" value="${esc(me.p||"")}" maxlength="20">
+   ${needAddr?`<label class="f" for="ca">Διεύθυνση παράδοσης</label><input class="t" id="ca" autocomplete="street-address" value="${esc(me.a||"")}" maxlength="160">`:""}
+   <label class="f" for="cnote">Σημείωση (προαιρετικά)</label><textarea class="t" id="cnote" rows="2" maxlength="400" placeholder="π.χ. χτυπήστε το δεύτερο κουδούνι">${esc(ch.note||"")}</textarea>
+   <label class="ck"><input type="checkbox" id="crem"${me.n?" checked":""}><span>Να θυμάται αυτό το κινητό τα στοιχεία μου για την επόμενη φορά</span></label>
+   <label class="ck"><input type="checkbox" id="ccons"><span>Δίνω τα στοιχεία μου στον πωλητή «${esc(s.l||s.n)}» μόνο για την εκτέλεση της παραγγελίας. Διάβασα την <a href="aporrito.html#pelatis" target="_blank" rel="noopener">ενημέρωση απορρήτου</a>.</span></label>
+   ${perish?`<p class="note">Τα τρόφιμα που αλλοιώνονται γρήγορα δεν επιστρέφονται (εξαίρεση από το δικαίωμα υπαναχώρησης). Για αλλαγή ή ακύρωση επικοινώνησε με τον πωλητή πριν από την παράδοση.</p>`:""}
+   <div class="err" id="cerr"></div></div>
+  <button type="button" class="btn wide" id="send" data-act="send"${sending?" disabled":""}>${sending?"Αποστολή…":"Αποστολή παραγγελίας · "+K.money(t.t)}</button>
+  <p class="note" style="text-align:center">Η επιβεβαίωση δεν αποτελεί φορολογικό παραστατικό.</p>
+  </main>`+footer();
+}
+function saveCk(){const ch=store.get(SK+":ck",{});const n=$("#cnote");if(n)ch.note=n.value;store.set(SK+":ck",ch)}
+
+async function send(){
+  if(sending)return;
+  const err=m=>{$("#cerr").textContent=m;$("#cerr").scrollIntoView({block:"center",behavior:"smooth"})};
+  const d=C.d||{},ch=store.get(SK+":ck",{});
+  const n=$("#cn").value.trim(),p=$("#cp").value.trim(),a=$("#ca")?$("#ca").value.trim():"",note=$("#cnote").value.trim();
+  const t=totals();
+  if(!t.n)return err("Το καλάθι είναι άδειο.");
+  if(d.mo&&t.t<d.mo)return err("Η ελάχιστη παραγγελία είναι "+K.money(d.mo)+".");
+  if(n.length<3)return err("Γράψε το ονοματεπώνυμό σου.");
+  if(p.replace(/\D/g,"").length<10)return err("Γράψε ένα έγκυρο κινητό τηλέφωνο (10 ψηφία).");
+  if($("#ca")&&a.length<5)return err("Γράψε τη διεύθυνση παράδοσης.");
+  const days=K.availDays({days:d.days,closed:d.cl,min:d.min,max:d.max,cut:d.cut});
+  if(!ch.d||!days.includes(ch.d))return err("Διάλεξε ημέρα.");
+  if(!$("#ccons").checked)return err("Χρειάζεται να αποδεχτείς την ενημέρωση απορρήτου.");
+  if($("#crem").checked)store.set(SK+":me",{n,p,a});else{try{localStorage.removeItem(SK+":me")}catch{}}
+  if(!orderId)orderId=K.uid(12);
+  const O={v:1,id:orderId,cv:C.ts,at:Date.now(),c:{n,p,a,note},w:{d:ch.d,s:ch.s||"",h:ch.h||"del"},l:Object.entries(cart).filter(([id])=>P[id]).map(([id,q])=>[id,q,P[id].price]),cons:1};
+  sending=true;$("#send").disabled=true;$("#send").textContent="Αποστολή…";
+  let ct;
+  try{ct=await K.seal(C.k,O)}catch{sending=false;render();return err("Το κινητό δεν μπόρεσε να κρυπτογραφήσει την παραγγελία. Δοκίμασε σε άλλον περιηγητή (π.χ. Chrome).")}
+  const click=(C.u||APP_URL)+"#o="+ct;
+  const code=orderId.slice(-5).toUpperCase().replace(/[-_]/g,"X");
+  let ok=false;
+  try{await K.ntfySend(C.t,"🛒 Νέα παραγγελία "+code,t.n+(t.n===1?" είδος":" είδη")+" · "+K.dayLabel(ch.d)+" — πάτα για να την ανοίξεις",click);ok=true}catch{}
+  sending=false;
+  lastSent={code,click,ok,day:ch.d,slot:ch.s,how:ch.h,total:t.t,lines:O.l.map(([id,q])=>({name:P[id].name,unit:P[id].unit,q,price:P[id].price}))};
+  if(ok){store.set(SK+":last",Object.assign({},cart));cart={};store.set(SK+":cart",{});const c2=store.get(SK+":ck",{});delete c2.note;store.set(SK+":ck",c2);orderId=null}
+  stage="done";render();window.scrollTo(0,0);
+}
+function viberText(){return"Παραγγελία "+lastSent.code+" — "+K.money(lastSent.total)+"\n"+lastSent.click}
+function renderDone(){
+  const L=lastSent,s=C.s;
+  $("#app").innerHTML=header()+`<main><div class="done">
+   <div class="big">${L.ok?"✅":"⚠️"}</div>
+   <h2>${L.ok?"Η παραγγελία στάλθηκε":"Η παραγγελία δεν στάλθηκε ακόμα"}</h2>
+   <div>Κωδικός</div><div class="code">${esc(L.code)}</div>
+   <p>${esc(K.dayLabel(L.day))}${L.slot?" · "+esc(L.slot):""} · ${L.how==="pick"?"Παραλαβή":"Παράδοση"}</p></div>
+   <div class="sec">${L.lines.map(l=>`<div class="line"><div class="ln"><b>${esc(l.name)}</b><span>${K.num(l.q)} × ${K.money(l.price)} / ${esc(l.unit)}</span></div><div class="lt">${K.money(l.q*l.price)}</div></div>`).join("")}<div class="total"><span>Σύνολο</span><span>${K.money(L.total)}</span></div>
+   <p class="note">Τελικές είναι οι τιμές του πωλητή. Η επιβεβαίωση αυτή δεν αποτελεί φορολογικό παραστατικό.</p></div>
+   ${L.ok?`<p class="note" style="text-align:center">Αν θέλεις σιγουριά, στείλ' την και στο Viber του πωλητή. Ο σύνδεσμος ανοίγει μόνο στη δική του εφαρμογή.</p>`:`<p class="err" style="text-align:center">Δεν υπήρξε σύνδεση στο διαδίκτυο. Δοκίμασε ξανά ή στείλ' την στο Viber του πωλητή.</p><button type="button" class="btn wide" data-act="retry" style="margin-bottom:10px">Δοκίμασε ξανά</button>`}
+   <a class="btn ${L.ok?"ghost":"alt"} wide" style="display:block;text-align:center;text-decoration:none;margin-bottom:10px" href="viber://forward?text=${encodeURIComponent(viberText())}">💬 Στείλ' την και στο Viber</a>
+   ${s.t?`<a class="btn ghost wide" style="display:block;text-align:center;text-decoration:none;margin-bottom:10px" href="tel:${esc(s.t)}">📞 Κάλεσε τον πωλητή</a>`:""}
+   <button type="button" class="btn wide" data-act="new">Νέα παραγγελία</button></main>`+footer();
+}
+
+/* ---------- αρχική οθόνη ---------- */
+async function homeAdd(){
+  if(deferredPrompt){try{deferredPrompt.prompt();await deferredPrompt.userChoice}catch{}deferredPrompt=null;return}
+  const inViber=/Viber/i.test(navigator.userAgent),ios=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+  openModal(`<h3>📲 Στην αρχική οθόνη</h3>
+   ${inViber?`<p><b>1.</b> Πάτα τις τρεις τελείες πάνω δεξιά και διάλεξε «Άνοιγμα σε περιηγητή» (Chrome).</p>`:""}
+   ${ios?`<p><b>${inViber?"2":"1"}.</b> Στο Safari πάτα το κουμπί κοινοποίησης <b>⬆️</b>.</p><p><b>${inViber?"3":"2"}.</b> Διάλεξε «Προσθήκη στην οθόνη Αφετηρίας».</p>`
+   :`<p><b>${inViber?"2":"1"}.</b> Στο Chrome πάτα τις τρεις τελείες <b>⋮</b> πάνω δεξιά.</p><p><b>${inViber?"3":"2"}.</b> Διάλεξε «Προσθήκη στην αρχική οθόνη» ή «Εγκατάσταση εφαρμογής».</p>`}
+   <p class="note">Το εικονίδιο θα έχει το όνομα «${esc(C.s.n)}». Δεν χρειάζεται εγκατάσταση από κατάστημα εφαρμογών.</p>
+   <button type="button" class="btn wide" data-act="close">Εντάξει</button>`);
+}
+function openModal(h){$("#mbox").innerHTML=h;$("#modal").classList.add("open")}
+function closeModal(){$("#modal").classList.remove("open")}
+
+/* ---------- πατήματα ---------- */
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button,[data-open]");if(!b)return;
+  if(b.dataset.plus){const p=P[b.dataset.plus];setQ(p.id,qty(p.id)+(p.step||1));stage==="check"?renderCheck():refreshTile(p.id);return}
+  if(b.dataset.minus){const p=P[b.dataset.minus];setQ(p.id,qty(p.id)-(p.step||1));if(stage==="check"){if(!totals().n)stage="shop";render()}else refreshTile(p.id);return}
+  if(b.dataset.open){view.push(b.dataset.open);render();window.scrollTo(0,0);return}
+  if(b.dataset.day||b.dataset.slot||b.dataset.how){saveCk();const ch=store.get(SK+":ck",{});if(b.dataset.day)ch.d=b.dataset.day;if(b.dataset.slot)ch.s=b.dataset.slot;if(b.dataset.how)ch.h=b.dataset.how;store.set(SK+":ck",ch);keepInputs(renderCheck);return}
+  const a=b.dataset.act;if(!a)return;
+  if(a==="back"){view.pop();render()}
+  else if(a==="check"){stage="check";render();window.scrollTo(0,0)}
+  else if(a==="shop"){saveCk();stage="shop";render()}
+  else if(a==="send")send();
+  else if(a==="retry"){stage="check";render();send()}
+  else if(a==="new"){stage="shop";view=[];render();window.scrollTo(0,0)}
+  else if(a==="again"){const last=store.get(SK+":last",{});let miss=0;for(const[id,q]of Object.entries(last)){if(P[id]&&!P[id].soldout)setQ(id,q);else miss++}stage="check";render();if(miss)$("#cerr").textContent="Κάποια είδη της προηγούμενης φοράς δεν είναι διαθέσιμα τώρα."}
+  else if(a==="home")homeAdd();
+  else if(a==="close")closeModal();
+});
+$("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
+function keepInputs(fn){const v={};document.querySelectorAll("input.t,textarea.t").forEach(i=>v[i.id]=i.value);const c={};document.querySelectorAll(".ck input").forEach(i=>c[i.id]=i.checked);const y=window.scrollY;fn();for(const[id,x]of Object.entries(v)){const i=document.getElementById(id);if(i)i.value=x}for(const[id,x]of Object.entries(c)){const i=document.getElementById(id);if(i)i.checked=x}window.scrollTo(0,y)}
+window.addEventListener("hashchange",()=>location.reload());
+load();
+})();
+</script>
+</body>
+</html>
