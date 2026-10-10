@@ -67,10 +67,12 @@ function toast(m, ms) { const t = $("#toast"); t.textContent = m; t.classList.ad
 let shOnClose = null;
 function sheet(title, body, foot, onOpen, onClose) {
   $("#shT").textContent = title; $("#shB").innerHTML = body; $("#shF").innerHTML = foot || ""; $("#shF").style.display = foot ? "" : "none";
+  if (!isSheetOpen()) histPush({ sh: 1 });
   $("#sheetbg").classList.add("open"); $("#shB").scrollTop = 0; shOnClose = onClose || null;
   if (onOpen) onOpen($("#shB"));
 }
-function closeSheet() { $("#sheetbg").classList.remove("open"); const f = shOnClose; shOnClose = null; if (f) f(); }
+function hideSheet() { $("#sheetbg").classList.remove("open"); const f = shOnClose; shOnClose = null; if (f) f(); }
+function closeSheet() { if (!isSheetOpen()) return; hideSheet(); if (history.state && history.state.sh) { skipPop++; history.back(); } }
 const isSheetOpen = () => $("#sheetbg").classList.contains("open");
 A.toast = toast; A.sheet = sheet; A.closeSheet = closeSheet;
 const custKey = ph => String(ph || "").replace(/\D/g, "").slice(-10);
@@ -203,7 +205,7 @@ async function handleHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const o = h.get("o");
   const q = new URLSearchParams(location.search);
-  if (o || location.hash || q.get("text") || q.get("share")) history.replaceState(null, "", location.pathname);
+  if (o || location.hash || q.get("text") || q.get("share")) history.replaceState(history.state, "", location.pathname);
   if (o) {
     const r = await receive(o, "link");
     if (r.ok) { announce(r.order); tab = "orders"; ordFilter.st = r.order.st === "dup" ? "dup" : "new"; render(); openOrder(r.order.id); }
@@ -220,6 +222,9 @@ async function handleHash() {
 function render() {
   if (!S) return;
   $("#ttl").textContent = S.shop.name || "Παραγγελίες";
+  let rb = $("#roleBtn");
+  if (S.ui.test && !rb) { $(".top").insertAdjacentHTML("beforeend", `<button type="button" class="lnk" id="roleBtn" data-act="role" style="background:#fff;color:#17324D">👤 Πελάτης</button>`); }
+  else if (!S.ui.test && rb) rb.remove();
   $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
   const nNew = S.orders.filter(o => o.st === "new" || o.st === "dup").length;
   const ob = $('#tabs [data-tab="orders"]'); const d = ob.querySelector(".dot"); if (d) d.remove();
@@ -281,7 +286,7 @@ function ordCard(o) {
    <div class="h"><b>#${o.no} · ${esc(o.cust.name)}</b><span class="tot">${K.money(o.total)}</span></div>
    <div class="m">${o.when.how === "pick" ? "🏪" : "🚚"} ${esc(fmtWhen(o))}${o.when.how !== "pick" && o.cust.addr ? " · " + esc(o.cust.addr) : ""}</div>
    <div class="it">${esc(items)}</div>
-   <div class="row"><span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}${o.warn && o.warn.length ? `<span class="pill warn">⚠️ ${o.warn.length}</span>` : ""}${o.cust.note ? `<span class="pill">📝</span>` : ""}<span class="grow"></span>${next ? `<button type="button" class="btn sm ${next[0] === "paid" ? "green" : "amber"}" data-next="${o.id}" data-to="${next[0]}">${next[1]}</button>` : ""}</div></div>`;
+   <div class="row">${o.test ? `<span class="pill warn">🧪 Δοκιμή</span>` : ""}<span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}${o.warn && o.warn.length ? `<span class="pill warn">⚠️ ${o.warn.length}</span>` : ""}${o.cust.note ? `<span class="pill">📝</span>` : ""}<span class="grow"></span>${next ? `<button type="button" class="btn sm ${next[0] === "paid" ? "green" : "amber"}" data-next="${o.id}" data-to="${next[0]}">${next[1]}</button>` : ""}</div></div>`;
 }
 function setStatus(o, st) {
   if (st === "paid") { o.paid = true; o.paidAt = Date.now(); o.log.push([Date.now(), "Πληρώθηκε"]); if (o.st === "new" || o.st === "prep") { } }
@@ -498,7 +503,8 @@ function moreView() {
    ${it("ℹ️", "Έκδοση " + VERSION, updNew && updNew !== VERSION ? "Υπάρχει νέα έκδοση " + updNew + " — πάτα για αναβάθμιση" : "Αυτόματες αναβαθμίσεις · πάτα για έλεγχο τώρα", "update")}</div>
    ${S.rejected.length ? `<details class="card"><summary style="cursor:pointer;font-weight:700">Απορρίφθηκαν (${S.rejected.length})</summary>${S.rejected.map(([t, m]) => `<div class="note">${fmtTime(t)} · ${esc(m)}</div>`).join("")}</details>` : ""}
    <div class="efm-host" id="efmHost"></div>
-   <p class="note" style="text-align:center">Παραγγελίες · GlenApps · © 2026 Ανδρέας Μ. Γλεντζάκης</p>`;
+   ${S.ui.test ? `<div class="card list"><div class="it" data-act="role"><div class="ic">🧪</div><div class="t"><b>Λειτουργία δοκιμών</b><span>Πάτα «👤 Πελάτης» πάνω δεξιά για να παραγγείλεις στον εαυτό σου</span></div></div><div class="it" data-act="testDel"><div class="ic">🗑</div><div class="t"><b>Διαγραφή δοκιμαστικών παραγγελιών</b><span>${S.orders.filter(o => o.test).length} δοκιμαστικές</span></div></div><div class="it" data-act="testOff"><div class="ic">✕</div><div class="t"><b>Κλείσιμο λειτουργίας δοκιμών</b></div></div></div>` : ""}
+   <p class="note" style="text-align:center" data-act="secret">Παραγγελίες · GlenApps · © 2026 Ανδρέας Μ. Γλεντζάκης</p>`;
 }
 function deliveryText() { const d = S.deliv; return (d.how === "both" ? "Παράδοση και παραλαβή" : d.how === "pick" ? "Μόνο παραλαβή" : "Μόνο παράδοση") + " · " + (d.days || []).map(x => K.WD[x].slice(0, 3)).join(" "); }
 function afmOk(a) { a = String(a || "").trim(); if (!/^\d{9}$/.test(a) || a === "000000000") return false; let s = 0; for (let i = 0; i < 8; i++) s += +a[i] * Math.pow(2, 8 - i); return (s % 11) % 10 === +a[8]; }
@@ -612,7 +618,7 @@ async function linkSheet() {
     <label class="ck"><input type="checkbox" id="lkPh"${S.link.photos ? " checked" : ""}><span>Με φωτογραφίες προϊόντων (μεγαλώνει τον σύνδεσμο) ${isPro() ? "" : "· Pro"}</span></label>
     <label class="ck"><input type="checkbox" id="lkLg"${S.link.logo ? " checked" : ""}><span>Με λογότυπο</span></label></div>
    <div class="row" style="margin-bottom:10px"><a class="btn amber grow" href="viber://forward?text=${encodeURIComponent(msg)}" data-act="lkSent">💬 Viber</a><button type="button" class="btn grow" data-act="lkShare">📤 Κοινοποίηση</button></div>
-   <div class="row" style="margin-bottom:10px"><button type="button" class="btn ghost grow" data-act="lkCopy">📋 Αντιγραφή</button><a class="btn ghost grow" href="${esc(url)}" target="_blank" rel="noopener">👁 Όπως το βλέπει ο πελάτης</a></div>
+   <div class="row" style="margin-bottom:10px"><button type="button" class="btn ghost grow" data-act="lkCopy">📋 Αντιγραφή</button><button type="button" class="btn ghost grow" data-act="lkPreview">👁 Όπως το βλέπει ο πελάτης</button></div>
    <p class="note">Ο κατάλογος ταξιδεύει μέσα στον σύνδεσμο. Δεν ανεβαίνει πουθενά. Οι παραγγελίες έρχονται κρυπτογραφημένες και ανοίγουν μόνο σε αυτό το κινητό.</p>
    <p class="note">Όταν αλλάζεις προϊόντα, τιμές ή «εξαντλήθηκε», ξαναστείλε τον σύνδεσμο ή καρφίτσωσέ τον στη συνομιλία σου στο Viber.</p>`, "",
    el => { el.dataset.url = url; el.dataset.msg = msg; });
@@ -763,6 +769,12 @@ const ACT = {
   poll: () => pollOnce(true),
   update: () => checkUpdate(true),
   updGo: () => applyUpdate(),
+  lkPreview: () => { const u = $("#shB").dataset.url; closeSheet(); setTimeout(() => openPreview(u), 60); },
+  pvClose: () => closePreview(false),
+  role: () => switchRole(),
+  secret: () => secretTap(),
+  testDel: () => { const n = S.orders.filter(o => o.test).length; if (!n) { toast("Δεν υπάρχουν δοκιμαστικές παραγγελίες."); return; } if (!confirm("Διαγραφή " + n + " δοκιμαστικών παραγγελιών;")) return; S.orders = S.orders.filter(o => !o.test); save(); render(); toast("Διαγράφηκαν."); },
+  testOff: () => { S.ui.test = false; save(); render(); },
   install: () => doInstall(),
   instLater: () => { S.ui.instHide = today(); save(); render(); },
   legal: () => sheet("⚖️ Όροι και απόρρητο", `<div class="card list"><a class="it" href="oroi.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="ic">📄</div><div class="t"><b>Όροι χρήσης</b><span>Για πωλητές και αγοραστές</span></div></a><a class="it" href="aporrito.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="ic">🔒</div><div class="t"><b>Πολιτική απορρήτου</b><span>Τι δεδομένα υπάρχουν και πού</span></div></a></div>
@@ -809,7 +821,7 @@ A.ACT = ACT;
 const curOrd = () => S.orders.find(x => x.id === $("#shB").dataset.ord);
 document.addEventListener("click", async e => {
   const t = e.target;
-  const tb = t.closest("#tabs [data-tab]"); if (tb) { tab = tb.dataset.tab; window.scrollTo(0, 0); render(); return; }
+  const tb = t.closest("#tabs [data-tab]"); if (tb) { if (tab !== tb.dataset.tab) { tab = tb.dataset.tab; window.scrollTo(0, 0); render(); } return; }
   if (t.id === "sheetbg") { closeSheet(); return; }
   const fm = t.closest("[data-fm]"); if (fm) { formQty(fm.dataset.fm, -1); return; }
   const fp = t.closest("[data-fp]"); if (fp) { formQty(fp.dataset.fp, 1); return; }
@@ -834,7 +846,62 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { pollOnce(); if (S && Date.now() - updLast > 30 * 6e4) checkUpdate(false); } });
 window.addEventListener("hashchange", () => handleHash().then(render));
-window.addEventListener("popstate", () => { if (isSheetOpen()) closeSheet(); });
+/* ---------- κουμπί «πίσω» του κινητού: πάντα ένα βήμα πίσω ----------
+   φύλλο → κλείνει · προεπισκόπηση → κλείνει · κατηγορία μενού → μία πάνω ·
+   άλλη καρτέλα → Παραγγελίες · στις Παραγγελίες → «πάτα ξανά για έξοδο» */
+let skipPop = 0, exitAt = 0;
+function histPush(st) { try { history.pushState(st, ""); } catch {} }
+function appBack() {
+  if (tab === "menu" && A.menuBack && A.menuBack()) return true;
+  if (tab !== "orders") { tab = "orders"; window.scrollTo(0, 0); render(); return true; }
+  return false;
+}
+window.addEventListener("popstate", e => {
+  if (skipPop) { skipPop--; return; }
+  if (previewOpen()) { closePreview(true); return; }
+  if (isSheetOpen()) { hideSheet(); return; }
+  const st = e.state || {};
+  if (st.root || !st.app) {
+    if (appBack()) { histPush({ app: 1 }); return; }
+    if (Date.now() - exitAt < 2000) { history.back(); return; }
+    exitAt = Date.now(); toast("Πάτα ξανά «πίσω» για έξοδο", 2000); histPush({ app: 1 });
+  }
+});
+/* ---------- λειτουργία δοκιμών: πελάτης ⇄ πωλητής στο ίδιο κινητό ---------- */
+window.addEventListener("message", async e => {
+  if (e.origin !== location.origin || !e.data || e.data.t !== "paraggelia" || typeof e.data.ct !== "string") return;
+  const r = await receive(e.data.ct, "link");
+  if (r.ok) { r.order.test = true; r.order.log.push([Date.now(), "Δοκιμή από την προβολή πελάτη"]); save(); toast("🛒 Η δοκιμαστική παραγγελία ήρθε στον πωλητή", 3500); }
+});
+function switchRole() {
+  if (previewOpen()) { closePreview(false); tab = "orders"; ordFilter = { st: "new", day: "" }; window.scrollTo(0, 0); render(); pollOnce(); return; }
+  const ok = shopOk();
+  if (!ok.ok) { toast("Συμπλήρωσε πρώτα: " + ok.miss.join(", "), 4000); shopSheet(); return; }
+  if (!Object.values(S.products).some(p => !p.del && !p.hidden) || !S.menu.length) { toast("Βάλε πρώτα προϊόντα στον κατάλογο."); tab = "menu"; render(); return; }
+  makeLink().then(openPreview);
+}
+let secretN = 0, secretT = 0;
+function secretTap() {
+  if (Date.now() - secretT > 2500) secretN = 0;
+  secretT = Date.now();
+  if (++secretN >= 5) { secretN = 0; S.ui.test = !S.ui.test; save(); render(); toast(S.ui.test ? "🧪 Λειτουργία δοκιμών ενεργή: κουμπί «Πελάτης» πάνω δεξιά" : "Η λειτουργία δοκιμών έκλεισε"); }
+}
+/* ---------- προεπισκόπηση μέσα στην εφαρμογή ---------- */
+const previewOpen = () => !!$("#pvWrap");
+function openPreview(url) {
+  if (previewOpen()) closePreview(false);
+  histPush({ pv: 1 });
+  document.body.insertAdjacentHTML("beforeend", `<div id="pvWrap" style="position:fixed;inset:0;z-index:80;background:#F3F4F1;display:flex;flex-direction:column">
+   <div style="background:#1d2b36;color:#fff;padding:calc(8px + env(safe-area-inset-top)) 10px 8px;display:flex;align-items:center;gap:8px"><button type="button" data-act="pvClose" style="border:0;background:rgba(255,255,255,.15);color:#fff;border-radius:10px;padding:8px 12px;font-weight:800">← Πίσω</button><b style="flex:1">${S.ui.test ? "👤 Είσαι ο πελάτης" : "👁 Όπως το βλέπει ο πελάτης"}</b>${S.ui.test ? `<button type="button" data-act="role" style="border:0;background:#F2B632;color:#17324D;border-radius:10px;padding:8px 12px;font-weight:800">🏪 Πωλητής</button>` : ""}</div>
+   <iframe id="pvFrame" style="flex:1;border:0;width:100%" title="Προεπισκόπηση"></iframe></div>`);
+  $("#pvFrame").src = url;
+}
+function closePreview(fromPop) {
+  const w = $("#pvWrap"); if (!w) return;
+  w.remove();
+  if (!fromPop && history.state && history.state.pv) { skipPop++; history.back(); }
+}
+A.openPreview = openPreview;
 
 /* ---------- εκκίνηση ---------- */
 async function boot() {
@@ -843,6 +910,7 @@ async function boot() {
   await ensureKeys();
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {}
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  try { history.replaceState({ root: 1 }, ""); histPush({ app: 1 }); } catch {}
   render();
   await handleHash();
   render();

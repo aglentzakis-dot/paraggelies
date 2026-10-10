@@ -32,7 +32,8 @@
 .tile.prod .pr small{font-weight:600;opacity:.7;font-size:12px}
 .tile.prod .ds{font-size:12.5px;opacity:.75;margin-top:2px}
 .tile.prod.has{outline:3px solid var(--c2,#F2B632);outline-offset:-3px}
-.tile.soldout{opacity:.55}
+.tile.soldout{opacity:.6;filter:grayscale(.9);cursor:not-allowed}
+.tile.soldout .so{background:#fde8e6;border-radius:10px}
 .tile.hid{opacity:.5;border-style:dashed}
 .tile .so{font-size:13px;font-weight:800;color:#b3261e;text-align:center;padding:6px 0}
 .tile .flag{position:absolute;top:6px;left:6px;background:#b3261e;color:#fff;font-size:11px;font-weight:700;border-radius:8px;padding:2px 6px}
@@ -48,8 +49,9 @@
 .tile .mk{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:15px;border:2px solid rgba(255,255,255,.95);background:rgba(0,0,0,.25);color:transparent;font-weight:900;z-index:3;cursor:pointer;font-size:15px}
 .tile .mk.on{background:#1f7a3d;color:#fff}
 .tile.marked{box-shadow:0 0 0 3px #1f7a3d}
-.tile.dragging{opacity:.35}
-.ghost-tile{position:fixed;z-index:999;pointer-events:none;opacity:.92;transform:scale(1.05);box-shadow:0 12px 30px rgba(0,0,0,.3)}
+.tile.dragging{opacity:1;background:transparent!important;border:2px dashed var(--c2,#F2B632);box-shadow:none}
+.tile.dragging>*{visibility:hidden}
+.ghost-tile{position:fixed;z-index:999;pointer-events:none;opacity:.95;transform:scale(1.06) rotate(-1.5deg);box-shadow:0 14px 34px rgba(0,0,0,.32);margin:0}
 .tile.drop-before{box-shadow:-5px 0 0 0 #1f7a3d}
 .tile.drop-after{box-shadow:5px 0 0 0 #1f7a3d}
 .tile[style] .pr{color:inherit}

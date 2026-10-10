@@ -7,14 +7,14 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.1">
+<meta name="app-version" content="1.2">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.1">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.1">
-<link rel="stylesheet" href="koino.css?v=1.1">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.2">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.2">
+<link rel="stylesheet" href="koino.css?v=1.2">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -76,12 +76,13 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.1"></script>
+<script src="katalogos.js?v=1.2"></script>
 <script>
 (function(){
 "use strict";
 const K=window.Kat,$=s=>document.querySelector(s),esc=K.esc;
 const APP_URL=new URL("./",location.href).href;
+const INFRAME=(()=>{try{return window.top!==window}catch{return true}})();
 let C=null,P=null,M=null,cart={},view=[],stage="shop",lastSent=null,sending=false,orderId=null,deferredPrompt=null;
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 let SK="";
@@ -98,7 +99,7 @@ async function load(){
   const ex=K.expandCatalog(C);P=ex.products;M=ex.menu;
   SK="par:"+C.k.slice(0,16);
   cart=store.get(SK+":cart",{});for(const id of Object.keys(cart))if(!P[id]||P[id].soldout)delete cart[id];
-  brand();render();
+  brand();if(!INFRAME){history.replaceState(null,"");history.pushState({v:[],s:"shop"},"")}render();
   if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
 
@@ -229,10 +230,11 @@ async function send(){
   const code=orderId.slice(-5).toUpperCase().replace(/[-_]/g,"X");
   let ok=false;
   try{await K.ntfySend(C.t,"🛒 Νέα παραγγελία "+code,t.n+(t.n===1?" είδος":" είδη")+" · "+K.dayLabel(ch.d)+" — πάτα για να την ανοίξεις",click);ok=true}catch{}
+  if(INFRAME){try{parent.postMessage({t:"paraggelia",ct},location.origin)}catch{}ok=true}
   sending=false;
   lastSent={code,click,ok,day:ch.d,slot:ch.s,how:ch.h,total:t.t,lines:O.l.map(([id,q])=>({name:P[id].name,unit:P[id].unit,q,price:P[id].price}))};
   if(ok){store.set(SK+":last",Object.assign({},cart));cart={};store.set(SK+":cart",{});const c2=store.get(SK+":ck",{});delete c2.note;store.set(SK+":ck",c2);orderId=null}
-  stage="done";render();window.scrollTo(0,0);
+  stage="done";view=[];history.replaceState({v:[],s:"done"},"");render();window.scrollTo(0,0);
 }
 function viberText(){return"Παραγγελία "+lastSent.code+" — "+K.money(lastSent.total)+"\n"+lastSent.click}
 function renderDone(){
@@ -261,30 +263,50 @@ async function homeAdd(){
    <p class="note">Το εικονίδιο θα έχει το όνομα «${esc(C.s.n)}». Δεν χρειάζεται εγκατάσταση από κατάστημα εφαρμογών.</p>
    <button type="button" class="btn wide" data-act="close">Εντάξει</button>`);
 }
-function openModal(h){$("#mbox").innerHTML=h;$("#modal").classList.add("open")}
-function closeModal(){$("#modal").classList.remove("open")}
+function openModal(h){$("#mbox").innerHTML=h;$("#modal").classList.add("open");history.pushState({v:view.slice(),s:stage,m:1},"")}
+function closeModal(){if($("#modal").classList.contains("open")){$("#modal").classList.remove("open");if(history.state&&history.state.m)history.back()}}
 
 /* ---------- πατήματα ---------- */
 document.addEventListener("click",e=>{
+  const so=e.target.closest(".tile.prod.soldout");
+  if(so&&stage==="shop"){const p=P[so.dataset.pid];toastMsg("😔 Το «"+(p?p.name:"")+"» έχει εξαντληθεί. Δοκίμασε ξανά αργότερα.");return}
   const b=e.target.closest("button,[data-open]");if(!b)return;
   if(b.dataset.plus){const p=P[b.dataset.plus];setQ(p.id,qty(p.id)+(p.step||1));stage==="check"?renderCheck():refreshTile(p.id);return}
   if(b.dataset.minus){const p=P[b.dataset.minus];setQ(p.id,qty(p.id)-(p.step||1));if(stage==="check"){if(!totals().n)stage="shop";render()}else refreshTile(p.id);return}
-  if(b.dataset.open){view.push(b.dataset.open);render();window.scrollTo(0,0);return}
+  if(b.dataset.open){go(view.concat(b.dataset.open),"shop");return}
   if(b.dataset.day||b.dataset.slot||b.dataset.how){saveCk();const ch=store.get(SK+":ck",{});if(b.dataset.day)ch.d=b.dataset.day;if(b.dataset.slot)ch.s=b.dataset.slot;if(b.dataset.how)ch.h=b.dataset.how;store.set(SK+":ck",ch);keepInputs(renderCheck);return}
   const a=b.dataset.act;if(!a)return;
-  if(a==="back"){view.pop();render()}
-  else if(a==="check"){stage="check";render();window.scrollTo(0,0)}
-  else if(a==="shop"){saveCk();stage="shop";render()}
+  if(a==="back"){history.back()}
+  else if(a==="check"){go(view,"check")}
+  else if(a==="shop"){saveCk();history.back()}
   else if(a==="send")send();
   else if(a==="retry"){stage="check";render();send()}
-  else if(a==="new"){stage="shop";view=[];render();window.scrollTo(0,0)}
-  else if(a==="again"){const last=store.get(SK+":last",{});let miss=0;for(const[id,q]of Object.entries(last)){if(P[id]&&!P[id].soldout)setQ(id,q);else miss++}stage="check";render();if(miss)$("#cerr").textContent="Κάποια είδη της προηγούμενης φοράς δεν είναι διαθέσιμα τώρα."}
+  else if(a==="new"){stage="shop";view=[];history.replaceState({v:[],s:"shop"},"");render();window.scrollTo(0,0)}
+  else if(a==="again"){const last=store.get(SK+":last",{});let miss=0;for(const[id,q]of Object.entries(last)){if(P[id]&&!P[id].soldout)setQ(id,q);else miss++}go(view,"check");if(miss)$("#cerr").textContent="Κάποια είδη της προηγούμενης φοράς δεν είναι διαθέσιμα τώρα."}
   else if(a==="home")homeAdd();
   else if(a==="close")closeModal();
 });
 $("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
 function keepInputs(fn){const v={};document.querySelectorAll("input.t,textarea.t").forEach(i=>v[i.id]=i.value);const c={};document.querySelectorAll(".ck input").forEach(i=>c[i.id]=i.checked);const y=window.scrollY;fn();for(const[id,x]of Object.entries(v)){const i=document.getElementById(id);if(i)i.value=x}for(const[id,x]of Object.entries(c)){const i=document.getElementById(id);if(i)i.checked=x}window.scrollTo(0,y)}
 window.addEventListener("hashchange",()=>location.reload());
+/* ---------- κουμπί «πίσω» του κινητού: ένα βήμα πίσω, όχι έξοδος ---------- */
+function go(v,st){history.pushState({v:v.slice(),s:st},"");view=v.slice();stage=st;render();window.scrollTo(0,0)}
+window.addEventListener("popstate",e=>{
+  const st=e.state;
+  if($("#modal").classList.contains("open")){$("#modal").classList.remove("open");if(st&&st.m)return}
+  if(!st){
+    /* στην αρχική: δεύτερο «πίσω» μέσα σε 2 δευτερόλεπτα βγάζει έξω */
+    if(INFRAME){view=[];stage="shop";render();return}
+    if(stage==="shop"&&!view.length){if(Date.now()-exitAt<2000){history.back();return}exitAt=Date.now();toastMsg("Πάτα ξανά «πίσω» για έξοδο");history.pushState({v:[],s:"shop"},"");return}
+    view=[];stage="shop";history.pushState({v:[],s:"shop"},"");render();return}
+  let s=st.s||"shop";
+  if(s==="check"&&!totals().n)s="shop";
+  if(s==="done"&&stage!=="done")s="shop";
+  view=(st.v||[]).filter(id=>K.findNode(M,id));stage=s;render();
+});
+let exitAt=0;
+function toastMsg(m){let t=document.getElementById("toast");if(!t){t=document.createElement("div");t.id="toast";t.style.cssText="position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:#1d2b36;color:#fff;padding:10px 16px;border-radius:12px;font-size:14.5px;z-index:90;transition:opacity .2s";document.body.appendChild(t)}t.textContent=m;t.style.opacity=1;clearTimeout(t._h);t._h=setTimeout(()=>t.style.opacity=0,2000)}
+
 load();
 })();
 </script>

@@ -78,94 +78,136 @@ function listHTML() {
      <label class="tog" title="Εξαντλήθηκε"><input type="checkbox" data-psold="${p.id}"${p.soldout ? " checked" : ""}><span></span></label></div>`).join("") : `<p class="note">Κανένα προϊόν ακόμα.</p>`}
     ${L.length ? `<p class="note">Ο κόκκινος διακόπτης σημαίνει «Εξαντλήθηκε». Η τιμή αλλάζει μόλις φύγεις από το πλαίσιο.</p>` : ""}</div>`;
 }
-function presetsHTML() {
-  return `<div class="card"><h3>Γρήγορο ξεκίνημα</h3><p class="note" style="margin-top:0">Διάλεξε ένα πρότυπο και μετά άλλαξε ό,τι θέλεις. Οι τιμές είναι παραδείγματα — έλεγξέ τες.</p>
-   <div class="row">${Object.entries(PRESETS).map(([k, v]) => `<button type="button" class="btn soft sm" data-preset="${k}">${v.e} ${v.n}</button>`).join("")}</div>
-   <p class="note">Ή πάτα «＋ Κουμπί» για να φτιάξεις τα δικά σου.</p></div>`;
+/* ---------- έτοιμοι κατάλογοι ανά επάγγελμα (protypa.js) ---------- */
+const PRESETS = window.PROTYPA || {};
+const prodCount = P => P.c.reduce((a, c) => a + c[2].length, 0);
+function presetGrid() {
+  const groups = {};
+  for (const [k, v] of Object.entries(PRESETS)) (groups[v.g] = groups[v.g] || []).push([k, v]);
+  return Object.entries(groups).map(([g, L]) => `<h3 style="margin:12px 2px 6px;font-size:15px">${esc(g)}</h3><div class="grid">${L.map(([k, v]) =>
+    `<button type="button" class="tile cat sz-s" data-preset="${k}" style="--tc:#FFF4D6;color:#1b1b1b"><span class="em">${v.e}</span><span class="nm">${esc(v.n)}</span></button>`).join("")}</div>`).join("");
 }
-const PRESETS = {
-  avga: { n: "Αυγά", e: "🥚", c: [["Αυγά", "🥚", [["Αυγά ελευθέρας βοσκής", "δωδεκάδα", 4.5, 1], ["Αυγά ελευθέρας βοσκής", "θήκη 30", 10, 1], ["Αυγά πάπιας", "εξάδα", 4, 1]]], ["Κοτόπουλο", "🐓", [["Κοτόπουλο χωριάτικο", "κιλό", 8, 0.5]]]] },
-  meli: { n: "Μέλι", e: "🍯", c: [["Μέλι", "🍯", [["Μέλι θυμαρίσιο 1 κιλό", "βάζο", 16, 1], ["Μέλι θυμαρίσιο 500 γρ.", "βάζο", 9, 1], ["Ανθόμελο 1 κιλό", "βάζο", 12, 1], ["Μέλι πεύκου 1 κιλό", "βάζο", 11, 1]]], ["Προϊόντα κυψέλης", "🐝", [["Κηρήθρα", "τεμ.", 10, 1], ["Γύρη 250 γρ.", "βάζο", 8, 1]]]] },
-  ladi: { n: "Λάδι", e: "🫒", c: [["Ελαιόλαδο", "🫒", [["Έξτρα παρθένο ελαιόλαδο", "λίτρο", 9, 1], ["Ελαιόλαδο δοχείο 5 λίτρων", "τεμ.", 42, 1], ["Ελαιόλαδο δοχείο 17 κιλών", "τεμ.", 140, 1]]], ["Ελιές", "🌿", [["Ελιές Καλαμών", "κιλό", 7, 0.5], ["Πράσινες τσακιστές", "κιλό", 6, 0.5]]]] },
-  fournos: { n: "Φούρνος", e: "🍞", c: [["Ψωμιά", "🍞", [["Χωριάτικο", "φραντζόλα", 2, 1], ["Ολικής άλεσης", "φραντζόλα", 2.3, 1], ["Μπαγκέτα", "τεμ.", 1, 1]]], ["Κουλούρια", "🥐", [["Κουλούρι Θεσσαλονίκης", "τεμ.", 0.7, 1], ["Κρουασάν βουτύρου", "τεμ.", 1.5, 1]]], ["Πίτες", "🥧", [["Τυρόπιτα ταψί", "κιλό", 14, 0.5], ["Σπανακόπιτα ταψί", "κιλό", 13, 0.5]]], ["Γλυκά", "🍪", [["Κουλουράκια βουτύρου", "κιλό", 12, 0.5]]]] },
-  nera: { n: "Νερά", e: "💧", c: [["Νερά", "💧", [["Νερό 1,5 λίτρο", "εξάδα", 2.4, 1], ["Νερό 0,5 λίτρο", "κιβώτιο", 4.5, 1], ["Νερό 5 λίτρων", "τεμ.", 1.5, 1], ["Φιάλη ψύκτη 18,9 λίτρων", "τεμ.", 6, 1]]], ["Αναψυκτικά", "🥤", [["Σόδα 330 ml", "εξάδα", 3, 1]]]] }
-};
+function presetsHTML() {
+  return `<div class="card"><h3>Διάλεξε το επάγγελμά σου</h3><p class="note" style="margin-top:0">Μπαίνει έτοιμο μενού με κατηγορίες και προϊόντα. Μετά αλλάζεις ό,τι θέλεις: ονόματα, τιμές, σειρά, μεγέθη. Οι τιμές είναι ενδεικτικές.</p>${presetGrid()}
+   <p class="note">Ή πάτα «＋ Κουμπί» για να φτιάξεις τα δικά σου από την αρχή.</p></div>`;
+}
+function presetPicker() {
+  A.sheet("📋 Έτοιμο μενού από επάγγελμα", `<p class="note" style="margin-top:0">Οι κατηγορίες του επαγγέλματος προστίθενται στην αρχική του μενού σου, δίπλα σε όσα ήδη έχεις.</p>${presetGrid()}`);
+}
+function presetSheet(k) {
+  const P = PRESETS[k]; if (!P) return;
+  A.sheet(P.e + " " + P.n, `<p class="note" style="margin-top:0">${esc(P.d || "")}</p>
+   ${P.w ? `<div class="warnbox">⚖️ ${esc(P.w)}</div>` : ""}
+   ${P.c.map(([cn, ce, items]) => `<div class="card"><h3>${ce} ${esc(cn)}</h3>${items.map(([n, u, pr]) => `<div class="qrow"><div class="qn"><b>${esc(n)}</b><span>ανά ${esc(u)}</span></div><b>${K.money(pr)}</b></div>`).join("")}</div>`).join("")}
+   <p class="note">${prodCount(P)} προϊόντα σε ${P.c.length} κατηγορίες. Τιμές και ΦΠΑ είναι ενδεικτικά· έλεγξέ τα και με τον λογιστή σου.${!A.isPro() && liveProducts().length + prodCount(P) > A.FREE_PRODUCTS ? " Η δωρεάν έκδοση (μετά τη δοκιμή) κρατά έως " + A.FREE_PRODUCTS + " προϊόντα." : ""}</p>`,
+   `<button type="button" class="btn soft" data-ea="presetBack">← Επαγγέλματα</button><button type="button" class="btn amber" data-preset-go="${k}">Βάλ' τα στο μενού</button>`);
+}
 function applyPreset(k) {
   const st = S(), P = PRESETS[k]; if (!P) return;
-  let count = liveProducts().length;
+  let count = liveProducts().length, cut = false;
   const lim = A.isPro() ? 1e9 : A.FREE_PRODUCTS;
   for (const [cn, ce, items] of P.c) {
     const cat = { id: newId(), t: "c", name: cn, emoji: ce, size: "m", kids: [] };
-    for (const [n, u, pr, step] of items) {
-      if (count >= lim) break;
-      const id = "p" + K.uid(5);
-      st.products[id] = { id, name: n, unit: u, price: pr, step, vat: 13, perish: true, emoji: ce, hist: [[Date.now(), pr]], created: Date.now() };
+    for (const [n, u, pr, step, o] of items) {
+      if (count >= lim) { cut = true; break; }
+      const id = "p" + K.uid(5), op = o || {};
+      st.products[id] = { id, name: n, unit: u, price: pr, step: step || 1, vat: op.v != null ? op.v : 13, perish: !op.np, emoji: ce, hist: [[Date.now(), pr]], created: Date.now() };
       cat.kids.push({ id: newId(), t: "p", pid: id, size: "m" });
       count++;
     }
     if (cat.kids.length) st.menu.push(cat);
   }
-  A.save({ catalog: true }); A.render();
-  A.toast("✓ Έτοιμο. Έλεγξε τις τιμές στο «Προϊόντα και τιμές».", 4000);
-  if (count >= lim && !A.isPro()) A.toast("Η δωρεάν έκδοση κρατά έως " + A.FREE_PRODUCTS + " προϊόντα.", 4000);
+  ed.path = []; ed.view = "menu"; ed.marked.clear();
+  A.save({ catalog: true }); A.closeSheet(); A.render();
+  A.toast(cut ? "Μπήκαν έως " + A.FREE_PRODUCTS + " προϊόντα (όριο δωρεάν έκδοσης)." : "✓ Έτοιμο. Έλεγξε τις τιμές στο «Προϊόντα και τιμές».", 4000);
 }
 
 /* ---------- σύρσιμο με το δάχτυλο για αλλαγή σειράς ---------- */
 let suppressClick = 0;
 function bindDrag(grid) {
   if (!grid) return;
-  let timer = null, drag = null, sx = 0, sy = 0, lastX = 0, lastY = 0, scrollT = null;
+  let timer = null, drag = null, sx = 0, sy = 0, scrollT = null, lockUntil = 0, lastX = 0, lastY = 0;
+  const tiles = () => [...grid.querySelectorAll(".tile")];
+  /* ομαλή μετακίνηση των υπόλοιπων κουμπιών (τεχνική «πρώτα-τελευταία») */
+  const flip = change => {
+    const before = new Map(tiles().map(t => [t, t.getBoundingClientRect()]));
+    change();
+    for (const t of tiles()) {
+      if (t === drag.el) continue;
+      const o = before.get(t); if (!o) continue;
+      const n = t.getBoundingClientRect(), dx = o.left - n.left, dy = o.top - n.top;
+      if (!dx && !dy) continue;
+      t.style.transition = "none"; t.style.transform = `translate(${dx}px,${dy}px)`;
+      requestAnimationFrame(() => requestAnimationFrame(() => { t.style.transition = "transform .18s ease"; t.style.transform = ""; }));
+    }
+  };
   const start = (tile, x, y) => {
-    drag = { id: tile.dataset.node, el: tile, target: null, after: false };
     const r = tile.getBoundingClientRect();
-    const g = tile.cloneNode(true); g.classList.add("ghost-tile"); g.style.width = r.width + "px"; g.style.height = r.height + "px";
-    drag.dx = x - r.left; drag.dy = y - r.top; drag.ghost = g;
-    document.body.appendChild(g); tile.classList.add("dragging");
+    drag = { id: tile.dataset.node, el: tile, moved: false, dx: x - r.left, dy: y - r.top };
+    const g = tile.cloneNode(true); g.classList.add("ghost-tile"); g.classList.remove("marked");
+    g.style.width = r.width + "px"; g.style.height = r.height + "px";
+    drag.ghost = g; document.body.appendChild(g);
+    tile.classList.add("dragging");
     move(x, y);
     try { navigator.vibrate && navigator.vibrate(25); } catch {}
+  };
+  const reorderAt = (x, y) => {
+    if (Date.now() < lockUntil) return;
+    drag.ghost.style.display = "none";
+    const under = document.elementFromPoint(x, y);
+    drag.ghost.style.display = "";
+    const t = under && under.closest("#edGrid .tile");
+    if (!t || t === drag.el) return;
+    const r = t.getBoundingClientRect();
+    const wide = r.width > grid.clientWidth * 0.8;
+    const after = wide ? y > r.top + r.height / 2 : x > r.left + r.width / 2;
+    const ref = after ? t.nextElementSibling : t;
+    if (ref === drag.el || (ref && ref.previousElementSibling === drag.el && !after)) return;
+    if (!after && t.previousElementSibling === drag.el) return;
+    if (after && t.nextElementSibling === drag.el) return;
+    flip(() => grid.insertBefore(drag.el, ref));
+    drag.moved = true; lockUntil = Date.now() + 160;
   };
   const move = (x, y) => {
     lastX = x; lastY = y;
     drag.ghost.style.left = (x - drag.dx) + "px"; drag.ghost.style.top = (y - drag.dy) + "px";
-    $$(".drop-before,.drop-after").forEach(e => e.classList.remove("drop-before", "drop-after"));
-    const under = document.elementFromPoint(x, y);
-    const t = under && under.closest("#edGrid .tile");
-    if (t && t !== drag.el) {
-      const r = t.getBoundingClientRect();
-      const wide = r.width > grid.clientWidth * 0.8;
-      const after = wide ? y > r.top + r.height / 2 : x > r.left + r.width / 2;
-      t.classList.add(after ? "drop-after" : "drop-before");
-      drag.target = t.dataset.node; drag.after = after;
-    } else drag.target = null;
+    reorderAt(x, y);
     clearInterval(scrollT);
     const edge = 70, H = window.innerHeight;
-    if (y < edge) scrollT = setInterval(() => window.scrollBy(0, -10), 16);
-    else if (y > H - edge - 60) scrollT = setInterval(() => window.scrollBy(0, 10), 16);
+    if (y < edge) scrollT = setInterval(() => { window.scrollBy(0, -10); reorderAt(lastX, lastY); }, 16);
+    else if (y > H - edge - 60) scrollT = setInterval(() => { window.scrollBy(0, 10); reorderAt(lastX, lastY); }, 16);
   };
   const end = () => {
     clearTimeout(timer); clearInterval(scrollT);
     if (!drag) return;
-    drag.ghost.remove(); drag.el.classList.remove("dragging");
-    $$(".drop-before,.drop-after").forEach(e => e.classList.remove("drop-before", "drop-after"));
-    if (drag.target) {
-      const L = curList();
-      const ids = ed.marked.has(drag.id) && ed.marked.size > 1 ? L.filter(n => ed.marked.has(n.id)).map(n => n.id) : [drag.id];
-      if (!ids.includes(drag.target)) {
-        const moving = L.filter(n => ids.includes(n.id));
-        for (let i = L.length - 1; i >= 0; i--) if (ids.includes(L[i].id)) L.splice(i, 1);
-        let at = L.findIndex(n => n.id === drag.target); if (drag.after) at++;
-        L.splice(at, 0, ...moving);
+    const d = drag; drag = null;
+    /* το κουμπί «προσγειώνεται» στη νέα του θέση */
+    const r = d.el.getBoundingClientRect();
+    d.ghost.style.transition = "left .15s ease, top .15s ease, transform .15s ease, opacity .15s";
+    d.ghost.style.left = r.left + "px"; d.ghost.style.top = r.top + "px"; d.ghost.style.transform = "scale(1)";
+    setTimeout(() => {
+      d.ghost.remove(); d.el.classList.remove("dragging");
+      if (d.moved) {
+        const L = curList();
+        const order = [...grid.querySelectorAll(".tile")].map(t => t.dataset.node);
+        const group = ed.marked.has(d.id) && ed.marked.size > 1 ? L.filter(n => ed.marked.has(n.id) && n.id !== d.id).map(n => n.id) : [];
+        let ids = order.filter(id => !group.includes(id));
+        const at = ids.indexOf(d.id); ids.splice(at + 1, 0, ...group);
+        const byId = new Map(L.map(n => [n.id, n]));
+        const sorted = ids.map(id => byId.get(id)).filter(Boolean);
+        for (const n of L) if (!sorted.includes(n)) sorted.push(n);
+        L.splice(0, L.length, ...sorted);
         A.save({ catalog: true });
       }
-    }
-    drag = null; suppressClick = Date.now();
-    A.render();
+      suppressClick = Date.now();
+      A.render();
+    }, 160);
   };
   const tileOf = e => { const t = e.target.closest(".tile"); return t && !e.target.closest(".mk") ? t : null; };
   grid.addEventListener("touchstart", e => {
     const t = tileOf(e); if (!t || e.touches.length > 1) return;
     sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-    timer = setTimeout(() => start(t, sx, sy), 380);
+    timer = setTimeout(() => start(t, sx, sy), 350);
   }, { passive: true });
   grid.addEventListener("touchmove", e => {
     const p = e.touches[0];
@@ -288,7 +330,8 @@ function addSheet() {
   const others = liveProducts().filter(p => !inHere.has(p.id));
   A.sheet("Νέο κουμπί", `<div class="card list">
    <div class="it" data-ea="addCat"><div class="ic">📁</div><div class="t"><b>${ed.path.length ? "Υποκατηγορία" : "Κατηγορία"}</b><span>Κουμπί που ανοίγει και έχει μέσα άλλα κουμπιά</span></div></div>
-   <div class="it" data-ea="addProd"><div class="ic">🛒</div><div class="t"><b>Νέο προϊόν</b><span>Με τιμή, μονάδα και κουμπιά − και +</span></div></div></div>
+   <div class="it" data-ea="addProd"><div class="ic">🛒</div><div class="t"><b>Νέο προϊόν</b><span>Με τιμή, μονάδα και κουμπιά − και +</span></div></div>
+   <div class="it" data-ea="presets"><div class="ic">📋</div><div class="t"><b>Έτοιμο μενού από επάγγελμα</b><span>${Object.keys(PRESETS).length} επαγγέλματα: αυγά, γάλα, τυριά, ψάρια, φούρνος, νερά…</span></div></div></div>
    ${others.length ? `<div class="card list"><h3>Υπάρχον προϊόν και εδώ</h3>${others.map(p => `<div class="it" data-addex="${p.id}"><div class="ic">${esc(p.emoji || "📦")}</div><div class="t"><b>${esc(p.name)}</b><span>${K.money(p.price)} / ${esc(p.unit)}${productInMenu(p.id) ? "" : " · δεν είναι στο μενού"}</span></div></div>`).join("")}</div>` : ""}`);
 }
 function moveToSheet() {
@@ -336,9 +379,19 @@ function renameSheet() {
   prodSheet(n.pid, n.id);
 }
 
+/* κουμπί «πίσω»: μαρκαρίσματα → κατηγορία πάνω → από «Προϊόντα» στο μενού */
+A.menuBack = function () {
+  if (ed.marked.size) { ed.marked.clear(); A.render(); return true; }
+  if (ed.path.length) { ed.path.pop(); window.scrollTo(0, 0); A.render(); return true; }
+  if (ed.view === "list") { ed.view = "menu"; A.render(); return true; }
+  return false;
+};
+
 /* ---------- πατήματα ---------- */
 const EA = {
   hintOff: () => { ed.hint = false; A.render(); },
+  presets: presetPicker,
+  presetBack: presetPicker,
   add: addSheet,
   addCat: () => catSheet(null),
   addProd: () => prodSheet(null, null),
@@ -359,7 +412,7 @@ const EA = {
     delete S().products[pid]; removeProductEverywhere(pid); A.save({ catalog: true }); A.closeSheet(); A.render();
   },
   phDel: () => { $("#shB").dataset.phDel = "1"; delete $("#shB").dataset.photo; $("#pPhPrev").innerHTML = `<span class="note">Χωρίς φωτογραφία</span>`; },
-  preview: async () => { const ok = A.shopOk(); if (!ok.ok) { A.toast("Για την προεπισκόπηση συμπλήρωσε πρώτα: " + ok.miss.join(", "), 4000); A.ACT.shop(); return; } window.open(await A.makeLink(), "_blank", "noopener"); },
+  preview: async () => { const ok = A.shopOk(); if (!ok.ok) { A.toast("Για την προεπισκόπηση συμπλήρωσε πρώτα: " + ok.miss.join(", "), 4000); A.ACT.shop(); return; } A.openPreview(await A.makeLink()); },
   mvL: () => shift(-1), mvR: () => shift(1),
   size: sizeSheet, color: colorSheet, rename: renameSheet, moveTo: moveToSheet, del: delMarked,
   all: () => { curList().forEach(n => ed.marked.add(n.id)); A.render(); },
@@ -372,7 +425,8 @@ document.addEventListener("click", e => {
   if (Date.now() - suppressClick < 350 && t.closest("#edGrid")) { e.preventDefault(); e.stopPropagation(); return; }
   const ev = t.closest("[data-ev]"); if (ev) { ed.view = ev.dataset.ev; ed.marked.clear(); A.render(); return; }
   const cr = t.closest("[data-crumb]"); if (cr) { ed.path = ed.path.slice(0, +cr.dataset.crumb + 1); ed.marked.clear(); A.render(); return; }
-  const pr = t.closest("[data-preset]"); if (pr) { applyPreset(pr.dataset.preset); return; }
+  const pr = t.closest("[data-preset]"); if (pr) { presetSheet(pr.dataset.preset); return; }
+  const pg = t.closest("[data-preset-go]"); if (pg) { applyPreset(pg.dataset.presetGo); return; }
   const mk = t.closest("#edGrid [data-mk]"); if (mk) { e.stopPropagation(); const id = mk.dataset.mk; ed.marked.has(id) ? ed.marked.delete(id) : ed.marked.add(id); A.render(); return; }
   const tile = t.closest("#edGrid .tile");
   if (tile) {
