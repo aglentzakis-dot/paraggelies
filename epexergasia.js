@@ -95,7 +95,8 @@ function listHTML() {
   walk(st.menu, []);
   const rest = L.filter(p => !used.has(p.id));
   if (rest.length) groups.push({ title: "⚠️ Δεν είναι στο μενού", depth: 0, items: rest, warn: 1 });
-  const head = `<div class="row" style="margin-bottom:10px"><input class="t grow" id="edQ" placeholder="🔍 Αναζήτηση προϊόντος" value="${esc(ed.q)}"><button type="button" class="btn amber" data-ea="newProd">＋ Νέο</button></div>
+  const head = `<div class="row" style="margin-bottom:10px"><input class="t grow" id="edQ" placeholder="🔍 Αναζήτηση προϊόντος" value="${esc(ed.q)}"></div>
+  <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-ea="newProd">🛒 ＋ Νέο προϊόν</button><button type="button" class="btn grow" data-ea="newCat">📁 ＋ Νέα κατηγορία</button></div>
 `;
   if (q) for (const g of groups) if (!g.items.length) g.skip = 1;
   return head + (L.length > 1 && !q ? `<p class="note" style="margin:0 2px 10px">Κράτα το <b>⠿</b> και σύρε για να αλλάξεις σειρά ή να πας ένα προϊόν σε άλλη κατηγορία· ή πάτα <b>📁</b>. Πάτα τον <b>τίτλο</b> μιας κατηγορίας για να την μετονομάσεις ή να τη διαγράψεις.</p>` : "") + (groups.length ? groups.filter(g => !g.skip).map(g => `<div class="card pgrp" data-gcat="${g.warn ? "!" : g.cat}" style="padding:10px 14px;border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><div style="display:flex;align-items:center;gap:8px;margin:2px 0 6px"><h3${g.cat ? ` data-gedit="${g.cat}" role="button" title="Αλλαγή ονόματος ή διαγραφή"` : ""} style="margin:0;flex:1;min-width:0;font-size:${g.depth > 1 ? 15.5 : 17}px;${g.cat ? "cursor:pointer" : ""}">${esc(g.title)} <span class="note gcnt" style="font-weight:400">· ${g.items.length}</span>${g.cat ? ` <span style="font-size:13px;color:var(--brand)">✏️</span>` : ""}</h3>${g.warn ? "" : g.loose ? `<button type="button" class="btn sm amber" data-ea="tidy" style="padding:7px 11px">🧹 Τακτοποίηση</button>` : `<button type="button" class="btn sm amber" data-addto="${g.cat}" style="padding:7px 11px">＋ Προϊόν</button>`}</div>${g.loose ? `<p class="note" style="margin:0 0 4px">Αυτά φαίνονται στον πελάτη ανάμεσα στις κατηγορίες. Σύρε τα με το ⠿ μέσα σε κατηγορία ή πάτα «Τακτοποίηση».</p>` : ""}<div class="pitems">${(g.warn ? g.items.sort((a, b) => a.name.localeCompare(b.name, "el")) : g.items).map(prow).join("")}</div></div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
@@ -368,12 +369,14 @@ function pickBind(el) {
 }
 const picked = id => { const b = document.querySelector("#" + id + " button.on"); return b ? (b.dataset.em ?? b.dataset.tc ?? b.dataset.sz) : ""; };
 
+function catOptsHTML(sel, top) { const o = []; const w = (L, d) => { for (const n of L) if (n.t === "c") { o.push(`<option value="${n.id}"${n.id === sel ? " selected" : ""}>${"— ".repeat(d)}${esc((n.emoji ? n.emoji + " " : "") + (n.name || "Χωρίς όνομα"))}</option>`); w(n.kids || [], d + 1); } }; w(S().menu, 0); return `<option value=""${sel === "" ? " selected" : ""}>${top}</option>` + o.join(""); }
 function subtreeCount(node) { let cats = 0; const pids = new Set(); const w = L => { for (const n of L || []) { if (n.t === "c") { cats++; w(n.kids); } else if (n.t === "p") pids.add(n.pid); } }; w(node.kids); return { cats, prods: pids.size, pids }; }
 function catSheet(node) {
   const isNew = !node;
   node = node || { name: "", emoji: "", color: "", size: "m" };
   A.sheet(isNew ? (ed.path.length ? "Νέα υποκατηγορία" : "Νέα κατηγορία") : "📁 «" + (node.name || "Κατηγορία") + "»", `
-   <div class="card"><label class="f" for="cName">Όνομα κουμπιού</label><input class="t" id="cName" value="${esc(node.name)}" maxlength="40" placeholder="π.χ. Αυγά">
+   ${isNew ? `<div class="card"><label class="f" for="cPar">Πού μπαίνει</label><select class="t" id="cPar">${catOptsHTML(ed.view === "menu" && curCat() ? curCat().id : "", "🏠 Στην αρχική (κύρια κατηγορία)")}</select><p class="note" style="margin-bottom:0">Αν διαλέξεις μια κατηγορία, η νέα γίνεται υποκατηγορία της.</p></div>` : ""}
+   <div class="card"><label class="f" for="cName">Όνομα ${isNew ? "κατηγορίας" : "κουμπιού"}</label><input class="t" id="cName" value="${esc(node.name)}" maxlength="40" placeholder="π.χ. Αυγά">
     <label class="f">Εικονίδιο</label>${emojiPicker(node.emoji)}<input class="t" id="emFree" value="${esc(node.emoji || "")}" maxlength="4" placeholder="ή γράψε δικό σου" style="margin-top:6px;width:150px">
     <label class="f">Μέγεθος κουμπιού</label>${sizePicker(node.size)}
     <label class="f">Χρώμα κουμπιού</label>${colorPicker(node.color)}</div>
@@ -388,7 +391,9 @@ function catSave() {
   const id = $("#shB").dataset.node;
   const v = { name, emoji: $("#emFree").value.trim(), size: picked("szPick") || "m", color: picked("colPick") };
   if (id) Object.assign(K.findNode(S().menu, id).node, v);
-  else curList().push(Object.assign({ id: newId(), t: "c", kids: [] }, v));
+  else { const par = $("#cPar") ? $("#cPar").value : null; const L = par == null ? curList() : par ? (K.findNode(S().menu, par).node.kids = K.findNode(S().menu, par).node.kids || []) : S().menu;
+    const nc = Object.assign({ id: newId(), t: "c", kids: [] }, v); if (L === S().menu) { let lc = -1; L.forEach((n, i) => { if (n.t === "c") lc = i; }); L.splice(lc + 1, 0, nc); } else L.push(nc);
+    if (ed.view === "list") A.toast("✓ Νέα κατηγορία «" + name + "». Πάτα «＋ Προϊόν» μέσα της.", 3500); }
   A.save({ catalog: true }); A.closeSheet(); A.render();
 }
 
@@ -399,7 +404,7 @@ function prodSheet(pid, nodeId) {
   const node = nodeId ? K.findNode(st.menu, nodeId).node : null;
   const unitKnown = K.UNITS.includes(x.unit);
   A.sheet(p ? "Προϊόν" : "Νέο προϊόν", `
-   ${!p && curCat() ? `<div class="note" style="margin:0 2px 8px">Μπαίνει μέσα στο <b>«${esc(curCat().name)}»</b>.</div>` : ""}
+   ${!p ? (() => { const def = A._addTo != null ? A._addTo : ed.view === "menu" ? (curCat() ? curCat().id : "") : ((S().menu.find(n => n.t === "c") || {}).id || ""); return `<div class="card"><label class="f" for="pCat">Κατηγορία</label><select class="t" id="pCat">${catOptsHTML(def, "🏠 Χωρίς κατηγορία (στην αρχική)")}<option value="+">＋ Νέα κατηγορία…</option></select><input class="t" id="pCatNew" maxlength="40" placeholder="Όνομα νέας κατηγορίας, π.χ. Αυγά" style="margin-top:6px;display:none"></div>`; })() : ""}
    <div class="card"><label class="f" for="pN">Όνομα προϊόντος</label><input class="t" id="pN" value="${esc(x.name)}" maxlength="60" placeholder="π.χ. Αυγά ελευθέρας βοσκής">
     <div class="two"><div><label class="f" for="pP">💶 Τιμή (€)</label><input class="t" id="pP" inputmode="decimal" value="${x.price !== "" ? K.num(x.price) : ""}" placeholder="0,00" style="font-size:22px;font-weight:800;border-color:var(--accent)"></div>
      <div><label class="f" for="pU">Μονάδα</label><select class="t" id="pU">${K.UNITS.map(u => `<option${u === x.unit ? " selected" : ""}>${u}</option>`).join("")}<option value="*"${unitKnown ? "" : " selected"}>Άλλη…</option></select></div></div>
@@ -460,8 +465,17 @@ function prodSave() {
     const nn = $("#nName").value.trim();
     n.name = nn && nn !== p.name ? nn : ""; n.size = picked("szPick") || "m"; n.color = picked("colPick");
   } else if (!productInMenu(pid)) {
+    const pc = $("#pCat");
+    if (pc) {
+      let dest;
+      if (pc.value === "+") { const nm = ($("#pCatNew").value || "").trim() || "Διάφορα"; const nc = { id: newId(), t: "c", name: nm, emoji: p.emoji || "", size: "m", kids: [] }; let lc = -1; st.menu.forEach((n, i) => { if (n.t === "c") lc = i; }); st.menu.splice(lc + 1, 0, nc); dest = nc.kids; }
+      else if (pc.value) { const f = K.findNode(st.menu, pc.value); dest = f ? (f.node.kids = f.node.kids || []) : st.menu; }
+      else dest = st.menu;
+      dest.push({ id: newId(), t: "p", pid, size: "m" });
+    } else {
     const tgt = A._addTo != null ? (A._addTo ? (K.findNode(st.menu, A._addTo) || {}).node : null) : null;
     ((tgt && tgt.kids) || (A._addTo === "" ? st.menu : null) || (ed.view === "menu" ? curList() : st.menu)).push({ id: newId(), t: "p", pid, size: "m" });
+    }
     A._addTo = null;
   }
   A.save({ catalog: true }); A.closeSheet(); A.render(); A.toast("✓ Αποθηκεύτηκε");
@@ -544,6 +558,7 @@ const EA = {
   addCat: () => catSheet(null),
   addProd: () => { A._addTo = null; prodSheet(null, null); },
   newProd: () => { A._addTo = null; prodSheet(null, null); },
+  newCat: () => catSheet(null),
   catEdit: () => catSheet(curCat()),
   catSave,
   catDel: () => {
@@ -616,6 +631,7 @@ document.addEventListener("click", e => {
 }, true);
 document.addEventListener("change", e => {
   const t = e.target;
+  if (t.id === "pCat") { const i = $("#pCatNew"); if (i) { i.style.display = t.value === "+" ? "" : "none"; if (t.value === "+") i.focus(); } return; }
   if (t.id === "pAv") { const l = $("#pAvL"); if (l) { l.textContent = t.checked ? "✅ Διαθέσιμο" : "❌ Εξαντλήθηκε"; l.style.color = t.checked ? "var(--ok)" : "var(--bad)"; } }
   if (t.matches("[data-pavail]")) { const p = S().products[t.dataset.pavail]; if (p) { p.soldout = !t.checked; A.save({ catalog: true }); A.toast(p.name + (p.soldout ? ": εξαντλήθηκε" : ": διαθέσιμο")); const sm = t.closest("label").parentElement.querySelector("small"); if (sm) { sm.textContent = p.soldout ? "Εξαντλήθηκε" : "Διαθέσιμο"; sm.style.color = p.soldout ? "var(--bad)" : "var(--ok)"; } } }
   if (t.matches("[data-pprice]")) setPrice(t.dataset.pprice, t.value);
