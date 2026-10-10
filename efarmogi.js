@@ -595,7 +595,7 @@ async function makeLink() {
   const shopForLink = st.shop.logo && S.link.logo ? Object.assign({}, st.shop, { logo: await thumbOf(st.shop.logo, 48, 0.5) }) : st.shop;
   const C = K.buildCatalog(Object.assign({}, st, { products: prodsForLink, shop: shopForLink }), { photos: S.link.photos && isPro(), logo: S.link.logo, appUrl: BASE });
   const pk = await K.pack(C);
-  return BASE + "p.html#k=" + pk + "&n=" + pk.length;
+  return BASE + "p.html#n=" + pk.length + "&k=" + pk;
 }
 A.makeLink = makeLink;
 async function linkSheet() {
