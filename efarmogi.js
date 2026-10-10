@@ -285,7 +285,7 @@ function render() {
   if (!S) return;
   $("#ttl").textContent = S.shop.name || "Παραγγελίες";
   let rb = $("#roleBtn");
-  if (S.ui.test && !rb) { $(".top").insertAdjacentHTML("beforeend", `<button type="button" class="lnk" id="roleBtn" data-act="role" style="background:#fff;color:#17324D">👤 Πελάτης</button>`); }
+  if (S.ui.test && !rb) { $(".top").insertAdjacentHTML("beforeend", `<button type="button" class="lnk" id="roleBtn" data-act="role" aria-label="Προβολή ως πελάτης" style="background:#fff;color:#17324D;padding:8px 10px">👤</button>`); }
   else if (!S.ui.test && rb) rb.remove();
   $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
   const gb = $("#gearBtn"); if (gb) gb.style.background = tab === "more" ? "var(--accent)" : "rgba(255,255,255,.12)";
@@ -350,7 +350,7 @@ function onboarding() {
    ${st(s.shop, 1, "Τα στοιχεία σου", "Όνομα, επωνυμία, διεύθυνση, ΑΦΜ, τηλέφωνο, λογότυπο και χρώματα.", "shop", "Συμπλήρωση")}
    ${st(s.prod, 2, "Τα προϊόντα σου", "Ξεκίνα από έτοιμο πρότυπο (αυγά, μέλι, λάδι, φούρνος, νερά) ή φτιάξε τα δικά σου.", "goMenu", "Κατάλογος")}
    ${st(s.nt, 3, "Ειδοποιήσεις", "Να χτυπάει το κινητό σου για κάθε νέα παραγγελία.", "notif", "Ενεργοποίηση")}
-   ${st(s.link, 4, "Στείλε τον σύνδεσμο", "Στείλ' τον στους πελάτες σου στο Viber.", "link", "Σύνδεσμος")}</div>`;
+   ${st(s.link, 4, "Στείλε τον κατάλογο", "Στείλ' τον στους πελάτες σου στο Viber.", "link", "Αποστολή")}</div>`;
 }
 
 /* ---------- παραγγελίες ---------- */
@@ -369,7 +369,7 @@ function ordersView() {
   const cnt = st => S.orders.filter(o => ordMatch(o, { st, day: ordFilter.day })).length;
   const days = [...new Set(S.orders.filter(o => o.st !== "cancel" && o.when.date && o.when.date >= addDays(today(), -1)).map(o => o.when.date))].sort().slice(0, 12);
   const list = S.orders.filter(o => ordMatch(o, ordFilter)).sort((a, b) => ordFilter.st === "all" || ordFilter.st === "paid" || ordFilter.st === "cancel" ? b.rx - a.rx : (a.when.date || "9").localeCompare(b.when.date || "9") || a.rx - b.rx);
-  const lk = S.link.dirty && S.link.sentAt ? `<div class="warnbox">Άλλαξαν προϊόντα ή τιμές μετά τον τελευταίο σύνδεσμο. <button type="button" class="btn sm amber" data-act="link" style="margin-top:6px">Στείλε νέο σύνδεσμο</button></div>` : "";
+  const lk = S.link.dirty && S.link.sentAt ? `<div class="warnbox">Άλλαξαν προϊόντα ή τιμές μετά την τελευταία αποστολή καταλόγου. <button type="button" class="btn sm amber" data-act="link" style="margin-top:6px">Στείλε ξανά τον κατάλογο</button></div>` : "";
   const ntw = S.shop.name && !S.nt.on ? `<div class="warnbox">🔔 Οι ειδοποιήσεις δεν έχουν ενεργοποιηθεί ακόμα. <button type="button" class="btn sm amber" data-act="notif" style="margin-top:6px">Ενεργοποίηση</button></div>` : "";
   return demoBanner() + updBanner() + installBanner() + (DEMO ? "" : onboarding()) + (DEMO ? "" : lk + ntw) + `
    <div class="note" id="liveSt" style="margin:0 2px 8px">${liveText()}</div>
@@ -790,7 +790,7 @@ function openCust(k) {
   sheet(c.name, `${custInfoHTML(k)}
    <div class="card"><label class="f" for="cuN">Όνομα</label><input class="t" id="cuN" value="${esc(c.name)}"><label class="f" for="cuP">Τηλέφωνο</label><input class="t" id="cuP" value="${esc(c.phone)}"><label class="f" for="cuA">Διεύθυνση</label><input class="t" id="cuA" value="${esc(c.addr || "")}"><label class="f" for="cuNo">Σημειώσεις (μόνο για σένα)</label><input class="t" id="cuNo" value="${esc(c.notes || "")}"></div>
    <div class="card"><h3>🚚 Πότε περνάς</h3><p style="margin:0 0 8px">${c.route && c.route.days && c.route.days.length ? esc(c.route.days.map(x => K.WD[x]).join(", ")) + (c.route.slot ? " · " + esc(c.route.slot) : "") + (c.route.note ? " · " + esc(c.route.note) : "") + (c.route.ex !== false ? " · ⚡ δέχεται έκτακτη" : "") : `<span class="note">Δεν έχεις δηλώσει ημέρες· βλέπει τις γενικές.</span>`}</p>
-    <div class="row"><button type="button" class="btn soft sm grow" data-act="custRoute">📅 Ημέρες</button><button type="button" class="btn amber sm grow" data-act="custLink">🔗 Ο δικός του σύνδεσμος</button></div></div>
+    <div class="row"><button type="button" class="btn soft sm grow" data-act="custRoute">📅 Ημέρες</button><button type="button" class="btn amber sm grow" data-act="custLink">📤 Στείλε του τον κατάλογο</button></div></div>
    <div class="row" style="margin-bottom:12px"><a class="btn soft grow" href="tel:${esc(c.phone)}">📞 Κλήση</a><button type="button" class="btn amber grow" data-act="custNew">＋ Παραγγελία</button>${s.list.length ? `<button type="button" class="btn ghost grow" data-act="custRepeat">🔁 Ξανά την τελευταία</button>` : ""}</div>
    ${s.owed > 0 ? `<button type="button" class="btn green wide" data-act="custPayAll" style="margin-bottom:12px">€ Πλήρωσε όλα όσα χρωστά (${K.money(s.owed)})</button>` : s.owed < 0 ? `<button type="button" class="btn amber wide" data-act="custPayAll" style="margin-bottom:12px">↩ Επιστράφηκαν ${K.money(-s.owed)}</button>` : ""}
    <div class="card list"><h3>Ιστορικό</h3>${s.list.map(o => `<div class="it" data-ord="${o.id}"><div class="t"><b>#${o.no} · ${K.money(o.total)}</b><span>${esc(fmtWhen(o))} · ${esc(o.lines.map(l => K.num(l.q) + " " + l.name).join(", "))}</span></div><span class="pill ${o.paid ? "paid" : o.st}">${o.paid ? "Πληρωμένη" : ST[o.st]}</span></div>`).join("") || `<p class="note">Καμία παραγγελία.</p>`}</div>
@@ -812,7 +812,7 @@ function moreView() {
   return `<div class="card list">
    ${it("🏪", "Στοιχεία πωλητή", sh.ok ? "Συμπληρωμένα" : "Λείπουν: " + sh.miss.join(", "), "shop")}
    ${it("🚚", "Παράδοση και ημέρες", deliveryText(), "deliv")}
-   ${it("🔗", "Σύνδεσμος παραγγελίας", S.link.sentAt ? "Στάλθηκε " + fmtTime(S.link.sentAt) + (S.link.dirty ? " · χρειάζεται νέος" : "") : "Δεν έχει σταλεί ακόμα", "link")}
+   ${it("📤", "Στείλε τον κατάλογο", S.link.sentAt ? "Στάλθηκε " + fmtTime(S.link.sentAt) + (S.link.dirty ? " · χρειάζεται νέος" : "") : "Δεν έχει σταλεί ακόμα", "link")}
    ${it("🔔", "Ειδοποιήσεις", S.nt.on ? "Ενεργές" : "Δεν έχουν ενεργοποιηθεί", "notif")}
    ${it("📋", "Παραγγελία από μήνυμα Viber", "Επικόλληση ή κοινοποίηση μηνύματος", "paste")}</div>
    <div class="card list">
@@ -905,8 +905,8 @@ function delivSheet(forKey) {
       <label class="f" for="rtSl">Ώρα</label><input class="t" id="rtSl" value="${esc(r.slot || "")}" placeholder="π.χ. 09:00-12:00" maxlength="30">
       <label class="f" for="rtNt">Σημείωση (περιοχή, σημείο)</label><input class="t" id="rtNt" value="${esc(r.note || "")}" placeholder="π.χ. Μαρκόπουλο, στην πλατεία" maxlength="80">
       <label class="ck"><input type="checkbox" id="rtEx"${r.ex !== false ? " checked" : ""}><span>Να μπορεί να κάνει <b>έκτακτη παραγγελία</b> σε άλλη ημέρα</span></label></div>
-     <div class="card"><h3>Ο δικός του σύνδεσμος</h3><p class="note" style="margin-top:0">Βλέπει μόνο τις δικές του ημέρες, με έτοιμα το όνομα, το τηλέφωνο και τη διεύθυνσή του.</p>
-      <button type="button" class="btn amber wide" data-act="rtLink">🔗 Αποθήκευση και αποστολή συνδέσμου</button></div>`,
+     <div class="card"><h3>Ο δικός του κατάλογος</h3><p class="note" style="margin-top:0">Βλέπει μόνο τις δικές του ημέρες, με έτοιμα το όνομα, το τηλέφωνο και τη διεύθυνσή του.</p>
+      <button type="button" class="btn amber wide" data-act="rtLink">📤 Αποθήκευση και αποστολή καταλόγου</button></div>`,
      `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="delivSave">Αποθήκευση</button>`, el => { bindChips(el); bindFor(el); });
     return;
   }
@@ -968,7 +968,7 @@ async function custLinkSheet(k) {
   const short = await shortOf(long);
   const url = short || long;
   const msg = "Γεια σας " + c.name.split(" ")[0] + "! 🛒 Παραγγελίες «" + S.shop.name + "»\n" + url;
-  sheet("🔗 Σύνδεσμος για " + c.name, `<div class="okbox">Αυτός ο σύνδεσμος είναι μόνο για ${esc(c.name)}: ${r.days && r.days.length ? "βλέπει ότι περνάς " + esc(r.days.map(x => K.WD[x]).join(", ")) + (r.slot ? ", " + esc(r.slot) : "") : "βλέπει τις γενικές σου ημέρες"}${r.ex !== false && r.days && r.days.length ? ", με κουμπί για έκτακτη παραγγελία" : ""}.</div>
+  sheet("📤 Κατάλογος για " + c.name, `<div class="okbox">Αυτός ο σύνδεσμος είναι μόνο για ${esc(c.name)}: ${r.days && r.days.length ? "βλέπει ότι περνάς " + esc(r.days.map(x => K.WD[x]).join(", ")) + (r.slot ? ", " + esc(r.slot) : "") : "βλέπει τις γενικές σου ημέρες"}${r.ex !== false && r.days && r.days.length ? ", με κουμπί για έκτακτη παραγγελία" : ""}.</div>
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-act="lkShare">💬 Αποστολή στο Viber</button><button type="button" class="btn ghost grow" data-act="lkCopy">📋 Αντιγραφή</button></div>
    <p class="note">${short ? "Σύντομος σύνδεσμος ✓. " : ""}Την πρώτη φορά ο πελάτης γράφει όνομα και τηλέφωνο· μετά τα θυμάται το κινητό του.</p>
    <h3 style="margin:14px 2px 6px;font-size:16px">👁 Όπως το βλέπει ${esc(c.name.split(" ")[0])}</h3>
@@ -1020,7 +1020,7 @@ async function linkSheet() {
   const url = short || long;
   const len = long.length, pct = Math.min(100, Math.round(len / 7000 * 100));
   const msg = "🛒 Παραγγελίες «" + S.shop.name + "»\n" + url;
-  sheet("🔗 Σύνδεσμος παραγγελίας", `
+  sheet("📤 Στείλε τον κατάλογο στους πελάτες", `
    <div class="okbox">Αυτή είναι η σελίδα του καταστήματός σου για τους πελάτες. Στείλ' την μία φορά στο Viber και παραγγέλνουν από εκεί όσες φορές θέλουν. Νέα αποστολή χρειάζεται μόνο όταν αλλάζεις τιμές ή προϊόντα.</div>
    ${S.link.dirty && S.link.sentAt ? `<div class="warnbox">Άλλαξες προϊόντα ή τιμές. Στείλε τον νέο σύνδεσμο στους πελάτες σου. Ακόμα κι αν κάποιος παραγγείλει από τον παλιό, γράφονται πάντα οι δικές σου τρέχουσες τιμές.</div>` : ""}
    <div class="card"><div class="prev" style="--c1:${esc(S.shop.c1)};--on1:${K.contrast(S.shop.c1)}"><div class="ph">${S.shop.logo && S.link.logo ? `<img src="${esc(S.shop.logo)}" alt="">` : ""}<b>${esc(S.shop.name)}</b></div></div>
