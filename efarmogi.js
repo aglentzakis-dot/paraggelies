@@ -717,12 +717,77 @@ function custsView() {
   const owedAll = K.round2(Object.keys(S.customers).reduce((a, k) => a + custStats(k).owed, 0));
   return `<div class="row" style="margin-bottom:10px"><input class="t grow" id="custQ" placeholder="🔍 Αναζήτηση πελάτη" value="${esc(custQ)}"><button type="button" class="btn amber" data-act="custNewBtn">＋ Νέος</button></div>
    ${owedAll > 0 ? `<div class="warnbox">Σου χρωστάνε συνολικά <b>${K.money(owedAll)}</b> από παραδομένες παραγγελίες.</div>` : ""}
-   <div class="card list">${L.length ? L.map(c => { const s = custStats(c.key); return `<div class="it" data-cust="${c.key}"><div class="ic">👤</div><div class="t"><b>${esc(c.name)}</b><span>${esc(c.phone)} · ${s.n} ${s.n === 1 ? "παραγγελία" : "παραγγελίες"} · ${K.money(s.sum)}</span></div>${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : s.owed < 0 ? `<span class="pill warn">επιστροφή ${K.money(-s.owed)}</span>` : ""}</div>`; }).join("") : `<p class="note">Οι πελάτες προστίθενται μόνοι τους με την πρώτη τους παραγγελία, ή με «＋ Νέος».</p>`}</div>`;
+   <div class="card list">${L.length ? L.map(c => { const s = custStats(c.key); return `<div class="it" data-cust="${c.key}"><div class="ic">👤</div><div class="t"><b>${esc(c.name)}${rateAvg(c.ratings) ? ` <span style="color:#F2B632;font-size:13px">★${rateAvg(c.ratings)}</span>` : ""}</b><span>${esc(c.phone)} · ${s.n} ${s.n === 1 ? "παραγγελία" : "παραγγελίες"} · τζίρος ${K.money(s.sum)}</span></div>${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : s.owed < 0 ? `<span class="pill warn">επιστροφή ${K.money(-s.owed)}</span>` : ""}</div>`; }).join("") : `<p class="note">Οι πελάτες προστίθενται μόνοι τους με την πρώτη τους παραγγελία, ή με «＋ Νέος».</p>`}</div>`;
+}
+/* ---------- αξιολόγηση πελάτη (όπως στο Δρομολόγιο, για πωλητή) ---------- */
+const RATE_CATS = [
+  ["pay", "Πληρωμή", "πληρώνει στην ώρα του, χωρίς παζάρια και καθυστερήσεις"],
+  ["behav", "Συμπεριφορά", "ευγένεια, σεβασμός, ηρεμία"],
+  ["comm", "Συνεννόηση", "παραγγέλνει καθαρά, απαντάει, δεν αλλάζει γνώμη την τελευταία στιγμή"],
+  ["punct", "Συνέπεια στην παράδοση", "είναι εκεί όταν πας, δεν σε στήνει, παραλαμβάνει"],
+  ["value", "Αξία παραγγελιών", "μέγεθος και συχνότητα που αξίζουν τη διαδρομή"],
+  ["claims", "Παράπονα και επιστροφές", "λίγα και δίκαια, όχι για να πάρει έκπτωση"],
+  ["refer", "Συστάσεις", "σε φέρνει σε άλλους πελάτες"]
+];
+const rateAvg = r => { const v = Object.values(r || {}).map(Number).filter(n => n > 0); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10 : 0; };
+const stars = n => "★".repeat(Math.round(n)) + "☆".repeat(5 - Math.round(n));
+function rateSheet(k) {
+  const c = S.customers[k]; if (!c) return;
+  const r = Object.assign({}, c.ratings || {}), x = custInfo(k);
+  const hint = { pay: x.owed > 0 ? "Από τα στοιχεία: χρωστά τώρα " + K.money(x.owed) + (x.payDays != null ? " · πληρώνει σε " + x.payDays + " ημέρες κατά μέσο όρο" : "") : x.payDays != null ? "Από τα στοιχεία: πληρώνει σε " + x.payDays + " ημέρες κατά μέσο όρο" : "", value: x.n ? "Από τα στοιχεία: " + x.n + " παραγγελίες, μέση " + K.money(x.avg) : "", punct: x.cancel ? "Από τα στοιχεία: " + x.cancel + " ακυρωμένες" : "" };
+  sheet("⭐ Αξιολόγηση: " + c.name, `<p class="note" style="margin-top:0">Μόνο για σένα — ο πελάτης δεν τη βλέπει. Πάτα αστέρια σε όσα θέλεις.</p>
+   ${RATE_CATS.map(([id, t, d]) => `<div class="card" style="padding:10px 12px"><b>${t}</b><div class="note" style="margin:2px 0 6px">${d}</div>${hint[id] ? `<div class="note" style="margin:0 0 6px;color:var(--brand)">${esc(hint[id])}</div>` : ""}
+     <div class="row" style="gap:4px">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-rate="${id}" data-v="${n}" style="border:0;background:none;font-size:30px;line-height:1;cursor:pointer;color:${(+r[id] || 0) >= n ? "#F2B632" : "#cfd6db"}">★</button>`).join("")}<button type="button" class="btn soft sm" data-rate="${id}" data-v="0" style="margin-left:auto">Καθαρισμός</button></div></div>`).join("")}
+   <div class="card"><label class="f" for="rtNote" style="margin-top:0">Σημείωση</label><input class="t" id="rtNote" value="${esc(c.rateNote || "")}" maxlength="120" placeholder="π.χ. καλύτερα να του τηλεφωνείς πριν"></div>`,
+   `<button type="button" class="btn soft" data-act="shClose">Κλείσιμο</button><button type="button" class="btn amber" data-act="rateSave">Αποθήκευση</button>`,
+   el => { el.dataset.cust = k; el._r = r; });
+}
+/* ---------- αναλυτικά στοιχεία πελάτη ---------- */
+function custInfo(k) {
+  const all = S.orders.filter(o => custKey(o.cust.phone) === k && o.st !== "dup");
+  const act = all.filter(o => o.st !== "cancel").sort((a, b) => a.rx - b.rx);
+  const sum = K.round2(act.reduce((a, o) => a + o.total, 0)), n = act.length;
+  const now = new Date(), y0 = K.ymd(new Date(now.getFullYear(), 0, 1)), m0 = K.ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+  const pm0 = K.ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1)), pm1 = K.ymd(new Date(now.getFullYear(), now.getMonth(), 0));
+  const dOf = o => o.when.date || K.ymd(new Date(o.rx));
+  const inR = (f, t) => K.round2(act.filter(o => dOf(o) >= f && dOf(o) <= t).reduce((a, o) => a + o.total, 0));
+  const prod = {};
+  act.forEach(o => o.lines.forEach(l => { const x = prod[l.name] || (prod[l.name] = { q: 0, unit: l.unit, sum: 0, n: 0 }); x.q += l.q; x.sum += l.sum; x.n++; }));
+  const top = Object.entries(prod).sort((a, b) => b[1].sum - a[1].sum).slice(0, 4);
+  const wd = {}; act.forEach(o => { if (o.when.date) { const d = K.fromYmd(o.when.date).getDay(); wd[d] = (wd[d] || 0) + 1; } });
+  const favDay = Object.entries(wd).sort((a, b) => b[1] - a[1])[0];
+  let gap = null; if (n > 1) gap = Math.round((act[n - 1].rx - act[0].rx) / 864e5 / (n - 1));
+  const paidL = act.filter(o => o.paid && o.paidAt && o.doneAt);
+  const payDays = paidL.length ? Math.round(paidL.reduce((a, o) => a + Math.max(0, (o.paidAt - o.doneAt) / 864e5), 0) / paidL.length) : null;
+  const last = act[n - 1], since = last ? Math.round((Date.now() - last.rx) / 864e5) : null;
+  const late = gap && since != null && since > gap * 1.8 && since > 7;
+  return { n, sum, avg: n ? K.round2(sum / n) : 0, year: inR(y0, "9999"), month: inR(m0, "9999"), prev: inR(pm0, pm1), top, favDay: favDay ? K.WD[favDay[0]] : "", gap, payDays, owed: custStats(k).owed,
+    paid: K.round2(act.reduce((a, o) => a + paidOf(o), 0)), cancel: all.filter(o => o.st === "cancel").length, extra: act.filter(o => o.when.extra).length,
+    inv: act.filter(o => o.inv && o.inv.t === "i").length, first: act[0] ? act[0].rx : 0, last: last ? last.rx : 0, since, late };
+}
+function custInfoHTML(k) {
+  const x = custInfo(k), c = S.customers[k], ra = rateAvg(c.ratings);
+  const kp = (l, v, col) => `<div class="card" style="margin:0;padding:10px"><div class="lbl" style="font-size:12.5px;color:var(--mute)">${l}</div><div style="font-weight:800;font-size:18px;${col ? "color:" + col : ""}">${v}</div></div>`;
+  const trend = x.prev ? Math.round((x.month - x.prev) / x.prev * 100) : null;
+  const row = (l, v) => v ? `<div class="qrow"><div class="qn">${l}</div><b>${v}</b></div>` : "";
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+     ${kp("💶 Συνολικός τζίρος", K.money(x.sum))}${kp(x.owed < 0 ? "Του επιστρέφεις" : "🔴 Χρωστά", K.money(Math.abs(x.owed)), x.owed > 0 ? "var(--bad)" : x.owed < 0 ? "#b26b00" : "")}
+     ${kp("🧾 Παραγγελίες", x.n)}${kp("Μέση παραγγελία", K.money(x.avg))}
+     ${kp("Αυτόν τον μήνα", K.money(x.month) + (trend != null ? ` <small style="color:${trend >= 0 ? "#2E7D5B" : "#C8412B"}">${trend >= 0 ? "▲" : "▼"}${Math.abs(trend)}%</small>` : ""))}${kp("Φέτος", K.money(x.year))}</div>
+   ${x.late ? `<div class="warnbox">⏰ Συνήθως παραγγέλνει κάθε ${x.gap} ημέρες, αλλά έχει ${x.since} ημέρες να παραγγείλει. Ίσως αξίζει ένα τηλέφωνο.</div>` : ""}
+   <div class="card">${row("⭐ Αξιολόγηση", ra ? `<span style="color:#F2B632">${stars(ra)}</span> ${ra}` : "")}
+     ${row("Πρώτη παραγγελία", x.first ? fmtTime(x.first).split(" ")[0] : "")}${row("Τελευταία παραγγελία", x.last ? fmtTime(x.last).split(" ")[0] + (x.since === 0 ? " (σήμερα)" : x.since === 1 ? " (χθες)" : x.since != null ? " (πριν " + x.since + " ημέρες)" : "") : "")}
+     ${row("Παραγγέλνει περίπου κάθε", x.gap ? x.gap + " ημέρες" : "")}${row("Συνήθως για", x.favDay)}
+     ${row("Πληρώνει κατά μέσο όρο σε", x.payDays != null ? (x.payDays ? x.payDays + " ημέρες μετά την παράδοση" : "την ίδια ημέρα") : "")}
+     ${row("Έχει πληρώσει συνολικά", x.paid ? K.money(x.paid) : "")}${row("Έκτακτες παραγγελίες", x.extra || "")}${row("Ακυρώσεις", x.cancel || "")}${row("Παραστατικό", x.n ? (x.inv ? "τιμολόγιο σε " + x.inv + " από " + x.n : "απόδειξη") : "")}</div>
+   ${x.top.length ? `<div class="card"><h3>🏆 Τι αγοράζει περισσότερο</h3>${x.top.map(([nm, v]) => `<div class="qrow"><div class="qn"><b>${esc(nm)}</b><span>${K.num(v.q)} ${esc(v.unit)} σε ${v.n} ${v.n === 1 ? "παραγγελία" : "παραγγελίες"}</span></div><b>${K.money(v.sum)}</b></div>`).join("")}</div>` : ""}
+   <button type="button" class="btn ghost wide" data-act="rateOpen" style="margin-bottom:12px">⭐ ${ra ? "Αξιολόγηση " + ra + " · αναλυτικά" : "Αξιολόγηση πελάτη (πληρωμή, συμπεριφορά, συνέπεια…)"}</button>
+   ${c.rateNote ? `<div class="note" style="margin:-6px 2px 12px">📝 ${esc(c.rateNote)}</div>` : ""}`;
 }
 function openCust(k) {
   const c = S.customers[k]; if (!c) return;
   const s = custStats(k);
-  sheet(c.name, `<div class="stats"><div class="card"><div class="lbl">Παραγγελίες</div><div class="big-num">${s.n}</div></div><div class="card"><div class="lbl">${s.owed < 0 ? "Του επιστρέφεις" : "Χρωστά"}</div><div class="big-num" style="color:${s.owed > 0 ? "var(--bad)" : s.owed < 0 ? "#b26b00" : "inherit"}">${K.money(Math.abs(s.owed))}</div></div></div>
+  sheet(c.name, `${custInfoHTML(k)}
    <div class="card"><label class="f" for="cuN">Όνομα</label><input class="t" id="cuN" value="${esc(c.name)}"><label class="f" for="cuP">Τηλέφωνο</label><input class="t" id="cuP" value="${esc(c.phone)}"><label class="f" for="cuA">Διεύθυνση</label><input class="t" id="cuA" value="${esc(c.addr || "")}"><label class="f" for="cuNo">Σημειώσεις (μόνο για σένα)</label><input class="t" id="cuNo" value="${esc(c.notes || "")}"></div>
    <div class="card"><h3>🚚 Πότε περνάς</h3><p style="margin:0 0 8px">${c.route && c.route.days && c.route.days.length ? esc(c.route.days.map(x => K.WD[x]).join(", ")) + (c.route.slot ? " · " + esc(c.route.slot) : "") + (c.route.note ? " · " + esc(c.route.note) : "") + (c.route.ex !== false ? " · ⚡ δέχεται έκτακτη" : "") : `<span class="note">Δεν έχεις δηλώσει ημέρες· βλέπει τις γενικές.</span>`}</p>
     <div class="row"><button type="button" class="btn soft sm grow" data-act="custRoute">📅 Ημέρες</button><button type="button" class="btn amber sm grow" data-act="custLink">🔗 Ο δικός του σύνδεσμος</button></div></div>
@@ -1125,6 +1190,8 @@ const ACT = {
   lkPreview: () => { const u = $("#shB").dataset.url; closeSheet(); setTimeout(() => openPreview(u), 60); },
   pvClose: () => closePreview(false),
   role: () => switchRole(),
+  rateOpen: () => rateSheet($("#shB").dataset.cust),
+  rateSave: () => { const b = $("#shB"), c = S.customers[b.dataset.cust]; if (!c) return; c.ratings = b._r || {}; c.rateNote = $("#rtNote").value.trim(); save(); const k = c.key; closeSheet(); setTimeout(() => openCust(k), 60); render(); toast("✓ Αποθηκεύτηκε η αξιολόγηση"); },
   ntOrder: a => { const id = a.dataset.oid; closeSheet(); setTimeout(() => openOrder(id), 60); },
   owedSheet: () => {
     const debt = Object.values(S.customers).map(c => ({ c, v: custStats(c.key).owed })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
@@ -1215,6 +1282,7 @@ document.addEventListener("click", async e => {
   const ds = t.closest("[data-diag-share]"); if (ds) { const u = $("#shB")._diag[+ds.dataset.diagShare]; try { await navigator.share({ text: u }); } catch (e) { if (!e || e.name !== "AbortError") { try { await navigator.clipboard.writeText(u); toast("Αντιγράφηκε"); } catch {} } } return; }
   const dc = t.closest("[data-diag-copy]"); if (dc) { try { await navigator.clipboard.writeText($("#shB")._diag[+dc.dataset.diagCopy]); toast("✓ Αντιγράφηκε. Επικόλλησέ το στο Viber."); } catch { toast("Δεν έγινε αντιγραφή."); } return; }
   const nf = t.closest("[data-ntf]"); if (nf) { const o = S.orders.find(x => x.id === nf.dataset.oid); if (o && nf.dataset.ntf !== "τηλέφωνο" || (o && nf.dataset.ntf === "τηλέφωνο")) { o.notified = o.notified || {}; o.notified[o.st] = { at: Date.now(), via: nf.dataset.ntf }; o.log.push([Date.now(), "Ενημέρωση πελάτη (" + nf.dataset.ntf + "): " + ST[o.st]]); save(); setTimeout(() => { if (isSheetOpen() && $("#shB").dataset.ord === o.id) openOrder(o.id); render(); }, 600); } }
+  const rt = t.closest("[data-rate]"); if (rt) { const b = $("#shB"); b._r = b._r || {}; b._r[rt.dataset.rate] = +rt.dataset.v; rt.parentElement.querySelectorAll("[data-rate][data-v]").forEach(x => { if (+x.dataset.v > 0) x.style.color = +x.dataset.v <= +rt.dataset.v ? "#F2B632" : "#cfd6db"; }); return; }
   const cs = t.closest("[data-cash]"); if (cs) { cashSheet(cs.dataset.cash); return; }
   const ce = t.closest("[data-cashed]"); if (ce) { cashSheet(null, ce.dataset.cashed); return; }
   const cd = t.closest("[data-cldel]"); if (cd) { S.deliv.closed = (S.deliv.closed || []).filter(x => x !== cd.dataset.cldel); save({ catalog: true }); keepDeliv(); return; }
