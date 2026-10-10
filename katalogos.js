@@ -280,6 +280,20 @@
   /* αποτύπωμα για εντοπισμό διπλών (ίδιο τηλέφωνο, ίδια είδη, ίδια ημέρα, μέσα σε 15 λεπτά) */
   K.fingerprint = o => [String(o.cust.phone).replace(/\D/g, "").slice(-10), o.when.date, o.lines.map(l => l.pid + ":" + l.q).sort().join(",")].join("|");
 
+  /* ---------- σύντομος σύνδεσμος (is.gd, χωρίς λογαριασμό) ----------
+     Το Viber δείχνει ολόκληρο το κείμενο του συνδέσμου· με σύντομο σύνδεσμο το μήνυμα
+     μένει μικρό και φαίνεται η κάρτα με το εικονίδιο. Αν αποτύχει, μένει ο κανονικός. */
+  K.shorten = (url, ms) => new Promise((res, rej) => {
+    const cb = "glenSh" + Math.random().toString(36).slice(2);
+    const sc = document.createElement("script");
+    const done = (f, v) => { clearTimeout(tm); try { delete window[cb]; } catch { window[cb] = undefined; } sc.remove(); f(v); };
+    const tm = setTimeout(() => done(rej, new Error("χρόνος")), ms || 7000);
+    window[cb] = d => d && d.shorturl && /^https:\/\/is\.gd\/\w+$/.test(d.shorturl) ? done(res, d.shorturl) : done(rej, new Error((d && d.errormessage) || "άγνωστο"));
+    sc.onerror = () => done(rej, new Error("δίκτυο"));
+    sc.src = "https://is.gd/create.php?format=json&callback=" + cb + "&url=" + encodeURIComponent(url);
+    document.head.appendChild(sc);
+  });
+
   /* ---------- ειδοποιήσεις (ntfy, όπως στο Δρομολόγιο) ---------- */
   K.ntfySend = async (topic, title, message, click) => {
     const r = await fetch(K.NTFY + "/", {

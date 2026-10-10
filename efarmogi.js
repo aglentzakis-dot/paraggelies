@@ -895,14 +895,18 @@ async function custLinkSheet(k) {
   const ok = shopOk(); if (!ok.ok) { toast("Συμπλήρωσε πρώτα: " + ok.miss.join(", "), 4000); shopSheet(); return; }
   if (!S.terms) { linkSheet(); return; }
   const r = c.route || {};
-  const url = await makeLink({ k, n: c.name, p: c.phone, a: c.addr || "", d: r.days || [], sl: r.slot || "", nt: r.note || "", ex: r.ex !== false ? 1 : 0 });
-  const msg = "Γεια σας " + c.name.split(" ")[0] + "! Παραγγείλτε από «" + S.shop.name + "» εδώ:\n" + url;
+  /* στον σύντομο σύνδεσμο δεν μπαίνουν όνομα, τηλέφωνο, διεύθυνση: η υπηρεσία συντόμευσης δεν πρέπει να τα βλέπει */
+  const long = await makeLink({ k, d: r.days || [], sl: r.slot || "", nt: r.note || "", ex: r.ex !== false ? 1 : 0 });
+  toast("Ετοιμάζεται ο σύντομος σύνδεσμος…", 1500);
+  const short = await shortOf(long);
+  const url = short || long;
+  const msg = "Γεια σας " + c.name.split(" ")[0] + "! 🛒 Παραγγελίες «" + S.shop.name + "»\n" + url;
   sheet("🔗 Σύνδεσμος για " + c.name, `<div class="okbox">Αυτός ο σύνδεσμος είναι μόνο για ${esc(c.name)}: ${r.days && r.days.length ? "βλέπει ότι περνάς " + esc(r.days.map(x => K.WD[x]).join(", ")) + (r.slot ? ", " + esc(r.slot) : "") : "βλέπει τις γενικές σου ημέρες"}${r.ex !== false && r.days && r.days.length ? ", με κουμπί για έκτακτη παραγγελία" : ""}.</div>
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-act="lkShare">💬 Αποστολή στο Viber</button><button type="button" class="btn ghost grow" data-act="lkCopy">📋 Αντιγραφή</button></div>
-   <p class="note">Ο σύνδεσμος περιέχει το όνομα, το τηλέφωνο και τη διεύθυνση του πελάτη, για να μην τα γράφει. Στείλ' τον μόνο σε εκείνον.</p>
+   <p class="note">${short ? "Σύντομος σύνδεσμος ✓. " : ""}Την πρώτη φορά ο πελάτης γράφει όνομα και τηλέφωνο· μετά τα θυμάται το κινητό του.</p>
    <h3 style="margin:14px 2px 6px;font-size:16px">👁 Όπως το βλέπει ${esc(c.name.split(" ")[0])}</h3>
-   <div style="border:3px solid #1d2b36;border-radius:22px;overflow:hidden;height:560px;background:#F3F4F1"><iframe src="${esc(url)}" title="Προεπισκόπηση" style="width:100%;height:100%;border:0"></iframe></div>`, "",
-   el => { el.dataset.url = url; el.dataset.msg = msg; });
+   <div style="border:3px solid #1d2b36;border-radius:22px;overflow:hidden;height:560px;background:#F3F4F1"><iframe src="${esc(long)}" title="Προεπισκόπηση" style="width:100%;height:100%;border:0"></iframe></div>`, "",
+   el => { el.dataset.url = long; el.dataset.msg = msg; });
 }
 
 /* ---------- σύνδεσμος παραγγελίας ---------- */
@@ -924,6 +928,12 @@ async function makeLink(cust) {
   return BASE + "p.html#n=" + pk.length + "&k=" + pk;
 }
 A.makeLink = makeLink;
+async function shortOf(url) {
+  let h = 2166136261; for (let i = 0; i < url.length; i++) { h ^= url.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } h = url.length + ":" + h;
+  const c = (S.link.shorts || (S.link.shorts = {}));
+  if (c[h]) return c[h];
+  try { const u = await K.shorten(url); c[h] = u; const keys = Object.keys(c); if (keys.length > 30) delete c[keys[0]]; save(); return u; } catch { return ""; }
+}
 async function linkSheet() {
   const ok = shopOk();
   if (!ok.ok) { toast("Συμπλήρωσε πρώτα: " + ok.miss.join(", "), 4000); shopSheet(); return; }
@@ -937,15 +947,20 @@ async function linkSheet() {
      `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="termsOk">Συνέχεια</button>`);
     return;
   }
-  const url = await makeLink();
-  const len = url.length, pct = Math.min(100, Math.round(len / 7000 * 100));
-  const msg = "Παραγγείλτε από «" + S.shop.name + "» εδώ, χωρίς τηλεφωνήματα:\n" + url;
+  const long = await makeLink();
+  toast("Ετοιμάζεται ο σύντομος σύνδεσμος…", 1500);
+  const short = await shortOf(long);
+  const url = short || long;
+  const len = long.length, pct = Math.min(100, Math.round(len / 7000 * 100));
+  const msg = "🛒 Παραγγελίες «" + S.shop.name + "»\n" + url;
   sheet("🔗 Σύνδεσμος παραγγελίας", `
    <div class="okbox">Αυτή είναι η σελίδα του καταστήματός σου για τους πελάτες. Στείλ' την μία φορά στο Viber και παραγγέλνουν από εκεί όσες φορές θέλουν. Νέα αποστολή χρειάζεται μόνο όταν αλλάζεις τιμές ή προϊόντα.</div>
    ${S.link.dirty && S.link.sentAt ? `<div class="warnbox">Άλλαξες προϊόντα ή τιμές. Στείλε τον νέο σύνδεσμο στους πελάτες σου. Ακόμα κι αν κάποιος παραγγείλει από τον παλιό, γράφονται πάντα οι δικές σου τρέχουσες τιμές.</div>` : ""}
    <div class="card"><div class="prev" style="--c1:${esc(S.shop.c1)};--on1:${K.contrast(S.shop.c1)}"><div class="ph">${S.shop.logo && S.link.logo ? `<img src="${esc(S.shop.logo)}" alt="">` : ""}<b>${esc(S.shop.name)}</b></div></div>
-    <div class="lnkbox" style="margin-top:10px">${esc(url)}</div>
-    <div class="meter ${pct > 90 ? "b" : pct > 65 ? "w" : ""}"><i style="width:${pct}%"></i></div><div class="note" style="margin:0">Μήκος ${len.toLocaleString("el-GR")} χαρακτήρες${pct > 90 ? " — πολύ μεγάλος, μπορεί να κοπεί στο Viber. Βγάλε τις φωτογραφίες ή το λογότυπο." : ""}</div>
+    <div class="note" style="margin:10px 0 4px">Έτσι θα φαίνεται στο Viber:</div>
+    <div style="background:#efe9fb;border-radius:14px 14px 14px 4px;padding:10px 12px;font-size:14.5px;max-width:280px">🛒 Παραγγελίες «${esc(S.shop.name)}»<br><span style="color:#5b3fd1;word-break:break-all">${esc(short || long.slice(0, 60) + "…")}</span>
+     <div style="margin-top:8px;background:#fff;border-radius:10px;display:flex;gap:8px;align-items:center;padding:6px"><img src="eikonidia/icon-192.png" style="width:42px;height:42px;border-radius:9px" alt=""><div><b style="font-size:13.5px">🛒 Κάνε την παραγγελία σου</b><div style="font-size:12px;color:#666">Διάλεξε προϊόντα, χωρίς τηλεφωνήματα</div></div></div></div>
+    ${short ? `<div class="okbox" style="margin-top:8px">✓ Σύντομος σύνδεσμος: φτάνει ολόκληρος και το μήνυμα μένει μικρό.</div>` : `<div class="warnbox" style="margin-top:8px">Δεν έγινε σύντομος σύνδεσμος (χωρίς διαδίκτυο ή η υπηρεσία δεν απάντησε). Θα σταλεί ο κανονικός, μακρύς σύνδεσμος (${len.toLocaleString("el-GR")} χαρακτήρες).</div>`}
     <label class="ck"><input type="checkbox" id="lkPh"${S.link.photos ? " checked" : ""}><span>Με φωτογραφίες προϊόντων (μεγαλώνει τον σύνδεσμο) ${isPro() ? "" : "· Pro"}</span></label>
     <label class="ck"><input type="checkbox" id="lkLg"${S.link.logo ? " checked" : ""}><span>Με λογότυπο</span></label></div>
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-act="lkShare">💬 Αποστολή στο Viber</button><button type="button" class="btn ghost grow" data-act="lkCopy">📋 Αντιγραφή</button></div>
@@ -953,9 +968,9 @@ async function linkSheet() {
    ${S.ui.test ? `<button type="button" class="btn soft wide" data-act="lkDiag" style="margin-bottom:10px">🔬 Δοκιμή: φτάνει ολόκληρος ο σύνδεσμος;</button>` : ""}
    <p class="note">Ο κατάλογος ταξιδεύει μέσα στον σύνδεσμο. Οι παραγγελίες έρχονται κρυπτογραφημένες και ανοίγουν μόνο σε αυτό το κινητό.</p>
    <h3 style="margin:14px 2px 6px;font-size:16px">👁 Όπως το βλέπει ο πελάτης</h3>
-   <div style="border:3px solid #1d2b36;border-radius:22px;overflow:hidden;height:560px;background:#F3F4F1"><iframe src="${esc(url)}" title="Προεπισκόπηση" style="width:100%;height:100%;border:0"></iframe></div>
+   <div style="border:3px solid #1d2b36;border-radius:22px;overflow:hidden;height:560px;background:#F3F4F1"><iframe src="${esc(long)}" title="Προεπισκόπηση" style="width:100%;height:100%;border:0"></iframe></div>
    <button type="button" class="btn ghost wide" data-act="lkPreview" style="margin-top:8px">⛶ Προεπισκόπηση σε όλη την οθόνη</button>`, "",
-   el => { el.dataset.url = url; el.dataset.msg = msg; });
+   el => { el.dataset.url = long; el.dataset.msg = msg; });
 }
 function linkSent() { S.link.sentAt = Date.now(); S.link.dirty = false; save(); }
 
