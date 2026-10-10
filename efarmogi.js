@@ -546,15 +546,34 @@ function drawForm() {
    <div class="card"><h3>Είδη</h3>${selHTML || `<p class="note">Πρόσθεσε είδη από κάτω.</p>`}
     <div class="row" style="margin-top:10px"><b class="grow">Σύνολο</b><b style="font-size:19px" id="ftot">${K.money(tot)}</b></div>
     ${F.id ? `<p class="note">Τα είδη που υπήρχαν κρατούν την τιμή της παραγγελίας· τα καινούργια μπαίνουν με την τρέχουσα τιμή.</p>` : ""}</div>
-   ${others.length ? `<div class="card"><h3>Προσθήκη είδους</h3><input class="t" id="fsearch" placeholder="Αναζήτηση…" style="margin-bottom:6px">${others.map(row).join("")}</div>` : prods.length ? "" : `<div class="warnbox">Δεν έχεις ακόμα προϊόντα. Φτιάξε τα πρώτα στον Κατάλογο.</div>`}
+   ${others.length ? `<div class="card"><h3>Προσθήκη είδους</h3><input class="t" id="fsearch" placeholder="🔍 Αναζήτηση…" style="margin-bottom:6px">${groupedRows(others, row)}</div>` : prods.length ? "" : `<div class="warnbox">Δεν έχεις ακόμα προϊόντα. Φτιάξε τα πρώτα στον Κατάλογο.</div>`}
    <div id="ferr"></div>`,
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="fSave">Αποθήκευση</button>`,
    el => {
      const s = el.querySelector("#fsearch");
-     if (s) s.addEventListener("input", () => { const q = K.norm(s.value); s.parentElement.querySelectorAll(".qrow").forEach(r => r.style.display = !q || K.norm(r.textContent).includes(q) ? "" : "none"); });
+     if (s) s.addEventListener("input", () => { const q = K.norm(s.value); const box = s.parentElement;
+       box.querySelectorAll(".qrow").forEach(r => r.style.display = !q || K.norm(r.textContent).includes(q) ? "" : "none");
+       box.querySelectorAll("details.fcat").forEach(d => { const any = [...d.querySelectorAll(".qrow")].some(r => r.style.display !== "none"); d.style.display = any ? "" : "none"; if (q) d.open = any; });
+       if (!q) box.querySelectorAll("details.fcat").forEach(d => { d.open = false; }); });
      const cs = el.querySelector("#fcSel");
      if (cs) cs.addEventListener("change", () => { const c = S.customers[cs.value]; if (c) { readForm(); F.name = c.name; F.phone = c.phone; F.addr = c.addr || ""; drawForm(); } });
    });
+}
+/* είδη ομαδοποιημένα όπως στο μενού: κατηγορίες και υποκατηγορίες */
+function groupedRows(list, row) {
+  const want = new Set(list.map(p => p.id)), used = new Set();
+  const walk = (nodes, depth) => {
+    let html = "";
+    for (const n of nodes || []) {
+      if (n.t === "p") { if (want.has(n.pid) && !used.has(n.pid)) { used.add(n.pid); html += row(S.products[n.pid]); } }
+      else { const inner = walk(n.kids, depth + 1); if (inner) html += `<details class="fcat" style="margin:${depth ? "2px 0 2px 10px" : "6px 0"};border-left:3px solid ${depth ? "var(--line)" : "var(--accent)"};padding-left:8px"><summary style="cursor:pointer;font-weight:800;padding:8px 0;font-size:${depth ? 14.5 : 16}px">${esc(n.emoji || "📁")} ${esc(n.name)}</summary>${inner}</details>`; }
+    }
+    return html;
+  };
+  let html = walk(S.menu, 0);
+  const rest = list.filter(p => !used.has(p.id));
+  if (rest.length) html += `<details class="fcat" style="margin:6px 0;border-left:3px solid var(--line);padding-left:8px"><summary style="cursor:pointer;font-weight:800;padding:8px 0">📦 Χωρίς κατηγορία</summary>${rest.map(row).join("")}</details>`;
+  return html;
 }
 function readForm() {
   if (!F || !$("#fn")) return;

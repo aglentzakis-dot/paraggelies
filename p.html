@@ -7,14 +7,14 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.11">
+<meta name="app-version" content="1.12">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.11">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.11">
-<link rel="stylesheet" href="koino.css?v=1.11">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.12">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.12">
+<link rel="stylesheet" href="koino.css?v=1.12">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -79,7 +79,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.11"></script>
+<script src="katalogos.js?v=1.12"></script>
 <script>
 (function(){
 "use strict";
@@ -171,6 +171,7 @@ function render(){
    ${path.length?`<div class="crumb"><button type="button" class="back" data-act="back">← Πίσω</button><span class="path">${esc(path.map(n=>n.name).join(" › "))}</span></div>`:""}
    ${!path.length&&last&&!t.n?`<button type="button" class="again" data-act="again">🔁 Ξανά τα ίδια με την προηγούμενη φορά</button>`:""}
    ${!path.length?routeBox():""}
+   ${!path.length?(()=>{const L=store.get(SK+":sent",[]).filter(x=>x.ok&&x.d>=K.ymd(new Date()));return L.length?`<div class="how" style="border-left-color:#1f7a3d">✅ Έχεις στείλει παραγγελία για ${esc([...new Set(L.map(x=>K.dayLabel(x.d)))].join(" και "))}. Ό,τι στείλεις ακόμα για την ίδια ημέρα θα προστεθεί σε αυτή.</div>`:""})():""}
    ${!path.length&&!t.n&&M.length?`<div class="how">🛒 <b>Πώς παραγγέλνεις:</b> πάτα μια κατηγορία, βάλε ποσότητες με <b>+</b> και στο τέλος πάτα <b>«Συνέχεια»</b>.</div>`:""}
    ${M.length?`<div class="grid" id="grid">${K.tilesHTML(nodes,{prod:id=>P[id],qty,count:n=>K.countIn(n,qty)})}</div>`:`<div class="sec" style="text-align:center"><div style="font-size:40px">📦</div><b>Ο κατάλογος είναι άδειος</b><p class="note">Ο πωλητής δεν έχει βάλει ακόμα προϊόντα. Ζήτησέ του να σου στείλει νέο σύνδεσμο.</p></div>`}</main>`+footer()+bar();
 }
@@ -180,6 +181,9 @@ function refreshTile(id){const q=qty(id);document.querySelectorAll(`[data-qv="${
   const again=document.querySelector(".again");if(again&&totals().n)again.remove()}
 
 /* ---------- ολοκλήρωση ---------- */
+const sentFor=d=>store.get(SK+":sent",[]).filter(x=>x.d===d);
+function sentBox(d){const L=sentFor(d);if(!L.length)return"";const tot=L.reduce((a,x)=>a+(+x.t||0),0);
+  return`<div class="how" style="border-left-color:#e3a008;background:#fff8e1">📨 <b>Έχεις ήδη στείλει ${L.length===1?"παραγγελία":L.length+" παραγγελίες"} για ${esc(K.dayLabel(d).replace(/^(Σήμερα|Αύριο), .*/,m=>m.split(",")[0].toLowerCase()))}</b> (${L.map(x=>esc(x.c)).join(", ")} · ${K.money(tot)}).<br>Αν στείλεις κι αυτή, ο πωλητής θα την προσθέσει στην προηγούμενη και θα έρθουν μαζί.</div>`}
 /* προσωπικός σύνδεσμος πελάτη: οι ημέρες που περνάει ο πωλητής από εκείνον */
 const PCd=()=>C.c&&Array.isArray(C.c.d)&&C.c.d.length?C.c:null;
 function daysFor(extra){const d=C.d||{},pc=PCd();
@@ -214,7 +218,7 @@ function renderCheck(){
    ${days.length?`<div class="chips">${days.slice(0,10).map(x=>`<button type="button" class="chip${x===ch.d?" on":""}" data-day="${x}">${esc(K.dayLabel(x))}</button>`).join("")}</div>`:`<p class="err">Δεν υπάρχουν διαθέσιμες ημέρες αυτή τη στιγμή.</p>`}
    ${slots.length>1?`<label class="f">Ώρα</label><div class="chips">${slots.map(x=>`<button type="button" class="chip${x===ch.s?" on":""}" data-slot="${esc(x)}">${esc(x)}</button>`).join("")}</div>`:slots.length?`<p class="note">Ώρα: ${esc(slots[0])}</p>`:""}
    ${pc&&pc.ex?(extra?`<button type="button" class="btn ghost wide" data-act="normal" style="margin-top:10px">↩ Κανονική διανομή</button>`:`<button type="button" class="btn ghost wide" data-act="extra" style="margin-top:10px;border-color:#d93025;color:#d93025">⚡ Έκτακτη παραγγελία σε άλλη ημέρα</button>`):""}
-   ${d.nt?`<p class="note">${esc(d.nt)}</p>`:""}</div>
+   ${d.nt?`<p class="note">${esc(d.nt)}</p>`:""}${sentBox(ch.d)}</div>
   <div class="sec"><h2>Τα στοιχεία σου</h2>
    <label class="f" for="cn">Ονοματεπώνυμο</label><input class="t" id="cn" autocomplete="name" value="${esc(me.n||"")}" maxlength="80">
    <label class="f" for="cp">Κινητό τηλέφωνο</label><input class="t" id="cp" type="tel" inputmode="tel" autocomplete="tel" value="${esc(me.p||"")}" maxlength="20">
@@ -256,6 +260,7 @@ async function send(){
   if(ch.inv!=="r"&&ch.inv!=="i")return err("Διάλεξε αν θέλεις απόδειξη ή τιμολόγιο.");
   let inv=null;if(ch.inv==="i"){saveCk();inv=store.get(SK+":inv",{});if((inv.n||"").length<2)return err("Γράψε την επωνυμία για το τιμολόγιο.");if(!afmOk(inv.f))return err("Ο ΑΦΜ για το τιμολόγιο δεν είναι έγκυρος.");if((inv.a||"").length<4)return err("Γράψε τη διεύθυνση έδρας για το τιμολόγιο.")}
   if(!$("#ccons").checked)return err("Χρειάζεται να αποδεχτείς την ενημέρωση απορρήτου.");
+  if(sentFor(ch.d).length&&!confirm("Έχεις ήδη στείλει παραγγελία για "+K.dayLabel(ch.d)+".\n\nΝα σταλεί κι αυτή; Ο πωλητής θα την προσθέσει στην προηγούμενη."))return;
   if($("#crem").checked)store.set(SK+":me",{n,p,a});else{try{localStorage.removeItem(SK+":me")}catch{}}
   if(!orderId)orderId=K.uid(12);
   const O={v:1,id:orderId,cv:C.ts,at:Date.now(),c:{n,p,a,note},w:{d:ch.d,s:ch.s||"",h:ch.h||"del",x:extra?1:0},l:Object.entries(cart).filter(([id])=>P[id]).map(([id,q])=>[id,q,P[id].price]),cons:1,inv:ch.inv==="i"?Object.assign({t:"i"},inv):{t:"r"}};
@@ -269,6 +274,7 @@ async function send(){
   if(INFRAME){try{parent.postMessage({t:"paraggelia",ct},location.origin)}catch{}ok=true}
   sending=false;
   lastSent={code,click,ok,day:ch.d,slot:ch.s,how:ch.h,total:t.t,lines:O.l.map(([id,q])=>({name:P[id].name,unit:P[id].unit,q,price:P[id].price}))};
+  {const sent=store.get(SK+":sent",[]).filter(x=>x.d>=K.ymd(new Date()));sent.push({d:ch.d,c:code,t:t.t,at:Date.now(),ok});store.set(SK+":sent",sent.slice(-20))}
   if(ok){store.set(SK+":last",Object.assign({},cart));cart={};store.set(SK+":cart",{});const c2=store.get(SK+":ck",{});delete c2.note;store.set(SK+":ck",c2);orderId=null}
   stage="done";view=[];history.replaceState({v:[],s:"done"},"");render();window.scrollTo(0,0);
 }
