@@ -51,6 +51,7 @@ A.menuView = function (m) {
   m.innerHTML = seg + crumbs +
     (ed.hint && L.length ? `<div class="note" style="margin:0 0 10px"><b>Πάτα ένα προϊόν</b> για να αλλάξεις όνομα και τιμή. <b>Πάτα μια κατηγορία</b> για να μπεις μέσα της. Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά. <a href="#" data-ea="hintOff">Εντάξει</a></div>` : "") +
     (empty ? presetsHTML() : "") +
+    (() => { if (ed.path.length) return ""; const lo = st.menu.filter(n => n.t === "p").length; return lo && st.menu.some(n => n.t === "c") ? `<div class="warnbox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><div style="flex:1">Έχεις <b>${lo} ${lo === 1 ? "προϊόν" : "προϊόντα"} χύμα</b> στην αρχική, ανάμεσα στις κατηγορίες. Ο πελάτης τα βλέπει μπερδεμένα.</div><button type="button" class="btn sm amber" data-ea="tidy">🧹 Τακτοποίηση</button></div>` : ""; })() +
     `<div class="grid" id="edGrid" style="--c1:${esc(st.shop.c1)};--c2:${esc(st.shop.c2)};--on1:${K.contrast(st.shop.c1)};--on2:${K.contrast(st.shop.c2)}">${K.tilesHTML(L, { edit: true, marked: ed.marked, prod: id => st.products[id] })}</div>
     <div class="card" style="margin:6px 0 12px;padding:12px"><div class="note" style="margin:0 0 8px">Προσθήκη ${ed.path.length ? "μέσα στο <b>«" + esc(curCat().name) + "»</b>" : "στην <b>αρχική</b>"}:</div>
      <div class="row"><button type="button" class="btn amber grow" data-ea="addProd">🛒 ＋ Προϊόν με τιμή</button><button type="button" class="btn grow" data-ea="addCat">📁 ＋ ${ed.path.length ? "Υποκατηγορία" : "Κατηγορία"}</button></div>
@@ -76,11 +77,11 @@ function listHTML() {
   const L = liveProducts().filter(p => !q || K.norm(p.name).includes(q));
   const want = new Set(L.map(p => p.id)), used = new Set();
   const prow = p => `<div class="prow" data-prow="${p.id}" style="flex-wrap:wrap;gap:6px 10px;padding:10px 0">
-     <div style="flex:1 1 100%;display:flex;align-items:center;gap:8px"><span class="pdrag" data-pdrag="${p.id}" aria-label="Κράτα και σύρε για μετακίνηση" title="Κράτα και σύρε">⠿</span><div class="pt" data-pedit="${p.id}" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px"><span style="font-size:22px">${esc(p.emoji || "📦")}</span><div style="flex:1;min-width:0"><b style="font-size:16.5px;display:block">${esc(p.name)}</b><span>ανά ${esc(p.unit)}${+p.step && +p.step !== 1 ? " · βήμα " + K.num(p.step) : ""}${p.hidden ? " · κρυφό" : ""}</span></div><span style="font-size:15px;color:var(--brand)" aria-hidden="true">✏️</span></div><button type="button" data-pmove="${p.id}" aria-label="Μετακίνηση σε άλλη κατηγορία" title="Σε άλλη κατηγορία" style="border:0;background:#e8eef5;color:var(--brand);border-radius:10px;width:40px;height:36px;font-size:15px;cursor:pointer;flex:none">📁</button></div>
+     <div style="flex:1 1 100%;display:flex;align-items:center;gap:8px"><span class="pdrag" data-pdrag="${p.id}" aria-label="Κράτα και σύρε για μετακίνηση" title="Κράτα και σύρε">⠿</span><div class="pt" data-pedit="${p.id}" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px"><span style="font-size:22px">${esc(p.emoji || "📦")}</span><div style="flex:1;min-width:0"><b style="font-size:16.5px;display:block">${esc(p.name)}</b><span>ανά ${esc(p.unit)}${+p.step && +p.step !== 1 ? " · βήμα " + K.num(p.step) : ""}${p.hidden ? " · κρυφό" : ""}</span></div><span style="font-size:15px;color:var(--brand)" aria-hidden="true">✏️</span></div><button type="button" data-pmove="${p.id}" aria-label="Μετακίνηση σε άλλη κατηγορία" title="Σε άλλη κατηγορία" style="border:0;background:#e8eef5;color:var(--brand);border-radius:10px;width:40px;height:36px;font-size:15px;cursor:pointer;flex:none">📁</button><button type="button" data-pdel="${p.id}" aria-label="Διαγραφή" style="border:0;background:#fde8e6;color:var(--bad);border-radius:10px;width:40px;height:36px;font-size:15px;cursor:pointer;flex:none">🗑</button></div>
      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--mute);font-weight:700">Τιμή €<input class="pp" inputmode="decimal" data-pprice="${p.id}" value="${(+p.price || 0).toFixed(2).replace(".", ",")}" aria-label="Τιμή"></label>
      <span style="flex:1"></span>
      <div style="display:flex;align-items:center;gap:6px"><label class="tog g av" title="Διαθέσιμο" style="flex:none"><input type="checkbox" data-pavail="${p.id}"${p.soldout ? "" : " checked"}><span></span></label><small style="font-size:12px;font-weight:700;width:76px;color:${p.soldout ? "var(--bad)" : "var(--ok)"}">${p.soldout ? "Εξαντλήθηκε" : "Διαθέσιμο"}</small></div>
-     <button type="button" data-pdel="${p.id}" aria-label="Διαγραφή" style="border:0;background:#fde8e6;color:var(--bad);border-radius:10px;width:36px;height:36px;font-size:15px;cursor:pointer">🗑</button></div>`;
+     </div>`;
   /* ομάδες όπως στο μενού: «Κατηγορία › Υποκατηγορία» */
   const groups = [];
   const walk = (nodes, trail) => {
@@ -88,7 +89,7 @@ function listHTML() {
     for (const n of nodes || []) {
       if (n.t === "p") { if (want.has(n.pid) && !used.has(n.pid)) { used.add(n.pid); here.push(st.products[n.pid]); } }
     }
-    if (here.length || (trail.length && !(nodes || []).some(n => n.t === "c"))) groups.push({ title: trail.map(x => (x.emoji ? x.emoji + " " : "") + x.name).join(" › ") || "🏠 Αρχική του μενού", depth: trail.length, items: here, cat: trail.length ? trail[trail.length - 1].id : "" });
+    if (here.length || (trail.length && !(nodes || []).some(n => n.t === "c"))) groups.push({ title: trail.map(x => (x.emoji ? x.emoji + " " : "") + x.name).join(" › ") || (st.menu.some(n => n.t === "c") ? "⚠️ Χύμα στην αρχική, χωρίς κατηγορία" : "🏠 Αρχική του μενού"), depth: trail.length, items: here, cat: trail.length ? trail[trail.length - 1].id : "", loose: !trail.length && st.menu.some(n => n.t === "c") });
     for (const n of nodes || []) if (n.t === "c") walk(n.kids, trail.concat(n));
   };
   walk(st.menu, []);
@@ -97,8 +98,44 @@ function listHTML() {
   const head = `<div class="row" style="margin-bottom:10px"><input class="t grow" id="edQ" placeholder="🔍 Αναζήτηση προϊόντος" value="${esc(ed.q)}"><button type="button" class="btn amber" data-ea="newProd">＋ Νέο</button></div>
 `;
   if (q) for (const g of groups) if (!g.items.length) g.skip = 1;
-  return head + (L.length > 1 && !q ? `<p class="note" style="margin:0 2px 10px">Κράτα το <b>⠿</b> και σύρε για να αλλάξεις σειρά ή να πας ένα προϊόν σε άλλη κατηγορία· ή πάτα <b>📁</b>. Πάτα τον <b>τίτλο</b> μιας κατηγορίας για να την μετονομάσεις ή να τη διαγράψεις.</p>` : "") + (groups.length ? groups.filter(g => !g.skip).map(g => `<div class="card pgrp" data-gcat="${g.warn ? "!" : g.cat}" style="padding:10px 14px;border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><div style="display:flex;align-items:center;gap:8px;margin:2px 0 6px"><h3${g.cat ? ` data-gedit="${g.cat}" role="button" title="Αλλαγή ονόματος ή διαγραφή"` : ""} style="margin:0;flex:1;min-width:0;font-size:${g.depth > 1 ? 15.5 : 17}px;${g.cat ? "cursor:pointer" : ""}">${esc(g.title)} <span class="note gcnt" style="font-weight:400">· ${g.items.length}</span>${g.cat ? ` <span style="font-size:13px;color:var(--brand)">✏️</span>` : ""}</h3>${g.warn ? "" : `<button type="button" class="btn sm amber" data-addto="${g.cat}" style="padding:7px 11px">＋ Προϊόν</button>`}</div><div class="pitems">${(g.warn ? g.items.sort((a, b) => a.name.localeCompare(b.name, "el")) : g.items).map(prow).join("")}</div></div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
+  return head + (L.length > 1 && !q ? `<p class="note" style="margin:0 2px 10px">Κράτα το <b>⠿</b> και σύρε για να αλλάξεις σειρά ή να πας ένα προϊόν σε άλλη κατηγορία· ή πάτα <b>📁</b>. Πάτα τον <b>τίτλο</b> μιας κατηγορίας για να την μετονομάσεις ή να τη διαγράψεις.</p>` : "") + (groups.length ? groups.filter(g => !g.skip).map(g => `<div class="card pgrp" data-gcat="${g.warn ? "!" : g.cat}" style="padding:10px 14px;border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><div style="display:flex;align-items:center;gap:8px;margin:2px 0 6px"><h3${g.cat ? ` data-gedit="${g.cat}" role="button" title="Αλλαγή ονόματος ή διαγραφή"` : ""} style="margin:0;flex:1;min-width:0;font-size:${g.depth > 1 ? 15.5 : 17}px;${g.cat ? "cursor:pointer" : ""}">${esc(g.title)} <span class="note gcnt" style="font-weight:400">· ${g.items.length}</span>${g.cat ? ` <span style="font-size:13px;color:var(--brand)">✏️</span>` : ""}</h3>${g.warn ? "" : g.loose ? `<button type="button" class="btn sm amber" data-ea="tidy" style="padding:7px 11px">🧹 Τακτοποίηση</button>` : `<button type="button" class="btn sm amber" data-addto="${g.cat}" style="padding:7px 11px">＋ Προϊόν</button>`}</div>${g.loose ? `<p class="note" style="margin:0 0 4px">Αυτά φαίνονται στον πελάτη ανάμεσα στις κατηγορίες. Σύρε τα με το ⠿ μέσα σε κατηγορία ή πάτα «Τακτοποίηση».</p>` : ""}<div class="pitems">${(g.warn ? g.items.sort((a, b) => a.name.localeCompare(b.name, "el")) : g.items).map(prow).join("")}</div></div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
     + (L.length ? `<p class="note">Πράσινος διακόπτης = <b>διαθέσιμο</b>. Κλείσ' τον όταν τελειώσει ένα προϊόν: ο πελάτης το βλέπει «Εξαντλήθηκε» και δεν μπορεί να το παραγγείλει. Η τιμή αλλάζει μόλις φύγεις από το πλαίσιο.</p>` : "");
+}
+/* ---------- τακτοποίηση: προϊόντα χύμα στην αρχική ---------- */
+function tidySheet() {
+  const st = S(), loose = st.menu.filter(n => n.t === "p" && st.products[n.pid]);
+  if (!loose.length) { A.toast("Δεν υπάρχει τίποτα χύμα στην αρχική."); return; }
+  const cats = []; const walk = (L, d) => { for (const n of L) if (n.t === "c") { cats.push({ id: n.id, label: "— ".repeat(d) + (n.emoji ? n.emoji + " " : "") + n.name }); walk(n.kids || [], d + 1); } }; walk(st.menu, 0);
+  const byName = {}; for (const n of loose) { const k = K.norm(st.products[n.pid].name); (byName[k] = byName[k] || []).push(n); }
+  const same = Object.values(byName).filter(L => L.length > 1);
+  const guess = n => { const pn = K.norm(st.products[n.pid].name); const c = cats.find(c => { const cn = K.norm(c.label.replace(/^(— )+/, "")).replace(/^[^a-zα-ω0-9]+/, ""); return cn.length > 2 && (pn.includes(cn) || cn.includes(pn.split(" ")[0])); }); return c ? c.id : ""; };
+  const opts = sel => `<option value="">— μένει στην αρχική —</option>${cats.map(c => `<option value="${c.id}"${c.id === sel ? " selected" : ""}>${esc(c.label)}</option>`).join("")}<option value="+">＋ Νέα κατηγορία «Διάφορα»</option>`;
+  A.sheet("🧹 Τακτοποίηση αρχικής", `
+   ${same.length ? `<div class="card"><h3 style="margin-top:0">Ίδιο προϊόν σε πολλές συσκευασίες</h3><p class="note" style="margin-top:0">Γίνεται ένα κουμπί που ανοίγει και δείχνει τις συσκευασίες του. Ο πελάτης βλέπει πιο καθαρά.</p>
+    ${same.map((L, i) => { const p = st.products[L[0].pid]; return `<label class="ck"><input type="checkbox" data-tsame="${i}" checked><span><b>${esc(p.name)}</b> · ${L.map(n => esc(st.products[n.pid].unit) + " " + K.money(st.products[n.pid].price)).join(" · ")}</span></label>`; }).join("")}</div>` : ""}
+   <div class="card"><h3 style="margin-top:0">Σε ποια κατηγορία πάει το καθένα</h3>
+    <div class="row" style="margin-bottom:8px;align-items:center"><span class="note" style="margin:0">Όλα μαζί σε:</span><select class="t grow" id="tAll">${opts("")}</select></div>
+    ${loose.map(n => { const p = st.products[n.pid]; return `<div class="prow" style="flex-wrap:wrap;gap:4px 10px"><div class="pt" style="flex:1 1 160px"><b>${esc(p.emoji || "📦")} ${esc(p.name)}</b><span>${K.money(p.price)} / ${esc(p.unit)}</span></div><select class="t" data-tnode="${n.id}" style="flex:1 1 150px">${opts(guess(n))}</select></div>`; }).join("")}</div>
+   <label class="ck"><input type="checkbox" id="tCatsFirst" checked><span>Πρώτα οι κατηγορίες, μετά ό,τι μείνει χύμα</span></label>`,
+   `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-ea="tidyGo">Τακτοποίηση</button>`,
+   el => { el._same = same; const a = el.querySelector("#tAll"); a.addEventListener("change", () => { if (a.value !== "") el.querySelectorAll("[data-tnode]").forEach(x => x.value = a.value); }); });
+}
+function tidyGo() {
+  const st = S(), b = $("#shB"), same = b._same || [];
+  let misc = null; const miscCat = () => { if (!misc) { misc = st.menu.find(n => n.t === "c" && K.norm(n.name) === "διαφορα") || null; if (!misc) { misc = { id: newId(), t: "c", name: "Διάφορα", emoji: "🧺", size: "m", kids: [] }; st.menu.push(misc); } } return misc; };
+  const dest = {}; b.querySelectorAll("[data-tnode]").forEach(x => dest[x.dataset.tnode] = x.value);
+  let moved = 0, grouped = 0;
+  /* ίδιο όνομα → ένα κουμπί με συσκευασίες */
+  b.querySelectorAll("[data-tsame]").forEach(cb => { if (!cb.checked) return; const L = same[+cb.dataset.tsame]; if (!L) return;
+    const p0 = st.products[L[0].pid]; const cat = { id: newId(), t: "c", name: p0.name, emoji: p0.emoji || "", size: L[0].size || "m", color: L[0].color || "", kids: [] };
+    const at = st.menu.indexOf(L[0]); const d = dest[L[0].id];
+    for (const n of L) { const i = st.menu.indexOf(n); if (i >= 0) st.menu.splice(i, 1); n.size = "m"; n.color = ""; delete n.name; cat.kids.push(n); delete dest[n.id]; }
+    if (d) { const target = d === "+" ? miscCat() : K.findNode(st.menu, d).node; target.kids = target.kids || []; target.kids.push(cat); moved++; } else st.menu.splice(Math.max(0, Math.min(at, st.menu.length)), 0, cat);
+    grouped++; });
+  for (const [id, d] of Object.entries(dest)) { if (!d) continue; const i = st.menu.findIndex(n => n.id === id); if (i < 0) continue; const n = st.menu.splice(i, 1)[0]; const target = d === "+" ? miscCat() : (K.findNode(st.menu, d) || {}).node; if (!target) { st.menu.splice(i, 0, n); continue; } (target.kids = target.kids || []).push(n); moved++; }
+  if ($("#tCatsFirst").checked) { const c = st.menu.filter(n => n.t === "c"), r = st.menu.filter(n => n.t !== "c"); st.menu.splice(0, st.menu.length, ...c, ...r); }
+  A.save({ catalog: true }); A.closeSheet(); A.render();
+  A.toast("✓ Τακτοποιήθηκε" + (grouped ? " · " + grouped + " ενώθηκαν σε ένα κουμπί" : "") + (moved ? " · " + moved + " μπήκαν σε κατηγορία" : ""), 3500);
 }
 /* ---------- «Προϊόντα και τιμές»: σύρσιμο με το δάχτυλο και μετακίνηση σε άλλη κατηγορία ---------- */
 const listOf = cat => cat ? ((K.findNode(S().menu, cat) || {}).node || {}).kids : S().menu;
@@ -516,6 +553,7 @@ const EA = {
     ed.path = ed.path.slice(0, ed.path.indexOf(id) < 0 ? ed.path.length : ed.path.indexOf(id));
     A.save({ catalog: true }); A.closeSheet(); A.render();
   },
+  tidy: tidySheet, tidyGo,
   catDelAll: () => {
     const id = $("#shB").dataset.node, f = K.findNode(S().menu, id); if (!f) return;
     const c = subtreeCount(f.node);
