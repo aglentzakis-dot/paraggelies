@@ -7,14 +7,14 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.6">
+<meta name="app-version" content="1.7">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.6">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.6">
-<link rel="stylesheet" href="koino.css?v=1.6">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.7">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.7">
+<link rel="stylesheet" href="koino.css?v=1.7">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -79,7 +79,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.6"></script>
+<script src="katalogos.js?v=1.7"></script>
 <script>
 (function(){
 "use strict";
@@ -95,6 +95,8 @@ function bad(msg){$("#app").innerHTML=`<div class="bad"><div style="font-size:48
 
 async function load(){
   const h=new URLSearchParams(location.hash.slice(1));
+  if(h.get("t")){const x=(h.get("x")||""),n=+h.get("n")||0,ok=x.length===n;
+    $("#app").innerHTML=`<div class="bad"><div style="font-size:48px">${ok?"✅":"✂️"}</div><h2>Δοκιμή ${esc(h.get("t"))}: ${ok?"έφτασε ολόκληρος":"κόπηκε"}</h2><p style="font-size:20px"><b>${x.length}</b> από <b>${n}</b> χαρακτήρες</p><p class="note">Συνολικό μήκος διεύθυνσης: ${location.href.length}<br>Περιηγητής: ${esc(navigator.userAgent.slice(0,140))}</p><p class="note" style="word-break:break-all">Τέλος: …${esc(x.slice(-24))}</p></div>`;return}
   const k=h.get("k");
   if(!k){bad("Λείπει ο κατάλογος από τον σύνδεσμο.");return}
   const want=+h.get("n")||0,got=K.cleanB64(k).length;
@@ -188,7 +190,7 @@ function routeBox(){const pc=PCd();if(!pc)return"";const nx=daysFor(false)[0];
   return`<div class="how">🚚 <b>Περνάμε από εσάς:</b> ${esc(wdList(pc.d))}${pc.sl?", "+esc(pc.sl):""}${pc.nt?" · "+esc(pc.nt):""}${nx?`<br>Επόμενη διανομή: <b>${esc(K.dayLabel(nx))}</b>`:""}</div>`}
 function renderCheck(){
   const d=C.d||{},s=C.s,pc=PCd();const me=store.get(SK+":me",null)||(C.c?{n:C.c.n||"",p:C.c.p||"",a:C.c.a||""}:{});
-  const ch=store.get(SK+":ck",{});
+  const ch=store.get(SK+":ck",{});const inv=store.get(SK+":inv",{});
   if(!pc||!pc.ex)ch.x=0;
   const extra=!!(pc&&ch.x);
   const days=daysFor(extra);
@@ -218,6 +220,14 @@ function renderCheck(){
    <label class="f" for="cp">Κινητό τηλέφωνο</label><input class="t" id="cp" type="tel" inputmode="tel" autocomplete="tel" value="${esc(me.p||"")}" maxlength="20">
    ${needAddr?`<label class="f" for="ca">Διεύθυνση παράδοσης</label><input class="t" id="ca" autocomplete="street-address" value="${esc(me.a||"")}" maxlength="160">`:""}
    <label class="f" for="cnote">Σημείωση (προαιρετικά)</label><textarea class="t" id="cnote" rows="2" maxlength="400" placeholder="π.χ. χτυπήστε το δεύτερο κουδούνι">${esc(ch.note||"")}</textarea>
+   <label class="f">Παραστατικό</label>
+   <div class="chips"><button type="button" class="chip${ch.inv==="r"?" on":""}" data-inv="r">🧾 Απόδειξη</button><button type="button" class="chip${ch.inv==="i"?" on":""}" data-inv="i">📄 Τιμολόγιο</button></div>
+   ${ch.inv==="i"?`<div style="margin-top:6px">
+    <label class="f" for="iN">Επωνυμία</label><input class="t" id="iN" value="${esc(inv.n||"")}" maxlength="100">
+    <label class="f" for="iA">ΑΦΜ</label><input class="t" id="iA" inputmode="numeric" maxlength="9" value="${esc(inv.f||"")}">
+    <label class="f" for="iD">ΔΟΥ</label><input class="t" id="iD" value="${esc(inv.d||"")}" maxlength="60">
+    <label class="f" for="iJ">Επάγγελμα</label><input class="t" id="iJ" value="${esc(inv.j||"")}" maxlength="80">
+    <label class="f" for="iAd">Διεύθυνση έδρας</label><input class="t" id="iAd" value="${esc(inv.a||"")}" maxlength="140"></div>`:""}
    <label class="ck"><input type="checkbox" id="crem"${me.n?" checked":""}><span>Να θυμάται αυτό το κινητό τα στοιχεία μου για την επόμενη φορά</span></label>
    <label class="ck"><input type="checkbox" id="ccons"><span>Δίνω τα στοιχεία μου στον πωλητή «${esc(s.l||s.n)}» μόνο για την εκτέλεση της παραγγελίας. Διάβασα την <a href="aporrito.html#pelatis" target="_blank" rel="noopener">ενημέρωση απορρήτου</a>.</span></label>
    ${perish?`<p class="note">Τα τρόφιμα που αλλοιώνονται γρήγορα δεν επιστρέφονται (εξαίρεση από το δικαίωμα υπαναχώρησης). Για αλλαγή ή ακύρωση επικοινώνησε με τον πωλητή πριν από την παράδοση.</p>`:""}
@@ -226,7 +236,8 @@ function renderCheck(){
   <p class="note" style="text-align:center">Η επιβεβαίωση δεν αποτελεί φορολογικό παραστατικό.</p>
   </main>`+footer();
 }
-function saveCk(){const ch=store.get(SK+":ck",{});const n=$("#cnote");if(n)ch.note=n.value;store.set(SK+":ck",ch)}
+function saveCk(){const ch=store.get(SK+":ck",{});const n=$("#cnote");if(n)ch.note=n.value;store.set(SK+":ck",ch);if($("#iN"))store.set(SK+":inv",{n:$("#iN").value.trim(),f:$("#iA").value.replace(/\D/g,""),d:$("#iD").value.trim(),j:$("#iJ").value.trim(),a:$("#iAd").value.trim()})}
+function afmOk(a){a=String(a||"");if(!/^\d{9}$/.test(a)||a==="000000000")return false;let s=0;for(let i=0;i<8;i++)s+=+a[i]*Math.pow(2,8-i);return (s%11)%10===+a[8]}
 
 async function send(){
   if(sending)return;
@@ -242,10 +253,12 @@ async function send(){
   const extra=!!(PCd()&&PCd().ex&&ch.x);
   const days=daysFor(extra);
   if(!ch.d||!days.includes(ch.d))return err("Διάλεξε ημέρα.");
+  if(ch.inv!=="r"&&ch.inv!=="i")return err("Διάλεξε αν θέλεις απόδειξη ή τιμολόγιο.");
+  let inv=null;if(ch.inv==="i"){saveCk();inv=store.get(SK+":inv",{});if((inv.n||"").length<2)return err("Γράψε την επωνυμία για το τιμολόγιο.");if(!afmOk(inv.f))return err("Ο ΑΦΜ για το τιμολόγιο δεν είναι έγκυρος.");if((inv.a||"").length<4)return err("Γράψε τη διεύθυνση έδρας για το τιμολόγιο.")}
   if(!$("#ccons").checked)return err("Χρειάζεται να αποδεχτείς την ενημέρωση απορρήτου.");
   if($("#crem").checked)store.set(SK+":me",{n,p,a});else{try{localStorage.removeItem(SK+":me")}catch{}}
   if(!orderId)orderId=K.uid(12);
-  const O={v:1,id:orderId,cv:C.ts,at:Date.now(),c:{n,p,a,note},w:{d:ch.d,s:ch.s||"",h:ch.h||"del",x:extra?1:0},l:Object.entries(cart).filter(([id])=>P[id]).map(([id,q])=>[id,q,P[id].price]),cons:1};
+  const O={v:1,id:orderId,cv:C.ts,at:Date.now(),c:{n,p,a,note},w:{d:ch.d,s:ch.s||"",h:ch.h||"del",x:extra?1:0},l:Object.entries(cart).filter(([id])=>P[id]).map(([id,q])=>[id,q,P[id].price]),cons:1,inv:ch.inv==="i"?Object.assign({t:"i"},inv):{t:"r"}};
   sending=true;$("#send").disabled=true;$("#send").textContent="Αποστολή…";
   let ct;
   try{ct=await K.seal(C.k,O)}catch{sending=false;render();return err("Το κινητό δεν μπόρεσε να κρυπτογραφήσει την παραγγελία. Δοκίμασε σε άλλον περιηγητή (π.χ. Chrome).")}
@@ -270,7 +283,7 @@ function renderDone(){
    <div class="sec">${L.lines.map(l=>`<div class="line"><div class="ln"><b>${esc(l.name)}</b><span>${K.num(l.q)} × ${K.money(l.price)} / ${esc(l.unit)}</span></div><div class="lt">${K.money(l.q*l.price)}</div></div>`).join("")}<div class="total"><span>Σύνολο</span><span>${K.money(L.total)}</span></div>
    <p class="note">Τελικές είναι οι τιμές του πωλητή. Η επιβεβαίωση αυτή δεν αποτελεί φορολογικό παραστατικό.</p></div>
    ${L.ok?`<p class="note" style="text-align:center">Αν θέλεις σιγουριά, στείλ' την και στο Viber του πωλητή. Ο σύνδεσμος ανοίγει μόνο στη δική του εφαρμογή.</p>`:`<p class="err" style="text-align:center">Δεν υπήρξε σύνδεση στο διαδίκτυο. Δοκίμασε ξανά ή στείλ' την στο Viber του πωλητή.</p><button type="button" class="btn wide" data-act="retry" style="margin-bottom:10px">Δοκίμασε ξανά</button>`}
-   <a class="btn ${L.ok?"ghost":"alt"} wide" style="display:block;text-align:center;text-decoration:none;margin-bottom:10px" href="viber://forward?text=${encodeURIComponent(viberText())}">💬 Στείλ' την και στο Viber</a>
+   <button type="button" class="btn ${L.ok?"ghost":"alt"} wide" style="margin-bottom:10px" data-act="vshare">💬 Στείλ' την και στο Viber</button>
    ${s.t?`<a class="btn ghost wide" style="display:block;text-align:center;text-decoration:none;margin-bottom:10px" href="tel:${esc(s.t)}">📞 Κάλεσε τον πωλητή</a>`:""}
    <button type="button" class="btn wide" data-act="new">Νέα παραγγελία</button></main>`+footer();
 }
@@ -297,7 +310,7 @@ document.addEventListener("click",e=>{
   if(b.dataset.plus){const p=P[b.dataset.plus];setQ(p.id,qty(p.id)+(p.step||1));stage==="check"?renderCheck():refreshTile(p.id);return}
   if(b.dataset.minus){const p=P[b.dataset.minus];setQ(p.id,qty(p.id)-(p.step||1));if(stage==="check"){if(!totals().n)stage="shop";render()}else refreshTile(p.id);return}
   if(b.dataset.open){go(view.concat(b.dataset.open),"shop");return}
-  if(b.dataset.day||b.dataset.slot||b.dataset.how){saveCk();const ch=store.get(SK+":ck",{});if(b.dataset.day)ch.d=b.dataset.day;if(b.dataset.slot)ch.s=b.dataset.slot;if(b.dataset.how)ch.h=b.dataset.how;store.set(SK+":ck",ch);keepInputs(renderCheck);return}
+  if(b.dataset.day||b.dataset.slot||b.dataset.how||b.dataset.inv){saveCk();const ch=store.get(SK+":ck",{});if(b.dataset.day)ch.d=b.dataset.day;if(b.dataset.slot)ch.s=b.dataset.slot;if(b.dataset.how)ch.h=b.dataset.how;if(b.dataset.inv)ch.inv=b.dataset.inv;store.set(SK+":ck",ch);keepInputs(renderCheck);return}
   const a=b.dataset.act;if(!a)return;
   if(a==="back"){history.back()}
   else if(a==="check"){go(view,"check")}
@@ -307,6 +320,7 @@ document.addEventListener("click",e=>{
   else if(a==="new"){stage="shop";view=[];history.replaceState({v:[],s:"shop"},"");render();window.scrollTo(0,0)}
   else if(a==="again"){const last=store.get(SK+":last",{});let miss=0;for(const[id,q]of Object.entries(last)){if(P[id]&&!P[id].soldout)setQ(id,q);else miss++}go(view,"check");if(miss)$("#cerr").textContent="Κάποια είδη της προηγούμενης φοράς δεν είναι διαθέσιμα τώρα."}
   else if(a==="extra"||a==="normal"){saveCk();const ch=store.get(SK+":ck",{});ch.x=a==="extra"?1:0;ch.d="";store.set(SK+":ck",ch);keepInputs(renderCheck)}
+  else if(a==="vshare"){(async()=>{const t=viberText();if(navigator.share){try{await navigator.share({text:t});return}catch(e){if(e&&e.name==="AbortError")return}}try{await navigator.clipboard.writeText(t);toastMsg("Αντιγράφηκε· επικόλλησέ το στο Viber του πωλητή")}catch{}})()}
   else if(a==="home")homeAdd();
   else if(a==="close")closeModal();
 });

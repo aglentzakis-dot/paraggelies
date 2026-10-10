@@ -190,6 +190,28 @@
     return out;
   };
 
+  /* ---------- αργίες (όπως στο Ημερολόγιο) ---------- */
+  const pad2 = n => String(n).padStart(2, "0");
+  const addD = (y, n) => { const d = K.fromYmd(y); d.setHours(12); d.setDate(d.getDate() + n); return K.ymd(d); };
+  K.orthEaster = y => { const a = y % 4, b = y % 7, c = y % 19, d = (19 * c + 15) % 30, e = (2 * a + 4 * b - d + 34) % 7; const mo = Math.floor((d + e + 114) / 31), da = (d + e + 114) % 31 + 1; const j = new Date(y, mo - 1, da, 12); j.setDate(j.getDate() + 13); return K.ymd(j); };
+  K.grHolidays = y => {
+    const E = K.orthEaster(y), F = (m, d) => y + "-" + pad2(m) + "-" + pad2(d);
+    return [["ny", F(1, 1), "Πρωτοχρονιά", 1], ["epi", F(1, 6), "Θεοφάνεια", 1], ["kd", addD(E, -48), "Καθαρά Δευτέρα", 1], ["25m", F(3, 25), "25η Μαρτίου", 1],
+      ["mp", addD(E, -2), "Μεγάλη Παρασκευή", 1], ["ms", addD(E, -1), "Μεγάλο Σάββατο", 0], ["pa", E, "Κυριακή του Πάσχα", 1], ["dp", addD(E, 1), "Δευτέρα του Πάσχα", 1], ["pm", F(5, 1), "Πρωτομαγιά", 1],
+      ["ap", addD(E, 50), "Αγίου Πνεύματος", 1], ["15a", F(8, 15), "Κοίμηση της Θεοτόκου", 1], ["28o", F(10, 28), "Επέτειος του «Όχι»", 1],
+      ["xm", F(12, 24), "Παραμονή Χριστουγέννων", 0], ["xr", F(12, 25), "Χριστούγεννα", 1], ["sy", F(12, 26), "Σύναξη της Θεοτόκου", 1], ["pp", F(12, 31), "Παραμονή Πρωτοχρονιάς", 0]]
+      .map(([id, date, name, def]) => ({ id, date, name, def: !!def }));
+  };
+  K.holOn = (d, h) => { const H = (d && d.hol) || {}; return H[h.id] !== undefined ? !!H[h.id] : h.def; };
+  /* όλες οι κλειστές ημερομηνίες (αργίες + δικές του) από σήμερα για τις επόμενες ημέρες */
+  K.closedDates = (d, days, now) => {
+    d = d || {}; days = days || 70;
+    const t = now ? new Date(now) : new Date(), from = K.ymd(t), to = (() => { const x = new Date(t); x.setDate(x.getDate() + days); return K.ymd(x); })();
+    const out = new Set((d.closed || []).filter(x => x >= from && x <= to));
+    if (!d.holOff) for (const y of [t.getFullYear(), t.getFullYear() + 1]) for (const h of K.grHolidays(y)) if (K.holOn(d, h) && h.date >= from && h.date <= to) out.add(h.date);
+    return [...out].sort();
+  };
+
   /* ---------- τιμές ---------- */
   /* τιμή που ίσχυε τη στιγμή ts (ιστορικό τιμών του πωλητή) */
   K.priceAt = (p, ts) => {
@@ -250,7 +272,8 @@
         id: O.id, at, rx: now,
         cust: { name, phone, addr: String(c.a || "").trim().slice(0, 160), note: String(c.note || "").trim().slice(0, 400) },
         when: { date, slot: String(w.s || "").slice(0, 30), how: w.h === "pick" ? "pick" : "del", extra: !!w.x },
-        lines, total: K.round2(total), cv: +O.cv || 0
+        lines, total: K.round2(total), cv: +O.cv || 0,
+        inv: O.inv && O.inv.t === "i" ? { t: "i", n: String(O.inv.n || "").slice(0, 100), f: String(O.inv.f || "").replace(/\D/g, "").slice(0, 9), d: String(O.inv.d || "").slice(0, 60), j: String(O.inv.j || "").slice(0, 80), a: String(O.inv.a || "").slice(0, 140) } : { t: O.inv && O.inv.t === "r" ? "r" : "" }
       }
     };
   };
@@ -448,7 +471,7 @@
     return {
       v: 1, ts: Date.now(),
       s: { n: sh.name || "", l: sh.legal || "", a: sh.addr || "", f: sh.afm || "", t: sh.phone || "", vb: sh.viber || "", m: sh.email || "", lg: opts.logo !== false ? sh.logo || "" : "", c1: sh.c1 || "#17324D", c2: sh.c2 || "#F2B632", w: sh.welcome || "", vi: sh.vatIncl !== false ? 1 : 0, lic: sh.lic || "" },
-      d: { h: d.how || "both", days: d.days || [1, 2, 3, 4, 5, 6], sl: d.slots || [], min: +d.min || 0, max: +d.max || 14, cut: d.cut || "", cl: d.closed || [], ad: d.askAddr !== false ? 1 : 0, mo: +d.minOrder || 0, nt: d.note || "" },
+      d: { h: d.how || "both", days: d.days || [1, 2, 3, 4, 5, 6], sl: d.slots || [], min: +d.min || 0, max: +d.max || 14, cut: d.cut || "", cl: K.closedDates(d, 70), ad: d.askAddr !== false ? 1 : 0, mo: +d.minOrder || 0, nt: d.note || "" },
       m, p,
       k: st.nt.pub, t: st.nt.topic, u: opts.appUrl || "",
       c: opts.cust || undefined

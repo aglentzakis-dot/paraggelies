@@ -45,7 +45,7 @@ A.menuView = function (m) {
   const L = curList();
   for (const id of [...ed.marked]) if (!L.some(n => n.id === id)) ed.marked.delete(id);
   const path = ed.path.map(id => K.findNode(st.menu, id).node);
-  const crumbs = `<div class="crumbs"><button type="button" data-crumb="-1">🏠 Αρχική</button>${path.map((n, i) => `<span class="sep">›</span><button type="button" data-crumb="${i}">${esc(n.name || "Χωρίς όνομα")}</button>`).join("")}${path.length ? `<button type="button" data-ea="catEdit" style="margin-left:auto">✏️ Ρυθμίσεις κατηγορίας</button>` : ""}</div>`;
+  const crumbs = `${ed.path.length ? `<div class="note" style="margin:0 2px 4px">📁 Είσαι μέσα σε κατηγορία (επίπεδο ${ed.path.length + 1}). Ό,τι προσθέσεις εδώ μπαίνει μέσα της.</div>` : ""}<div class="crumbs"><button type="button" data-crumb="-1">🏠 Αρχική</button>${path.map((n, i) => `<span class="sep">›</span><button type="button" data-crumb="${i}">${esc(n.name || "Χωρίς όνομα")}</button>`).join("")}${path.length ? `<button type="button" data-ea="catEdit" style="margin-left:auto">✏️ Ρυθμίσεις κατηγορίας</button>` : ""}</div>`;
   const empty = !st.menu.length;
   m.innerHTML = seg + crumbs +
     (ed.hint && L.length ? `<div class="note" style="margin:0 0 10px">Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά. Πάτα μια κατηγορία για να μπεις μέσα. <a href="#" data-ea="hintOff">Εντάξει</a></div>` : "") +
@@ -92,7 +92,8 @@ function presetsHTML() {
    <p class="note">Ή πάτα «＋ Κουμπί» για να φτιάξεις τα δικά σου από την αρχή.</p></div>`;
 }
 function presetPicker() {
-  A.sheet("📋 Έτοιμο μενού από επάγγελμα", `<p class="note" style="margin-top:0">Οι κατηγορίες του επαγγέλματος προστίθενται στην αρχική του μενού σου, δίπλα σε όσα ήδη έχεις.</p>${presetGrid()}`);
+  const here = ed.path.length ? K.findNode(S().menu, ed.path[ed.path.length - 1]).node.name : "";
+  A.sheet("📋 Έτοιμο μενού από επάγγελμα", `<p class="note" style="margin-top:0">${here ? "Οι κατηγορίες του επαγγέλματος μπαίνουν ως υποκατηγορίες μέσα στο «" + esc(here) + "»." : "Οι κατηγορίες του επαγγέλματος προστίθενται στην αρχική του μενού σου, δίπλα σε όσα ήδη έχεις. Αν θέλεις να μπουν μέσα σε μια κατηγορία, μπες πρώτα σε εκείνη."}</p>${presetGrid()}`);
 }
 function presetSheet(k) {
   const P = PRESETS[k]; if (!P) return;
@@ -105,6 +106,7 @@ function presetSheet(k) {
 function applyPreset(k) {
   const st = S(), P = PRESETS[k]; if (!P) return;
   let count = liveProducts().length, cut = false;
+  const target = ed.view === "menu" && ed.path.length ? curList() : st.menu;
   const lim = A.isPro() ? 1e9 : A.FREE_PRODUCTS;
   for (const [cn, ce, items] of P.c) {
     const cat = { id: newId(), t: "c", name: cn, emoji: ce, size: "m", kids: [] };
@@ -115,9 +117,9 @@ function applyPreset(k) {
       cat.kids.push({ id: newId(), t: "p", pid: id, size: "m" });
       count++;
     }
-    if (cat.kids.length) st.menu.push(cat);
+    if (cat.kids.length) target.push(cat);
   }
-  ed.path = []; ed.view = "menu"; ed.marked.clear();
+  ed.view = "menu"; ed.marked.clear();
   A.save({ catalog: true }); A.closeSheet(); A.render();
   A.toast(cut ? "Μπήκαν έως " + A.FREE_PRODUCTS + " προϊόντα (όριο δωρεάν έκδοσης)." : "✓ Έτοιμο. Έλεγξε τις τιμές στο «Προϊόντα και τιμές».", 4000);
 }
@@ -329,7 +331,7 @@ function addSheet() {
   const here = curList(), inHere = new Set(here.filter(n => n.t === "p").map(n => n.pid));
   const others = liveProducts().filter(p => !inHere.has(p.id));
   A.sheet("Νέο κουμπί", `<div class="card list">
-   <div class="it" data-ea="addCat"><div class="ic">📁</div><div class="t"><b>${ed.path.length ? "Υποκατηγορία" : "Κατηγορία"}</b><span>Κουμπί που ανοίγει και έχει μέσα άλλα κουμπιά</span></div></div>
+   <div class="it" data-ea="addCat"><div class="ic">📁</div><div class="t"><b>${ed.path.length ? "Υποκατηγορία μέσα στο «" + esc(curCat().name) + "»" : "Κατηγορία"}</b><span>Κουμπί που ανοίγει και έχει μέσα άλλα κουμπιά. Μπορείς να βάλεις υποκατηγορίες μέσα σε υποκατηγορίες, όσα επίπεδα θέλεις.</span></div></div>
    <div class="it" data-ea="addProd"><div class="ic">🛒</div><div class="t"><b>Νέο προϊόν</b><span>Με τιμή, μονάδα και κουμπιά − και +</span></div></div>
    <div class="it" data-ea="presets"><div class="ic">📋</div><div class="t"><b>Έτοιμο μενού από επάγγελμα</b><span>${Object.keys(PRESETS).length} επαγγέλματα: αυγά, γάλα, τυριά, ψάρια, φούρνος, νερά…</span></div></div></div>
    ${others.length ? `<div class="card list"><h3>Υπάρχον προϊόν και εδώ</h3>${others.map(p => `<div class="it" data-addex="${p.id}"><div class="ic">${esc(p.emoji || "📦")}</div><div class="t"><b>${esc(p.name)}</b><span>${K.money(p.price)} / ${esc(p.unit)}${productInMenu(p.id) ? "" : " · δεν είναι στο μενού"}</span></div></div>`).join("")}</div>` : ""}`);
