@@ -45,10 +45,11 @@ A.menuView = function (m) {
   const L = curList();
   for (const id of [...ed.marked]) if (!L.some(n => n.id === id)) ed.marked.delete(id);
   const path = ed.path.map(id => K.findNode(st.menu, id).node);
-  const crumbs = `${ed.path.length ? `<div class="note" style="margin:0 2px 4px">📁 Είσαι μέσα σε κατηγορία (επίπεδο ${ed.path.length + 1}). Ό,τι προσθέσεις εδώ μπαίνει μέσα της.</div>` : ""}<div class="crumbs"><button type="button" data-crumb="-1">🏠 Αρχική</button>${path.map((n, i) => `<span class="sep">›</span><button type="button" data-crumb="${i}">${esc(n.name || "Χωρίς όνομα")}</button>`).join("")}${path.length ? `<button type="button" data-ea="catEdit" style="margin-left:auto">✏️ Ρυθμίσεις κατηγορίας</button>` : ""}</div>`;
+  const crumbs = `<div class="crumbs"><button type="button" data-crumb="-1">🏠 Αρχική</button>${path.slice(0, -1).map((n, i) => `<span class="sep">›</span><button type="button" data-crumb="${i}">${esc(n.name || "Χωρίς όνομα")}</button>`).join("")}${path.length ? `<span class="sep">›</span>` : ""}</div>
+  ${path.length ? `<div style="display:flex;align-items:center;gap:8px;margin:2px 2px 12px;border-bottom:3px solid var(--accent);padding-bottom:8px"><h2 style="margin:0;font-size:24px;flex:1;min-width:0">${path[path.length - 1].emoji ? esc(path[path.length - 1].emoji) + " " : ""}${esc(path[path.length - 1].name || "Χωρίς όνομα")}</h2><button type="button" class="btn soft sm" data-ea="catEdit">✏️ Ρυθμίσεις</button></div>` : ""}`;
   const empty = !st.menu.length;
   m.innerHTML = seg + crumbs +
-    (ed.hint && L.length ? `<div class="note" style="margin:0 0 10px"><b>Πάτα ένα προϊόν</b> για να αλλάξεις όνομα και τιμή. <b>Πάτα μια κατηγορία</b> για να μπεις μέσα της. Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά. Πάτα μια κατηγορία για να μπεις μέσα. <a href="#" data-ea="hintOff">Εντάξει</a></div>` : "") +
+    (ed.hint && L.length ? `<div class="note" style="margin:0 0 10px"><b>Πάτα ένα προϊόν</b> για να αλλάξεις όνομα και τιμή. <b>Πάτα μια κατηγορία</b> για να μπεις μέσα της. Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά. <a href="#" data-ea="hintOff">Εντάξει</a></div>` : "") +
     (empty ? presetsHTML() : "") +
     `<div class="grid" id="edGrid" style="--c1:${esc(st.shop.c1)};--c2:${esc(st.shop.c2)};--on1:${K.contrast(st.shop.c1)};--on2:${K.contrast(st.shop.c2)}">${K.tilesHTML(L, { edit: true, marked: ed.marked, prod: id => st.products[id] })}</div>
     <div class="card" style="margin:6px 0 12px;padding:12px"><div class="note" style="margin:0 0 8px">Προσθήκη ${ed.path.length ? "μέσα στο <b>«" + esc(curCat().name) + "»</b>" : "στην <b>αρχική</b>"}:</div>
