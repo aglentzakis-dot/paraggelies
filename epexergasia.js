@@ -72,13 +72,29 @@ function actbar() {
 }
 function listHTML() {
   const st = S(), q = K.norm(ed.q);
-  const L = liveProducts().filter(p => !q || K.norm(p.name).includes(q)).sort((a, b) => a.name.localeCompare(b.name, "el"));
-  return `<div class="row" style="margin-bottom:10px"><input class="t grow" id="edQ" placeholder="🔍 Αναζήτηση προϊόντος" value="${esc(ed.q)}"><button type="button" class="btn amber" data-ea="newProd">＋ Νέο</button></div>
-   <div class="card">${L.length ? L.map(p => `<div class="prow">${p.photo ? `<img src="${esc(p.photo)}" alt="">` : `<span class="pe">${esc(p.emoji || "📦")}</span>`}
-     <div class="pt" data-pedit="${p.id}"><b>${esc(p.name)}</b><span>ανά ${esc(p.unit)}${p.hidden ? " · κρυφό" : ""}${productInMenu(p.id) ? "" : " · ⚠️ δεν είναι στο μενού"}</span></div>
+  const L = liveProducts().filter(p => !q || K.norm(p.name).includes(q));
+  const want = new Set(L.map(p => p.id)), used = new Set();
+  const prow = p => `<div class="prow">${p.photo ? `<img src="${esc(p.photo)}" alt="">` : `<span class="pe">${esc(p.emoji || "📦")}</span>`}
+     <div class="pt" data-pedit="${p.id}"><b>${esc(p.name)}</b><span>ανά ${esc(p.unit)}${p.hidden ? " · κρυφό" : ""}</span></div>
      <input class="pp" inputmode="decimal" data-pprice="${p.id}" value="${K.num(p.price)}" aria-label="Τιμή">
-     <label class="tog" title="Εξαντλήθηκε"><input type="checkbox" data-psold="${p.id}"${p.soldout ? " checked" : ""}><span></span></label></div>`).join("") : `<p class="note">Κανένα προϊόν ακόμα.</p>`}
-    ${L.length ? `<p class="note">Ο κόκκινος διακόπτης σημαίνει «Εξαντλήθηκε». Η τιμή αλλάζει μόλις φύγεις από το πλαίσιο.</p>` : ""}</div>`;
+     <label class="tog" title="Εξαντλήθηκε"><input type="checkbox" data-psold="${p.id}"${p.soldout ? " checked" : ""}><span></span></label></div>`;
+  /* ομάδες όπως στο μενού: «Κατηγορία › Υποκατηγορία» */
+  const groups = [];
+  const walk = (nodes, trail) => {
+    const here = [];
+    for (const n of nodes || []) {
+      if (n.t === "p") { if (want.has(n.pid) && !used.has(n.pid)) { used.add(n.pid); here.push(st.products[n.pid]); } }
+    }
+    if (here.length) groups.push({ title: trail.map(x => (x.emoji ? x.emoji + " " : "") + x.name).join(" › ") || "🏠 Αρχική του μενού", depth: trail.length, items: here });
+    for (const n of nodes || []) if (n.t === "c") walk(n.kids, trail.concat(n));
+  };
+  walk(st.menu, []);
+  const rest = L.filter(p => !used.has(p.id));
+  if (rest.length) groups.push({ title: "⚠️ Δεν είναι στο μενού", depth: 0, items: rest, warn: 1 });
+  const head = `<div class="row" style="margin-bottom:10px"><input class="t grow" id="edQ" placeholder="🔍 Αναζήτηση προϊόντος" value="${esc(ed.q)}"><button type="button" class="btn amber" data-ea="newProd">＋ Νέο</button></div>
+`;
+  return head + (groups.length ? groups.map(g => `<div class="card" style="padding:10px 14px;border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><h3 style="margin:2px 0 4px;font-size:${g.depth > 1 ? 14.5 : 16}px">${esc(g.title)} <span class="note" style="font-weight:400">· ${g.items.length}</span></h3>${g.items.sort((a, b) => a.name.localeCompare(b.name, "el")).map(prow).join("")}</div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
+    + (L.length ? `<p class="note">Ο κόκκινος διακόπτης σημαίνει «Εξαντλήθηκε». Η τιμή αλλάζει μόλις φύγεις από το πλαίσιο.</p>` : "");
 }
 /* ---------- έτοιμοι κατάλογοι ανά επάγγελμα (protypa.js) ---------- */
 const PRESETS = window.PROTYPA || {};

@@ -387,7 +387,7 @@ function ordCard(o) {
    <div class="h"><b>#${o.no} · ${esc(o.cust.name)}</b><span class="tot">${K.money(o.total)}</span></div>
    <div class="m">${o.when.how === "pick" ? "🏪" : "🚚"} ${esc(fmtWhen(o))}${o.when.how !== "pick" && o.cust.addr ? " · " + esc(o.cust.addr) : ""}</div>
    <div class="it">${esc(items)}</div>
-   <div class="row">${o.test ? `<span class="pill warn">🧪 Δοκιμή</span>` : ""}${o.when.extra ? `<span class="pill new">⚡ Έκτακτη</span>` : ""}${o.merged && o.merged.length ? `<span class="pill done">🔗 ${o.merged.length + 1} σε μία</span>` : ""}${o.sib ? `<span class="pill warn">🔗 μαζί με άλλη</span>` : ""}${o.inv && o.inv.t === "i" ? `<span class="pill done">📄 Τιμολόγιο</span>` : ""}<span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}${diffOf(o) > 0 ? `<span class="pill new">χρωστά ${K.money(diffOf(o))}</span>` : diffOf(o) < 0 ? `<span class="pill warn">επιστροφή ${K.money(-diffOf(o))}</span>` : ""}${o.warn && o.warn.length ? `<span class="pill warn">⚠️ ${o.warn.length}</span>` : ""}${o.cust.note ? `<span class="pill">📝</span>` : ""}<span class="grow"></span>${next ? `<button type="button" class="btn sm ${next[0] === "paid" ? "green" : "amber"}" data-next="${o.id}" data-to="${next[0]}">${next[1]}</button>` : ""}</div></div>`;
+   <div class="row">${o.test ? `<span class="pill warn">🧪 Δοκιμή</span>` : ""}${o.when.extra ? `<span class="pill new">⚡ Έκτακτη</span>` : ""}${o.merged && o.merged.length ? `<span class="pill done">🔗 ${o.merged.length + 1} σε μία</span>` : ""}${["prep", "done", "cancel"].includes(o.st) && !o.test ? (ntfOf(o) ? `<span class="pill paid">💬 ✓</span>` : `<span class="pill warn">💬 χωρίς ενημέρωση</span>`) : ""}${o.sib ? `<span class="pill warn">🔗 μαζί με άλλη</span>` : ""}${o.inv && o.inv.t === "i" ? `<span class="pill done">📄 Τιμολόγιο</span>` : ""}<span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}${diffOf(o) > 0 ? `<span class="pill new">χρωστά ${K.money(diffOf(o))}</span>` : diffOf(o) < 0 ? `<span class="pill warn">επιστροφή ${K.money(-diffOf(o))}</span>` : ""}${o.warn && o.warn.length ? `<span class="pill warn">⚠️ ${o.warn.length}</span>` : ""}${o.cust.note ? `<span class="pill">📝</span>` : ""}<span class="grow"></span>${next ? `<button type="button" class="btn sm ${next[0] === "paid" ? "green" : "amber"}" data-next="${o.id}" data-to="${next[0]}">${next[1]}</button>` : ""}</div></div>`;
 }
 /* η κατάσταση πάει μόνο μπροστά: νέα → ετοιμάζεται → παραδόθηκε· κάθε βήμα με επιβεβαίωση */
 const RANK = { dup: -1, new: 0, prep: 1, done: 2, cancel: 3 };
@@ -443,7 +443,7 @@ function openOrder(id) {
    <div class="row" style="margin:0 0 12px">${o.paid ? `<span class="pill paid" style="font-size:14px;padding:8px 12px">✓ Πληρωμένη ${K.money(paidOf(o))}</span><button type="button" class="btn ghost grow" style="border-color:var(--bad);color:var(--bad)" data-ordpaid="0">✕ Σημείωσε απλήρωτη</button>` : `<button type="button" class="btn green grow" data-ordpaid="1">€ Πληρώθηκε ${K.money(o.total)}</button>`}</div>
    <div class="card" style="border-left:5px solid var(--accent)"><h3 style="margin:0 0 4px">💬 Ενημέρωση πελάτη</h3>
     <p class="note" style="margin:0 0 10px">Στέλνει στον πελάτη έτοιμο μήνυμα με την κατάσταση της παραγγελίας («${esc(ST[o.st])}»), τον κωδικό και το σύνολο.</p>
-    <div class="row">${msgButtons(o)}</div></div>
+    ${ntfStatus(o)}<div class="row">${msgButtons(o)}</div></div>
    <div class="row" style="margin-bottom:12px"><button type="button" class="btn amber grow" data-act="ordPrint">🖨 Εκτύπωση</button><select class="t" id="prFmt" style="width:auto;flex:0 0 auto">${[["58", "Θερμικός 58 χιλ."], ["80", "Θερμικός 80 χιλ."], ["a4", "Χαρτί Α4"]].map(([k, l]) => `<option value="${k}"${(S.ui.printFmt || "58") === k ? " selected" : ""}>${l}</option>`).join("")}</select><button type="button" class="btn soft" data-act="ordPrText" aria-label="Κείμενο για εφαρμογή εκτυπωτή">📤</button></div>
    <div class="row" style="margin-bottom:12px"><button type="button" class="btn ghost grow" data-act="ordEdit">✏️ Αλλαγή</button><button type="button" class="btn ghost grow" data-act="ordProof">🧾 Βεβαίωση</button><button type="button" class="btn ghost grow" data-act="ordRepeat">🔁 Ξανά</button></div>
    <details class="card"><summary style="cursor:pointer;font-weight:700">Ιστορικό</summary>${(o.log || []).map(([t, x]) => `<div class="note">${fmtTime(t)} · ${esc(x)}</div>`).join("")}<div class="note">Προέλευση: ${o.src === "viber" ? "μήνυμα Viber" : o.src === "manual" ? "καταχώριση από εσένα" : "σύνδεσμος παραγγελίας"}</div></details>
@@ -464,12 +464,20 @@ function askNotify(o, st) {
   const head = { prep: "▶ Η παραγγελία ετοιμάζεται", done: "✓ Η παραγγελία παραδόθηκε", cancel: "✕ Η παραγγελία ακυρώθηκε" }[st];
   sheet("💬 Ενημέρωση πελάτη", `<div class="okbox"><b>${head}.</b> Θέλεις να το μάθει και ο/η ${esc(o.cust.name)};</div>
    <div class="card"><div class="note" style="margin:0 0 6px">Το μήνυμα που θα σταλεί:</div><div style="background:#f5f7f8;border-radius:10px;padding:10px;font-size:14.5px">${esc(statusText(o))}</div></div>
-   <div class="row" style="margin-bottom:10px">${msgButtons(o)}</div>`,
+   ${ntfOf(o) ? ntfStatus(o) : ""}<div class="row" style="margin-bottom:10px">${msgButtons(o)}</div>`,
    `<button type="button" class="btn soft" data-act="shClose">Όχι τώρα</button><button type="button" class="btn ghost" data-act="ntOrder" data-oid="${o.id}">Άνοιγμα παραγγελίας</button>`);
 }
 function msgButtons(o) {
   const t = encodeURIComponent(statusText(o)), ph = o.cust.phone.replace(/[^\d+]/g, ""), intl = ph.startsWith("+") ? ph.slice(1) : ph.length === 10 ? "30" + ph : ph;
-  return `<a class="btn soft sm grow" href="viber://forward?text=${t}">💬 Viber</a><a class="btn soft sm grow" href="sms:${esc(ph)}?body=${t}">✉️ Μήνυμα</a><a class="btn soft sm grow" href="https://wa.me/${esc(intl)}?text=${t}" target="_blank" rel="noopener">WhatsApp</a><a class="btn soft sm grow" href="tel:${esc(ph)}">📞</a>`;
+  const d = `data-oid="${o.id}"`;
+  return `<a class="btn soft sm grow" href="viber://forward?text=${t}" data-ntf="Viber" ${d}>💬 Viber</a><a class="btn soft sm grow" href="sms:${esc(ph)}?body=${t}" data-ntf="μήνυμα" ${d}>✉️ Μήνυμα</a><a class="btn soft sm grow" href="https://wa.me/${esc(intl)}?text=${t}" target="_blank" rel="noopener" data-ntf="WhatsApp" ${d}>WhatsApp</a><a class="btn soft sm grow" href="tel:${esc(ph)}" data-ntf="τηλέφωνο" ${d}>📞</a>`;
+}
+/* καταγραφή ενημέρωσης πελάτη ανά κατάσταση, για να μην ξαναστέλνεται */
+const ntfOf = o => (o.notified || {})[o.st];
+function ntfStatus(o) {
+  const n = ntfOf(o);
+  if (n) return `<div class="okbox" style="margin:0 0 10px">✓ Ο πελάτης <b>ενημερώθηκε</b> για «${esc(ST[o.st])}» στις ${fmtTime(n.at)} (${esc(n.via)}). Δεν χρειάζεται να ξανασταλεί.</div>`;
+  return `<div class="warnbox" style="margin:0 0 10px">✉️ <b>Δεν έχει σταλεί</b> ακόμα ενημέρωση για «${esc(ST[o.st])}».</div>`;
 }
 function proof(o) {
   const s = S.shop;
@@ -533,7 +541,6 @@ function drawForm() {
   const custs = Object.values(S.customers).sort((a, b) => (b.last || 0) - (a.last || 0));
   let tot = 0;
   const row = p => { const q = F.q[p.id] || 0; const price = F.keep[p.id] != null ? F.keep[p.id] : p.price; tot += K.round2(q * price); return `<div class="qrow"><div class="qn"><b>${esc(p.name)}${p.soldout ? " · εξαντλήθηκε" : ""}</b><span>${K.money(price)} / ${esc(p.unit)}</span></div><button type="button" class="qb" data-fm="${p.id}">−</button><input class="qi" inputmode="decimal" data-fq="${p.id}" value="${q ? K.num(q) : ""}" placeholder="0"><button type="button" class="qb plus" data-fp="${p.id}">+</button></div>`; };
-  const selHTML = sel.map(row).join("");
   sheet(F.id ? "Αλλαγή παραγγελίας" : F.src === "viber" ? "Παραγγελία από μήνυμα" : "Νέα παραγγελία", `
    ${F.src === "viber" ? `<div class="okbox">Συμπληρώθηκαν αυτόματα όσα αναγνωρίστηκαν. Έλεγξέ τα πριν την αποθήκευση.</div>${F.rest.length ? `<div class="warnbox">Δεν αναγνωρίστηκαν: ${esc(F.rest.join(" · "))}</div>` : ""}${F.text ? `<details class="card"><summary style="cursor:pointer;font-weight:700">Το μήνυμα</summary><p style="white-space:pre-wrap;margin:8px 0 0">${esc(F.text)}</p></details>` : ""}` : ""}
    <div class="card"><h3>Πελάτης</h3>
@@ -543,10 +550,9 @@ function drawForm() {
     <label class="f" for="fad">Διεύθυνση</label><input class="t" id="fad" value="${esc(F.addr)}" maxlength="160">
     <div class="two"><div><label class="f" for="fd">Ημέρα</label><input class="t" id="fd" type="date" value="${esc(F.date)}"></div><div><label class="f" for="fs">Ώρα</label>${(S.deliv.slots || []).length ? `<select class="t" id="fs"><option value="">—</option>${S.deliv.slots.map(x => `<option${x === F.slot ? " selected" : ""}>${esc(x)}</option>`).join("")}</select>` : `<input class="t" id="fs" value="${esc(F.slot)}" placeholder="π.χ. 10:00-12:00" maxlength="30">`}</div></div>
     <label class="f" for="fnote">Σημείωση</label><input class="t" id="fnote" value="${esc(F.note)}" maxlength="400"></div>
-   <div class="card"><h3>Είδη</h3>${selHTML || `<p class="note">Πρόσθεσε είδη από κάτω.</p>`}
-    <div class="row" style="margin-top:10px"><b class="grow">Σύνολο</b><b style="font-size:19px" id="ftot">${K.money(tot)}</b></div>
-    ${F.id ? `<p class="note">Τα είδη που υπήρχαν κρατούν την τιμή της παραγγελίας· τα καινούργια μπαίνουν με την τρέχουσα τιμή.</p>` : ""}</div>
-   ${others.length ? `<div class="card"><h3>Προσθήκη είδους</h3><input class="t" id="fsearch" placeholder="🔍 Αναζήτηση…" style="margin-bottom:6px">${groupedRows(others, row)}</div>` : prods.length ? "" : `<div class="warnbox">Δεν έχεις ακόμα προϊόντα. Φτιάξε τα πρώτα στον Κατάλογο.</div>`}
+   ${prods.length ? `<div class="card"><h3>Είδη</h3><input class="t" id="fsearch" placeholder="🔍 Αναζήτηση…" style="margin-bottom:6px">${groupedRows(prods, row, id => F.q[id] > 0)}
+    <div class="row" style="margin-top:10px;border-top:2px solid var(--line);padding-top:10px"><b class="grow">Σύνολο</b><b style="font-size:19px" id="ftot">${K.money(tot)}</b></div>
+    ${F.id ? `<p class="note">Τα είδη που υπήρχαν κρατούν την τιμή της παραγγελίας· τα καινούργια μπαίνουν με την τρέχουσα τιμή.</p>` : ""}</div>` : `<div class="warnbox">Δεν έχεις ακόμα προϊόντα. Φτιάξε τα πρώτα στον Κατάλογο.</div>`}
    <div id="ferr"></div>`,
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="fSave">Αποθήκευση</button>`,
    el => {
@@ -560,19 +566,21 @@ function drawForm() {
    });
 }
 /* είδη ομαδοποιημένα όπως στο μενού: κατηγορίες και υποκατηγορίες */
-function groupedRows(list, row) {
+function groupedRows(list, row, picked) {
+  picked = picked || (() => false);
   const want = new Set(list.map(p => p.id)), used = new Set();
+  const countPicked = n => (n.kids || []).reduce((a, k) => a + (k.t === "p" ? (want.has(k.pid) && picked(k.pid) ? 1 : 0) : countPicked(k)), 0);
   const walk = (nodes, depth) => {
     let html = "";
     for (const n of nodes || []) {
       if (n.t === "p") { if (want.has(n.pid) && !used.has(n.pid)) { used.add(n.pid); html += row(S.products[n.pid]); } }
-      else { const inner = walk(n.kids, depth + 1); if (inner) html += `<details class="fcat" style="margin:${depth ? "2px 0 2px 10px" : "6px 0"};border-left:3px solid ${depth ? "var(--line)" : "var(--accent)"};padding-left:8px"><summary style="cursor:pointer;font-weight:800;padding:8px 0;font-size:${depth ? 14.5 : 16}px">${esc(n.emoji || "📁")} ${esc(n.name)}</summary>${inner}</details>`; }
+      else { const inner = walk(n.kids, depth + 1); const cnt = countPicked(n); if (inner) html += `<details class="fcat"${cnt ? " open" : ""} style="margin:${depth ? "2px 0 2px 10px" : "6px 0"};border-left:3px solid ${cnt ? "var(--ok)" : depth ? "var(--line)" : "var(--accent)"};padding-left:8px"><summary style="cursor:pointer;font-weight:800;padding:8px 0;font-size:${depth ? 14.5 : 16}px">${esc(n.emoji || "📁")} ${esc(n.name)}${cnt ? ` <span class="pill paid">${cnt} στην παραγγελία</span>` : ""}</summary>${inner}</details>`; }
     }
     return html;
   };
   let html = walk(S.menu, 0);
   const rest = list.filter(p => !used.has(p.id));
-  if (rest.length) html += `<details class="fcat" style="margin:6px 0;border-left:3px solid var(--line);padding-left:8px"><summary style="cursor:pointer;font-weight:800;padding:8px 0">📦 Χωρίς κατηγορία</summary>${rest.map(row).join("")}</details>`;
+  if (rest.length) html += `<details class="fcat"${rest.some(p => picked(p.id)) ? " open" : ""} style="margin:6px 0;border-left:3px solid var(--line);padding-left:8px"><summary style="cursor:pointer;font-weight:800;padding:8px 0">📦 Χωρίς κατηγορία</summary>${rest.map(row).join("")}</details>`;
   return html;
 }
 function readForm() {
@@ -1191,6 +1199,7 @@ document.addEventListener("click", async e => {
   const op = t.closest("[data-ordpaid]"); if (op) { const o = curOrd(); if (o) { setStatus(o, op.dataset.ordpaid === "1" ? "paid" : op.dataset.ordpaid === "diff" ? "paydiff" : "unpaid"); openOrder(o.id); render(); } return; }
   const ds = t.closest("[data-diag-share]"); if (ds) { const u = $("#shB")._diag[+ds.dataset.diagShare]; try { await navigator.share({ text: u }); } catch (e) { if (!e || e.name !== "AbortError") { try { await navigator.clipboard.writeText(u); toast("Αντιγράφηκε"); } catch {} } } return; }
   const dc = t.closest("[data-diag-copy]"); if (dc) { try { await navigator.clipboard.writeText($("#shB")._diag[+dc.dataset.diagCopy]); toast("✓ Αντιγράφηκε. Επικόλλησέ το στο Viber."); } catch { toast("Δεν έγινε αντιγραφή."); } return; }
+  const nf = t.closest("[data-ntf]"); if (nf) { const o = S.orders.find(x => x.id === nf.dataset.oid); if (o && nf.dataset.ntf !== "τηλέφωνο" || (o && nf.dataset.ntf === "τηλέφωνο")) { o.notified = o.notified || {}; o.notified[o.st] = { at: Date.now(), via: nf.dataset.ntf }; o.log.push([Date.now(), "Ενημέρωση πελάτη (" + nf.dataset.ntf + "): " + ST[o.st]]); save(); setTimeout(() => { if (isSheetOpen() && $("#shB").dataset.ord === o.id) openOrder(o.id); render(); }, 600); } }
   const cs = t.closest("[data-cash]"); if (cs) { cashSheet(cs.dataset.cash); return; }
   const ce = t.closest("[data-cashed]"); if (ce) { cashSheet(null, ce.dataset.cashed); return; }
   const cd = t.closest("[data-cldel]"); if (cd) { S.deliv.closed = (S.deliv.closed || []).filter(x => x !== cd.dataset.cldel); save({ catalog: true }); keepDeliv(); return; }
