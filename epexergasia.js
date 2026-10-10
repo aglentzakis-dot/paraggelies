@@ -76,8 +76,8 @@ function listHTML() {
   const want = new Set(L.map(p => p.id)), used = new Set();
   const prow = p => `<div class="prow">${p.photo ? `<img src="${esc(p.photo)}" alt="">` : `<span class="pe">${esc(p.emoji || "📦")}</span>`}
      <div class="pt" data-pedit="${p.id}"><b>${esc(p.name)}</b><span>ανά ${esc(p.unit)}${p.hidden ? " · κρυφό" : ""}</span></div>
-     <input class="pp" inputmode="decimal" data-pprice="${p.id}" value="${K.num(p.price)}" aria-label="Τιμή">
-     <label class="tog" title="Εξαντλήθηκε"><input type="checkbox" data-psold="${p.id}"${p.soldout ? " checked" : ""}><span></span></label></div>`;
+     <input class="pp" inputmode="decimal" data-pprice="${p.id}" value="${(+p.price || 0).toFixed(2).replace(".", ",")}" aria-label="Τιμή">
+     <div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:62px"><label class="tog g" title="Διαθέσιμο" style="flex:none"><input type="checkbox" data-pavail="${p.id}"${p.soldout ? "" : " checked"}><span></span></label><small style="font-size:11px;font-weight:700;color:${p.soldout ? "var(--bad)" : "var(--ok)"}">${p.soldout ? "Εξαντλήθηκε" : "Διαθέσιμο"}</small></div></div>`;
   /* ομάδες όπως στο μενού: «Κατηγορία › Υποκατηγορία» */
   const groups = [];
   const walk = (nodes, trail) => {
@@ -93,8 +93,8 @@ function listHTML() {
   if (rest.length) groups.push({ title: "⚠️ Δεν είναι στο μενού", depth: 0, items: rest, warn: 1 });
   const head = `<div class="row" style="margin-bottom:10px"><input class="t grow" id="edQ" placeholder="🔍 Αναζήτηση προϊόντος" value="${esc(ed.q)}"><button type="button" class="btn amber" data-ea="newProd">＋ Νέο</button></div>
 `;
-  return head + (groups.length ? groups.map(g => `<div class="card" style="padding:10px 14px;border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><h3 style="margin:2px 0 4px;font-size:${g.depth > 1 ? 14.5 : 16}px">${esc(g.title)} <span class="note" style="font-weight:400">· ${g.items.length}</span></h3>${g.items.sort((a, b) => a.name.localeCompare(b.name, "el")).map(prow).join("")}</div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
-    + (L.length ? `<p class="note">Ο κόκκινος διακόπτης σημαίνει «Εξαντλήθηκε». Η τιμή αλλάζει μόλις φύγεις από το πλαίσιο.</p>` : "");
+  return head + (groups.length ? groups.map(g => `<div class="card" style="padding:10px 14px;border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><h3 style="margin:2px 0 4px;font-size:${g.depth > 1 ? 14.5 : 16}px">${esc(g.title)} <span class="note" style="font-weight:400">· ${g.items.length}</span></h3><div style="display:flex;gap:10px;font-size:11.5px;color:var(--mute);font-weight:700;padding:2px 0 4px;border-bottom:1px solid var(--line)"><span style="flex:1;padding-left:52px">Προϊόν</span><span style="width:84px;text-align:right">Τιμή €</span><span style="width:62px;text-align:center">Διαθέσιμο</span></div>${g.items.sort((a, b) => a.name.localeCompare(b.name, "el")).map(prow).join("")}</div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
+    + (L.length ? `<p class="note">Πράσινος διακόπτης = <b>διαθέσιμο</b>. Κλείσ' τον όταν τελειώσει ένα προϊόν: ο πελάτης το βλέπει «Εξαντλήθηκε» και δεν μπορεί να το παραγγείλει. Η τιμή αλλάζει μόλις φύγεις από το πλαίσιο.</p>` : "");
 }
 /* ---------- έτοιμοι κατάλογοι ανά επάγγελμα (protypa.js) ---------- */
 const PRESETS = window.PROTYPA || {};
@@ -475,7 +475,7 @@ document.addEventListener("click", e => {
 }, true);
 document.addEventListener("change", e => {
   const t = e.target;
-  if (t.matches("[data-psold]")) { const p = S().products[t.dataset.psold]; if (p) { p.soldout = t.checked; A.save({ catalog: true }); A.toast(p.name + (p.soldout ? ": εξαντλήθηκε" : ": διαθέσιμο")); } }
+  if (t.matches("[data-pavail]")) { const p = S().products[t.dataset.pavail]; if (p) { p.soldout = !t.checked; A.save({ catalog: true }); A.toast(p.name + (p.soldout ? ": εξαντλήθηκε" : ": διαθέσιμο")); const sm = t.closest("div").querySelector("small"); if (sm) { sm.textContent = p.soldout ? "Εξαντλήθηκε" : "Διαθέσιμο"; sm.style.color = p.soldout ? "var(--bad)" : "var(--ok)"; } } }
   if (t.matches("[data-pprice]")) setPrice(t.dataset.pprice, t.value);
 });
 document.addEventListener("input", e => { if (e.target.id === "edQ") { ed.q = e.target.value; const p = e.target.selectionStart; A.render(); const i = $("#edQ"); i.focus(); i.setSelectionRange(p, p); } });
