@@ -611,6 +611,7 @@ async function linkSheet() {
   const len = url.length, pct = Math.min(100, Math.round(len / 7000 * 100));
   const msg = "Παραγγείλτε από «" + S.shop.name + "» εδώ, χωρίς τηλεφωνήματα:\n" + url;
   sheet("🔗 Σύνδεσμος παραγγελίας", `
+   <div class="okbox">Αυτή είναι η σελίδα του καταστήματός σου για τους πελάτες. Στείλ' την μία φορά στο Viber και παραγγέλνουν από εκεί όσες φορές θέλουν. Νέα αποστολή χρειάζεται μόνο όταν αλλάζεις τιμές ή προϊόντα.</div>
    ${S.link.dirty && S.link.sentAt ? `<div class="warnbox">Άλλαξες προϊόντα ή τιμές. Στείλε τον νέο σύνδεσμο στους πελάτες σου. Ακόμα κι αν κάποιος παραγγείλει από τον παλιό, γράφονται πάντα οι δικές σου τρέχουσες τιμές.</div>` : ""}
    <div class="card"><div class="prev" style="--c1:${esc(S.shop.c1)};--on1:${K.contrast(S.shop.c1)}"><div class="ph">${S.shop.logo && S.link.logo ? `<img src="${esc(S.shop.logo)}" alt="">` : ""}<b>${esc(S.shop.name)}</b></div></div>
     <div class="lnkbox" style="margin-top:10px">${esc(url)}</div>

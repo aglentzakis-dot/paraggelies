@@ -7,14 +7,14 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.2">
+<meta name="app-version" content="1.3">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.2">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.2">
-<link rel="stylesheet" href="koino.css?v=1.2">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.3">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.3">
+<link rel="stylesheet" href="koino.css?v=1.3">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -70,13 +70,16 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 .modal .box{background:var(--card);border-radius:20px 20px 0 0;max-width:640px;width:100%;max-height:88vh;overflow:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
 .modal h3{margin:0 0 10px}
 .bad{max-width:520px;margin:60px auto;padding:20px;text-align:center}
+.how{background:var(--card);border-left:5px solid var(--c2);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14.5px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.foot details.seller summary{cursor:pointer;font-weight:700;color:var(--ink);padding:6px 0}
+.foot details.seller div{margin:4px 0}
 .home-add{display:block;margin:4px auto 0;border:0;background:transparent;color:var(--c1);font-weight:700;text-decoration:underline;cursor:pointer;padding:8px}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.2"></script>
+<script src="katalogos.js?v=1.3"></script>
 <script>
 (function(){
 "use strict";
@@ -141,11 +144,12 @@ function totals(){let n=0,t=0;for(const[id,q]of Object.entries(cart)){const p=P[
 function header(){const s=C.s;return`<header class="hdr">${s.lg?`<img src="${esc(s.lg)}" alt="">`:""}<div><h1>${esc(s.n)}</h1>${s.w?`<p>${esc(s.w)}</p>`:`<p>Παραγγελία χωρίς τηλεφωνήματα</p>`}</div></header>`}
 function footer(){const s=C.s;const perish=Object.values(P).some(p=>p.perish);
   return`<footer class="foot">
+  <details class="seller"><summary>ℹ️ Στοιχεία πωλητή, τιμές και όροι</summary>
   <div><b>${esc(s.l||s.n)}</b>${s.a?" · "+esc(s.a):""}${s.f?" · ΑΦΜ "+esc(s.f):""}${s.t?` · <a href="tel:${esc(s.t)}">${esc(s.t)}</a>`:""}${s.m?` · ${esc(s.m)}`:""}</div>
   <div>${s.vi?"Όλες οι τιμές περιλαμβάνουν ΦΠΑ.":"Οι τιμές δεν περιλαμβάνουν ΦΠΑ."} Οι τιμές και η διαθεσιμότητα επιβεβαιώνονται από τον πωλητή.</div>
   <div>Η επιβεβαίωση της παραγγελίας δεν αποτελεί φορολογικό παραστατικό. Το νόμιμο παραστατικό εκδίδεται από τον πωλητή.</div>
   ${perish?`<div>Για τρόφιμα που αλλοιώνονται γρήγορα δεν ισχύει το δικαίωμα υπαναχώρησης (ν. 2251/1994, άρθρο 3ιδ).</div>`:""}
-  <div>Υπεύθυνος για τα προϊόντα, τις τιμές και τα προσωπικά σας στοιχεία είναι ο πωλητής. <a href="aporrito.html#pelatis" target="_blank" rel="noopener">Απόρρητο</a> · <a href="oroi.html#agorastis" target="_blank" rel="noopener">Όροι</a></div>
+  <div>Υπεύθυνος για τα προϊόντα, τις τιμές και τα προσωπικά σας στοιχεία είναι ο πωλητής. <a href="aporrito.html#pelatis" target="_blank" rel="noopener">Απόρρητο</a> · <a href="oroi.html#agorastis" target="_blank" rel="noopener">Όροι</a></div></details>
   <button type="button" class="home-add" data-act="home">📲 Βάλ' το στην αρχική οθόνη</button>
   <div class="gl">Παραγγελίες με GlenApps</div></footer>`}
 
@@ -161,7 +165,8 @@ function render(){
   $("#app").innerHTML=header()+`<main>
    ${path.length?`<div class="crumb"><button type="button" class="back" data-act="back">← Πίσω</button><span class="path">${esc(path.map(n=>n.name).join(" › "))}</span></div>`:""}
    ${!path.length&&last&&!t.n?`<button type="button" class="again" data-act="again">🔁 Ξανά τα ίδια με την προηγούμενη φορά</button>`:""}
-   <div class="grid" id="grid">${K.tilesHTML(nodes,{prod:id=>P[id],qty,count:n=>K.countIn(n,qty)})}</div></main>`+footer()+bar();
+   ${!path.length&&!t.n&&M.length?`<div class="how">🛒 <b>Πώς παραγγέλνεις:</b> πάτα μια κατηγορία, βάλε ποσότητες με <b>+</b> και στο τέλος πάτα <b>«Συνέχεια»</b>.</div>`:""}
+   ${M.length?`<div class="grid" id="grid">${K.tilesHTML(nodes,{prod:id=>P[id],qty,count:n=>K.countIn(n,qty)})}</div>`:`<div class="sec" style="text-align:center"><div style="font-size:40px">📦</div><b>Ο κατάλογος είναι άδειος</b><p class="note">Ο πωλητής δεν έχει βάλει ακόμα προϊόντα. Ζήτησέ του να σου στείλει νέο σύνδεσμο.</p></div>`}</main>`+footer()+bar();
 }
 function bar(){const t=totals();if(!t.n)return"";return`<div class="bar"><div class="sum"><b>${K.money(t.t)}</b><span>${t.n} ${t.n===1?"είδος":"είδη"} στο καλάθι</span></div><button type="button" class="btn alt" data-act="check">Συνέχεια →</button></div>`}
 function refreshTile(id){const q=qty(id);document.querySelectorAll(`[data-qv="${id}"]`).forEach(e=>e.textContent=q?K.num(q):"0");document.querySelectorAll(`.tile[data-pid="${id}"]`).forEach(t=>{t.classList.toggle("has",!!q);const m=t.querySelector("[data-minus]");if(m)m.disabled=!q});
