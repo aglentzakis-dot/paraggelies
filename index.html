@@ -8,7 +8,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.22">
+<meta name="app-version" content="1.24">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#17324D">
 <title>Παραγγελίες</title>
@@ -17,15 +17,20 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Παραγγελίες">
 <meta name="description" content="Οι πελάτες σου παραγγέλνουν από σύνδεσμο στο Viber, χωρίς τηλεφωνήματα.">
-<link rel="icon" href="eikonidia/icon-192.png?v=1.22">
-<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.22">
-<link rel="stylesheet" href="koino.css?v=1.22">
+<link rel="icon" href="eikonidia/icon-192.png?v=1.24">
+<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.24">
+<link rel="stylesheet" href="koino.css?v=1.24">
 <style>
 :root{--brand:#17324D;--onbrand:#fff;--accent:#F2B632;--onaccent:#17324D;--paper:#EDF1F2;--card:#fff;--ink:#16232f;--mute:#5d6873;--line:#d9dfe3;--ok:#1f7a3d;--bad:#b3261e;--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
 body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 button,input,select,textarea{font:inherit}
+#newBar{position:sticky;top:var(--toph,58px);z-index:29;display:flex;align-items:center;gap:10px;width:100%;border:0;margin:0;padding:10px 14px;background:#c62828;color:#fff;font:inherit;text-align:left;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.18);animation:nbP 1.6s ease-in-out infinite}
+#newBar .nbi{font-size:24px;animation:nbS 1.2s ease-in-out infinite}#newBar .nbt{flex:1;min-width:0;display:flex;flex-direction:column}#newBar .nbt b{font-size:16px}#newBar small{opacity:.9;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#newBar .nbg{background:#fff;color:#c62828;font-weight:800;border-radius:18px;padding:6px 12px}
+@keyframes nbP{50%{background:#e53935}}@keyframes nbS{0%,100%{transform:rotate(0)}25%{transform:rotate(-14deg)}75%{transform:rotate(14deg)}}
+@media (prefers-reduced-motion:reduce){#newBar,#newBar .nbi{animation:none}}
 .top{position:sticky;top:0;z-index:30;background:var(--brand);color:var(--onbrand);padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;align-items:center;gap:10px}
 .top h1{margin:0;font-size:19px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top .ver{font-size:12px;opacity:.7}
@@ -107,6 +112,10 @@ body.editing{padding-bottom:140px}
 .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.1)}
 .prow{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
 .prow:last-child{border-bottom:0}
+.pdrag{touch-action:none;cursor:grab;font-size:22px;line-height:1;padding:8px 6px;margin-left:-6px;color:var(--mute);user-select:none;-webkit-user-select:none}
+.prow.pdragging{opacity:.4;background:#fff8e1;outline:2px dashed var(--accent);outline-offset:-2px;border-radius:10px}
+.pghost{position:fixed;z-index:999;pointer-events:none;background:#fff;border-radius:12px;padding:10px 12px!important;box-shadow:0 14px 34px rgba(0,0,0,.3);transform:scale(1.03) rotate(-.8deg);opacity:.96}
+.pitems{min-height:44px}
 .prow .pt{flex:1;min-width:0;cursor:pointer}
 .prow .pt b{display:block;font-size:15px}
 .prow .pt span{font-size:12.5px;color:var(--mute)}
@@ -164,11 +173,11 @@ body.editing{padding-bottom:140px}
 </nav>
 <div class="sheetbg" id="sheetbg"><div class="sheet"><div class="sh"><h2 id="shT"></h2><button type="button" class="x" data-act="shClose" aria-label="Κλείσιμο">✕</button></div><div class="sb" id="shB"></div><div class="sf" id="shF"></div></div></div>
 <div id="toast"></div>
-<script src="katalogos.js?v=1.22"></script>
-<script src="antigrafa.js?v=1.22"></script>
-<script src="efarmoges-mas.js?v=1.22"></script>
-<script src="protypa.js?v=1.22"></script>
-<script src="efarmogi.js?v=1.22"></script>
-<script src="epexergasia.js?v=1.22"></script>
+<script src="katalogos.js?v=1.24"></script>
+<script src="antigrafa.js?v=1.24"></script>
+<script src="efarmoges-mas.js?v=1.24"></script>
+<script src="protypa.js?v=1.24"></script>
+<script src="efarmogi.js?v=1.24"></script>
+<script src="epexergasia.js?v=1.24"></script>
 </body>
 </html>

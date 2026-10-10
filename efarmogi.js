@@ -201,6 +201,7 @@ function mergeInto(host, o) {
   if (o.cust.addr && !host.cust.addr) host.cust.addr = o.cust.addr;
   if (o.when.extra) host.when.extra = true;
   if (o.inv && o.inv.t === "i") host.inv = o.inv;
+  delete host.seen;
   host.warn = (host.warn || []).concat(o.warn || []);
   host.merged = (host.merged || []).concat(o.id);
   host.mergedAt = Date.now(); host.rx = Date.now();
@@ -300,8 +301,25 @@ function render() {
   else if (tab === "custs") m.innerHTML = custsView();
   else m.innerHTML = moreView();
   if (tab === "orders" || tab === "more") efmMount();
+  newBar();
 }
 A.render = render;
+/* μπάρα «νέα παραγγελία» σε κάθε καρτέλα, μέχρι να ανοιχτεί η παραγγελία */
+function unread() { return S ? S.orders.filter(o => (o.st === "new" || o.st === "dup") && !o.seen) : []; }
+function newBar() {
+  const U = unread(); let b = $("#newBar");
+  if (!U.length) { b && b.remove(); return; }
+  if (!b) { $(".top").insertAdjacentHTML("afterend", `<button type="button" id="newBar" data-act="seeNew"></button>`); b = $("#newBar"); }
+  document.documentElement.style.setProperty("--toph", $(".top").offsetHeight + "px");
+  const who = [...new Set(U.map(o => o.cust.name).filter(Boolean))].slice(0, 2).join(", ");
+  b.innerHTML = `<span class="nbi">🔔</span><span class="nbt"><b>${U.length === 1 ? "Έχεις νέα παραγγελία" : "Έχεις " + U.length + " νέες παραγγελίες"}</b>${who ? `<small>${esc(who)}${U.length > 2 ? " και άλλοι" : ""}</small>` : ""}</span><span class="nbg">Δες ›</span>`;
+}
+A.seeNew = () => {
+  const U = unread(); if (!U.length) return;
+  if (isSheetOpen()) closeSheet();
+  tab = "orders"; ordFilter = { st: U.some(o => o.st === "new") ? "new" : "dup", day: "" }; render(); window.scrollTo(0, 0);
+  if (U.length === 1) openOrder(U[0].id);
+};
 
 /* ---------- επίδειξη ---------- */
 function demoBanner() { return DEMO ? `<div class="card" style="background:#1d2b36;color:#fff;display:flex;gap:10px;align-items:center"><div style="font-size:28px">🎬</div><div style="flex:1"><b>Επίδειξη</b><div style="font-size:13px;opacity:.85">Παραδείγματα για δοκιμή. Τα δικά σου δεδομένα δεν αγγίζονται. Πάτα «👤 Πελάτης» πάνω δεξιά για να παραγγείλεις σαν πελάτης.</div></div><button type="button" class="btn sm amber" data-act="demoEnd">Τέλος</button></div>` : ""; }
@@ -418,6 +436,7 @@ function setStatus(o, st) {
 }
 function openOrder(id) {
   const o = S.orders.find(x => x.id === id); if (!o) return;
+  if (!o.seen) { o.seen = Date.now(); save(); newBar(); }
   const c = S.customers[custKey(o.cust.phone)];
   const phone = o.cust.phone;
   const locked = st => o.st === "cancel" || (st !== "cancel" && RANK[st] < RANK[o.st]) || (st === "cancel" && o.st === "done");
@@ -607,7 +626,7 @@ function formSave() {
     if (diffOf(o)) setTimeout(() => toast(diffOf(o) > 0 ? "⚠️ Ο πελάτης χρωστά τώρα τη διαφορά " + K.money(diffOf(o)) : "⚠️ Του επιστρέφεις " + K.money(-diffOf(o)), 4500), 300);
     upsertCustomer(cust, Date.now()); save(); closeSheet(); toast("✓ Αποθηκεύτηκε"); render(); openOrder(o.id); return;
   }
-  const o = { id: K.uid(12), no: ++S.seq, at: Date.now(), rx: Date.now(), cust, when, lines, total, st: "new", paid: false, src: F.src === "viber" ? "viber" : "manual", warn: [], log: [[Date.now(), F.src === "viber" ? "Από μήνυμα Viber" : "Καταχώριση από εσένα"]] };
+  const o = { id: K.uid(12), no: ++S.seq, at: Date.now(), rx: Date.now(), cust, when, lines, total, st: "new", seen: Date.now(), paid: false, src: F.src === "viber" ? "viber" : "manual", warn: [], log: [[Date.now(), F.src === "viber" ? "Από μήνυμα Viber" : "Καταχώριση από εσένα"]] };
   S.orders.push(o); seenAdd(o.id); upsertCustomer(cust, o.rx); save(); closeSheet(); toast("✓ Η παραγγελία καταχωρίστηκε");
   tab = "orders"; ordFilter = { st: "new", day: "" }; render();
 }
@@ -630,8 +649,19 @@ function pasteSheet() {
 /* ---------- Ταμείο: ίδια εμφάνιση με την εφαρμογή «Ταμεία» ---------- */
 let totPer = "month";
 const PERIODS = { today: "Σήμερα", week: "Αυτή η εβδομάδα", month: "Αυτός ο μήνας", prev: "Προηγούμενος μήνας", year: "Φέτος", all: "Όλα" };
-const CASH_OUT = ["Πρώτες ύλες", "Συσκευασίες", "Καύσιμα", "Μεταφορικά", "Ενοίκιο", "Ρεύμα και νερό", "Άλλο"];
-const CASH_IN = ["Πώληση χωρίς παραγγελία", "Είσπραξη παλιού χρέους", "Άλλο"];
+/* ίδιες κατηγορίες με το βιβλίο «Εταιρεία» της εφαρμογής Ταμεία, ώστε να περνούν αυτούσιες εκεί */
+const CKINDS = [["sales", "💶", "Πωλήσεις και υπηρεσίες", "in", ["Πωλήσεις", "Παροχή υπηρεσιών"]], ["cinother", "➕", "Άλλα έσοδα", "in", ["Επιδότηση", "Επιστροφή φόρου"]],
+  ["buy", "🛒", "Αγορές και πρώτες ύλες", "out", ["Πρώτες ύλες", "Εμπορεύματα", "Συσκευασίες", "Ζωοτροφές"]],
+  ["tax", "🏛️", "Φόροι και τέλη", "out", ["ΦΠΑ", "Φόρος εισοδήματος", "Προκαταβολή φόρου", "Τέλος επιτηδεύματος", "Δημοτικά τέλη"]], ["efka", "🧾", "Ασφαλιστικά", "out", ["ΕΦΚΑ", "Επικουρικό", "Εισφορές εργαζομένων"]],
+  ["acct", "📒", "Λογιστής", "out", ["Μηνιαία αμοιβή", "Δηλώσεις", "Μισθοδοσία"]], ["staff", "👷", "Προσωπικό", "out", ["Μισθοί", "Μεροκάματα", "Δώρα και επιδόματα"]],
+  ["office", "🏢", "Χώρος και λογαριασμοί", "out", ["Ενοίκιο", "ΔΕΗ", "Νερό", "Κοινόχρηστα", "Καθαριότητα", "Κινητό", "Σταθερό", "Σύνδεση διαδικτύου"]],
+  ["repair", "🔧", "Επισκευές και συντηρήσεις", "out", ["Ψυκτικός", "Ηλεκτρολόγος", "Υδραυλικός", "Τεχνικός κλιματισμού και θέρμανσης", "Πυροσβεστήρες", "Απεντόμωση", "Τεχνικός υπολογιστών", "Επισκευή μηχανημάτων", "Επισκευή οχημάτων", "Οικοδομικές εργασίες", "Ανταλλακτικά"]],
+  ["vehicle", "🚐", "Οχήματα εταιρείας", "out", ["Καύσιμα", "Σέρβις", "Ασφάλεια", "Τέλη κυκλοφορίας", "ΚΤΕΟ", "Διόδια", "Λάστιχα"]], ["equip", "🧰", "Εξοπλισμός, εργαλεία", "out", ["Εργαλεία", "Μηχανήματα", "Επισκευή εργαλείων", "Ρούχα εργασίας"]],
+  ["soft", "💻", "Προγράμματα, συνδρομές", "out", ["Πρόγραμμα τιμολόγησης", "Εφαρμογές", "Ιστοσελίδα"]], ["ads", "📣", "Διαφήμιση", "out", ["Διαφήμιση στο διαδίκτυο", "Κάρτες, φυλλάδια", "Επιγραφές"]],
+  ["bank", "🏦", "Τράπεζα και δάνεια", "out", ["Προμήθειες", "Τερματικό καρτών", "Τόκοι", "Δόση δανείου", "Χρηματοδοτική μίσθωση"]], ["insur", "🛡️", "Ασφάλειες", "out", ["Αστική ευθύνη", "Ασφάλεια χώρου"]], ["cother", "📦", "Άλλο", "out", []]]
+  .map(([id, emoji, name, dir, subs]) => ({ id, emoji, name, dir, subs }));
+const ckOf = id => CKINDS.find(k => k.id === id);
+const cashLabel = x => { const k = ckOf(x.ck); return k ? k.emoji + " " + k.name + (x.sub ? " › " + x.sub : "") : x.cat || ""; };
 function perRange() {
   const n = new Date(), y = n.getFullYear(), m = n.getMonth();
   if (totPer === "today") return [today(), today()];
@@ -644,8 +674,8 @@ function perRange() {
 const cashList = () => S.cash || (S.cash = []);
 function cashMoves() {
   const [f, t] = perRange(), inR = d => d >= f && d <= t, mv = [];
-  for (const o of S.orders) if (o.paid && o.st !== "cancel" && o.st !== "dup") { const d = K.ymd(new Date(o.paidAt || o.rx)); if (inR(d)) mv.push({ d, kind: "in", amt: paidOf(o), cat: "Παραγγελία #" + o.no, note: o.cust.name, ord: o.id }); }
-  for (const c of cashList()) if (inR(c.d)) mv.push(Object.assign({ man: 1 }, c));
+  for (const o of S.orders) if (o.paid && o.st !== "cancel" && o.st !== "dup") { const d = K.ymd(new Date(o.paidAt || o.rx)); if (inR(d)) mv.push({ d, kind: "in", amt: paidOf(o), cat: "💶 Πωλήσεις και υπηρεσίες › Παραγγελία #" + o.no, note: o.cust.name, ord: o.id }); }
+  for (const c of cashList()) if (inR(c.d)) mv.push(Object.assign({ man: 1 }, c, { cat: cashLabel(c) }));
   return mv.sort((a, b) => b.d.localeCompare(a.d));
 }
 function totalsView() {
@@ -660,8 +690,8 @@ function totalsView() {
   const debtSum = K.round2(debt.reduce((a, x) => a + x.v, 0));
   return `<div class="row" style="margin:2px 2px 10px;align-items:center"><h2 style="margin:0;font-size:20px" class="grow">💶 Ταμείο</h2><button type="button" class="btn sm" data-act="owedSheet" style="background:${debtSum ? "#FBE7E3" : "#E3F1E8"};color:${debtSum ? "#C8412B" : "#2E7D5B"};border:1px solid ${debtSum ? "#F1B3AD" : "#A8D8B7"}">${debtSum ? "🔴 Σου χρωστάνε " + K.money(debtSum) : "✓ Κανείς δεν χρωστά"}</button></div>
    <label style="display:flex;align-items:center;gap:8px;background:var(--brand);color:#fff;border-radius:14px;padding:12px 14px;font-weight:800;margin-bottom:10px">⏳<select id="totPer" style="flex:1;background:transparent;border:0;color:#fff;font:inherit;font-weight:800;appearance:none">${Object.entries(PERIODS).map(([k, v]) => `<option value="${k}" style="color:#000"${k === totPer ? " selected" : ""}>${v}</option>`).join("")}</select><span style="color:var(--accent)">▾</span></label>
-   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">${kpi("#2E7D5B", "Εισπράξεις", inc, "#2E7D5B")}${kpi("#C8412B", "Έξοδα", out, "#C8412B")}${kpi("#2468B5", "Υπόλοιπο", inc - out, "#2468B5")}</div>
-   <div class="row" style="margin-bottom:12px"><button type="button" class="btn grow" style="background:#E3F1E8;color:#2E7D5B;border:1px solid #A8D8B7" data-cash="in">＋ Είσπραξη</button><button type="button" class="btn grow" style="background:#FBE7E3;color:#C8412B;border:1px solid #F1B3AD" data-cash="out">＋ Έξοδο</button></div>
+   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">${kpi("#2E7D5B", "Έσοδα", inc, "#2E7D5B")}${kpi("#C8412B", "Έξοδα", out, "#C8412B")}${kpi("#2468B5", "Υπόλοιπο", inc - out, "#2468B5")}</div>
+   <div class="row" style="margin-bottom:12px"><button type="button" class="btn grow" style="background:#E3F1E8;color:#2E7D5B;border:1px solid #A8D8B7" data-cash="in">＋ Έσοδο</button><button type="button" class="btn grow" style="background:#FBE7E3;color:#C8412B;border:1px solid #F1B3AD" data-cash="out">＋ Έξοδο</button></div>
    <h3 style="margin:4px 2px 6px;font-size:16px">🧮 Καθαρή εικόνα · ${PERIODS[totPer]}</h3>
    <div class="card">${row("Πωλήσεις από παραγγελίες", sales, "var(--ink)")}${row("Εισπράχθηκαν", inc, "#2E7D5B")}${row("Απλήρωτα (σου χρωστάνε)", owed, owed ? "#C8412B" : "var(--ink)")}${row("Έξοδα", -out, "#C8412B")}${row("Αυτό που μένει", inc - out, inc - out >= 0 ? "#2E7D5B" : "#C8412B", 1)}</div>
    <h3 style="margin:4px 2px 6px;font-size:16px">📒 Κινήσεις</h3>
@@ -671,17 +701,21 @@ function totalsView() {
    <p class="note">Οι κινήσεις έχουν την ίδια μορφή με την εφαρμογή «Ταμεία», για να περάσουν αργότερα εκεί.</p>`;
 }
 function cashSheet(kind, id) {
-  const x = id ? cashList().find(c => c.id === id) : { kind, d: today(), amt: "", cat: (kind === "in" ? CASH_IN : CASH_OUT)[0], note: "" };
+  const x = id ? cashList().find(c => c.id === id) : { kind, d: today(), amt: "", ck: kind === "in" ? "sales" : "buy", sub: "", vat: "", note: "" };
   if (!x) return; kind = x.kind;
-  const cats = kind === "in" ? CASH_IN : CASH_OUT;
-  sheet(kind === "in" ? "＋ Είσπραξη" : "＋ Έξοδο", `<div class="card"><label class="f" for="cxA">Ποσό (€)</label><input class="t" id="cxA" inputmode="decimal" value="${x.amt !== "" ? K.num(x.amt) : ""}" style="font-size:22px;font-weight:800">
-   <label class="f" for="cxD">Ημερομηνία</label><input class="t" id="cxD" type="date" value="${esc(x.d)}">
-   <label class="f" for="cxC">Κατηγορία</label><select class="t" id="cxC">${cats.map(c => `<option${c === x.cat ? " selected" : ""}>${c}</option>`).join("")}</select>
-   <label class="f" for="cxN">Σημείωση</label><input class="t" id="cxN" value="${esc(x.note || "")}" maxlength="80"></div>
+  if (!x.ck) { const k = CKINDS.find(k => k.dir === kind && k.subs.includes(x.cat)); x.ck = k ? k.id : kind === "in" ? "cinother" : "cother"; x.sub = k ? x.cat : ""; }
+  const kinds = CKINDS.filter(k => k.dir === kind), cur = ckOf(x.ck) || kinds[0];
+  sheet(kind === "in" ? "＋ Έσοδο" : "＋ Έξοδο", `<div class="card"><label class="f" for="cxA" style="margin-top:0">Ποσό (€)</label><input class="t" id="cxA" inputmode="decimal" value="${x.amt !== "" ? K.num(x.amt) : ""}" style="font-size:22px;font-weight:800">
+   <div class="two"><div><label class="f" for="cxD">Ημερομηνία</label><input class="t" id="cxD" type="date" value="${esc(x.d)}"></div><div><label class="f" for="cxV">ΦΠΑ</label><select class="t" id="cxV"><option value="">—</option>${[24, 13, 6, 0].map(v => `<option value="${v}"${String(x.vat) === String(v) ? " selected" : ""}>${v}%</option>`).join("")}</select></div></div></div>
+   <div class="card"><h3>Κατηγορία</h3><div class="chips" style="flex-wrap:wrap">${kinds.map(k => `<button type="button" class="chip${k.id === cur.id ? " on" : ""}" data-ck="${k.id}">${k.emoji} ${esc(k.name)}</button>`).join("")}</div>
+    <div id="cxSubs">${subsHTML(cur, x.sub)}</div></div>
+   <div class="card"><label class="f" for="cxN" style="margin-top:0">Σημείωση</label><input class="t" id="cxN" value="${esc(x.note || "")}" maxlength="80" placeholder="π.χ. προμηθευτής, αριθμός παραστατικού"></div>
+   <p class="note">Οι ίδιες κατηγορίες με το βιβλίο «Εταιρεία» της εφαρμογής Ταμεία.</p>
    ${id ? `<button type="button" class="btn red wide" data-act="cashDel">Διαγραφή κίνησης</button>` : ""}`,
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="cashSave">Αποθήκευση</button>`,
-   el => { el.dataset.cid = id || ""; el.dataset.ckind = kind; setTimeout(() => { const i = el.querySelector("#cxA"); i && i.focus(); }, 80); });
+   el => { el.dataset.cid = id || ""; el.dataset.ckind = kind; el.dataset.xck = cur.id; el.dataset.xsub = x.sub || ""; setTimeout(() => { const i = el.querySelector("#cxA"); i && i.focus(); }, 80); });
 }
+function subsHTML(k, sel) { return k.subs.length ? `<label class="f">Είδος</label><div class="chips" style="flex-wrap:wrap">${k.subs.map(sb => `<button type="button" class="chip${sb === sel ? " on" : ""}" data-csub="${esc(sb)}">${esc(sb)}</button>`).join("")}</div>` : ""; }
 
 function prepView() {
   const act = S.orders.filter(o => o.st !== "cancel" && o.st !== "dup");
@@ -1092,7 +1126,7 @@ async function backupSheet() {
    <div class="card"><h3>Φάκελος στο κινητό</h3><p class="note" style="margin-top:0">Δεύτερη επιλογή, για όσους δεν έχουν Google Drive. Γράφει αυτόματα στο «GlenApps › Παραγγελίες» μέσα στον φάκελο που θα διαλέξεις (προτείνεται οι «Λήψεις»).</p>
     ${hasDir ? (ph ? `<div class="okbox">✓ Ενεργός${S.phone && S.phone.last ? " · τελευταίο " + fmtTime(S.phone.last) : ""}</div><div class="row"><button type="button" class="btn sm amber grow" data-act="phNow">Αντίγραφο τώρα</button><button type="button" class="btn sm soft grow" data-act="phRestore">Επαναφορά</button><button type="button" class="btn sm soft" data-act="phOff">✕</button></div>` : `<button type="button" class="btn amber wide" data-act="phOn">Επιλογή φακέλου</button>`) : `<p class="note">Αυτός ο περιηγητής δεν υποστηρίζει φάκελο· χρησιμοποίησε το αρχείο από κάτω.</p>`}</div>
    <div class="card"><h3>Αρχείο</h3><div class="row"><button type="button" class="btn sm soft grow" data-act="fileOut">⬇️ Λήψη αρχείου</button><label class="btn sm soft grow">⬆️ Επαναφορά από αρχείο<input type="file" accept=".json,application/json" id="fileIn" hidden></label></div></div>
-   <p class="note">Το αντίγραφο περιέχει τον κατάλογο, τις παραγγελίες, τους πελάτες και τα κλειδιά κρυπτογράφησης. Κράτα το ιδιωτικό.</p></div>`, "",
+   <p class="note">Το αντίγραφο περιέχει όλα τα δεδομένα: στοιχεία και εμφάνιση επιχείρησης, κατάλογο με φωτογραφίες, τιμές και ιστορικό τιμών, παραγγελίες, πελάτες με ημέρες παράδοσης, βαθμολογίες και οφειλές, ταμείο (έσοδα και έξοδα), αργίες, ρυθμίσεις, άδεια Pro και τα κλειδιά κρυπτογράφησης. Γράφεται αυτόματα μετά από κάθε αλλαγή. Κράτα το ιδιωτικό.</p></div>`, "",
    el => { const fi = el.querySelector("#fileIn"); fi && fi.addEventListener("change", async e => { const f = e.target.files[0]; if (f) restoreText(await f.text()); }); });
 }
 function restoreText(txt) {
@@ -1201,7 +1235,7 @@ const ACT = {
   },
   demoStart: () => demoStart(),
   demoEnd: () => demoEnd(),
-  cashSave: () => { const b = $("#shB"), v = K.parseNum($("#cxA").value); if (!isFinite(v) || v <= 0) { toast("Γράψε ποσό."); return; } const id = b.dataset.cid; let x = id && cashList().find(c => c.id === id); if (!x) { x = { id: "c" + K.uid(6), kind: b.dataset.ckind, src: "paraggelies", created: Date.now() }; cashList().push(x); } Object.assign(x, { d: $("#cxD").value || today(), amt: K.round2(v), cat: $("#cxC").value, note: $("#cxN").value.trim() }); save(); closeSheet(); render(); toast("✓ Καταχωρίστηκε"); },
+  cashSave: () => { const b = $("#shB"), v = K.parseNum($("#cxA").value); if (!isFinite(v) || v <= 0) { toast("Γράψε ποσό."); return; } const id = b.dataset.cid; let x = id && cashList().find(c => c.id === id); if (!x) { x = { id: "c" + K.uid(6).replace(/[.]/g, "x"), kind: b.dataset.ckind, src: "paraggelies", created: Date.now() }; cashList().push(x); } const k = ckOf(b.dataset.xck); Object.assign(x, { d: $("#cxD").value || today(), amt: K.round2(v), ck: b.dataset.xck, sub: b.dataset.xsub || "", cat: b.dataset.xsub || (k ? k.name : ""), vat: $("#cxV").value === "" ? "" : +$("#cxV").value, note: $("#cxN").value.trim() }); save(); closeSheet(); render(); toast("✓ Καταχωρίστηκε"); },
   cashDel: () => { const id = $("#shB").dataset.cid; if (!confirm("Διαγραφή της κίνησης;")) return; S.cash = cashList().filter(c => c.id !== id); save(); closeSheet(); render(); },
   clAdd: () => { const v = $("#dvClAdd").value; if (!/^\d{4}-\d\d-\d\d$/.test(v)) { toast("Διάλεξε ημερομηνία."); return; } const d = S.deliv; d.closed = [...new Set((d.closed || []).concat(v))]; save({ catalog: true }); keepDeliv(); },
   rtLink: async () => { const c = delivSave(true); if (c) { await custLinkSheet(c.key); } },
@@ -1264,6 +1298,7 @@ const ACT = {
   phOn: async () => { try { const h = await window.showDirectoryPicker({ id: "backups", mode: "readwrite", startIn: "downloads" }); await PH.set(h); await PH.write(true); toast("✓ Γράφτηκε το πρώτο αντίγραφο."); } catch (e) { if (e && e.name !== "AbortError") { toast("Δεν έγινε· κατεβαίνει αρχείο."); ACT.fileOut(); } } backupSheet(); },
   phNow: async () => { try { toast(await PH.write(true) ? "✓ Γράφτηκε αντίγραφο." : "Δεν δόθηκε άδεια."); } catch { toast("Δεν γράφτηκε."); } backupSheet(); },
   phOff: async () => { await PH.set(null); backupSheet(); },
+  seeNew: () => A.seeNew(),
   phRestore: async () => { const L = await PH.list(); sheet("Επαναφορά από φάκελο", `<div class="card list">${L.map((f, i) => `<div class="it" data-phf="${esc(f.n)}"><div class="ic">📄</div><div class="t"><b>${esc(f.n)}</b>${i === 0 ? `<span>νεότερο</span>` : ""}</div></div>`).join("") || `<p class="note">Δεν βρέθηκαν αντίγραφα.</p>`}</div>`); A._phl = L; },
   fileOut: () => { download("paraggelies-antigrafo-" + today() + ".json", backupPayload(), "application/json"); S.meta.lastBackup = new Date().toISOString(); save(); }
 };
@@ -1285,6 +1320,8 @@ document.addEventListener("click", async e => {
   const dc = t.closest("[data-diag-copy]"); if (dc) { try { await navigator.clipboard.writeText($("#shB")._diag[+dc.dataset.diagCopy]); toast("✓ Αντιγράφηκε. Επικόλλησέ το στο Viber."); } catch { toast("Δεν έγινε αντιγραφή."); } return; }
   const nf = t.closest("[data-ntf]"); if (nf) { const o = S.orders.find(x => x.id === nf.dataset.oid); if (o && nf.dataset.ntf !== "τηλέφωνο" || (o && nf.dataset.ntf === "τηλέφωνο")) { o.notified = o.notified || {}; o.notified[o.st] = { at: Date.now(), via: nf.dataset.ntf }; o.log.push([Date.now(), "Ενημέρωση πελάτη (" + nf.dataset.ntf + "): " + ST[o.st]]); save(); setTimeout(() => { if (isSheetOpen() && $("#shB").dataset.ord === o.id) openOrder(o.id); render(); }, 600); } }
   const rt = t.closest("[data-rate]"); if (rt) { const b = $("#shB"); b._r = b._r || {}; b._r[rt.dataset.rate] = +rt.dataset.v; rt.parentElement.querySelectorAll("[data-rate][data-v]").forEach(x => { if (+x.dataset.v > 0) x.style.color = +x.dataset.v <= +rt.dataset.v ? "#F2B632" : "#cfd6db"; }); return; }
+  const ckb = t.closest("[data-ck]"); if (ckb) { const b = $("#shB"); b.dataset.xck = ckb.dataset.ck; b.dataset.xsub = ""; $$("[data-ck]").forEach(x => x.classList.toggle("on", x === ckb)); $("#cxSubs").innerHTML = subsHTML(ckOf(ckb.dataset.ck), ""); return; }
+  const csb = t.closest("[data-csub]"); if (csb) { const b = $("#shB"); b.dataset.xsub = b.dataset.xsub === csb.dataset.csub ? "" : csb.dataset.csub; $$("[data-csub]").forEach(x => x.classList.toggle("on", x.dataset.csub === b.dataset.xsub)); return; }
   const cs = t.closest("[data-cash]"); if (cs) { cashSheet(cs.dataset.cash); return; }
   const ce = t.closest("[data-cashed]"); if (ce) { cashSheet(null, ce.dataset.cashed); return; }
   const cd = t.closest("[data-cldel]"); if (cd) { S.deliv.closed = (S.deliv.closed || []).filter(x => x !== cd.dataset.cldel); save({ catalog: true }); keepDeliv(); return; }
