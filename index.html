@@ -8,7 +8,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.36">
+<meta name="app-version" content="1.37">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#17324D">
 <title>Παραγγελίες</title>
@@ -17,9 +17,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Παραγγελίες">
 <meta name="description" content="Οι πελάτες σου παραγγέλνουν από σύνδεσμο στο Viber, χωρίς τηλεφωνήματα.">
-<link rel="icon" href="eikonidia/icon-192.png?v=1.36">
-<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.36">
-<link rel="stylesheet" href="koino.css?v=1.36">
+<link rel="icon" href="eikonidia/icon-192.png?v=1.37">
+<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.37">
+<link rel="stylesheet" href="koino.css?v=1.37">
 <style>
 :root{--brand:#17324D;--onbrand:#fff;--accent:#F2B632;--onaccent:#17324D;--paper:#EDF1F2;--card:#fff;--ink:#16232f;--mute:#5d6873;--line:#d9dfe3;--ok:#1f7a3d;--bad:#b3261e;--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D}
 *{box-sizing:border-box}
@@ -120,6 +120,13 @@ body.editing{padding-bottom:140px}
 .pghost{position:fixed;z-index:999;pointer-events:none;background:#fff;border-radius:12px;padding:10px 12px!important;box-shadow:0 14px 34px rgba(0,0,0,.3);transform:scale(1.03) rotate(-.8deg);opacity:.96}
 .pitems{min-height:44px}
 .cxg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.cxt{border:1.5px solid var(--line);background:#fff;border-radius:14px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;font:inherit;cursor:pointer;min-height:88px;justify-content:center}.cxt .e{font-size:30px;line-height:1}.cxt .n{font-size:12.5px;font-weight:700;text-align:center;line-height:1.2}.cxt.on{border-color:var(--brand);background:#e8eef5;box-shadow:0 0 0 2px var(--brand) inset}
+.rtc{display:flex;align-items:center;gap:10px;padding:10px 4px;border-top:1px solid var(--line);cursor:pointer}.rtc:first-of-type{border-top:0}.rtc input{width:22px;height:22px;flex:none;accent-color:var(--ok)}.rtc .t{flex:1;display:flex;flex-direction:column;min-width:0}.rtc .t small{color:var(--mute);font-size:13px}.rtc .am{white-space:nowrap}.rtc.na{opacity:.75}
+.rtseg{display:flex;gap:6px;flex-wrap:wrap}.rtseg button{flex:1;min-width:30%;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:10px 6px;font:inherit;font-weight:700;font-size:14px;cursor:pointer}.rtseg button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.rtgo{position:sticky;bottom:calc(var(--tabh,70px) + 8px);z-index:5;padding:6px 0}.rtgo .btn{box-shadow:0 6px 18px rgba(0,0,0,.18);font-size:17px;padding:15px}.rtgo .btn[disabled]{opacity:.5}
+.rtmap{height:320px;border-radius:16px;overflow:hidden;margin:0 0 10px;background:#e8eef0;border:1px solid var(--line)}.rtnav{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.rtpin{width:30px;height:30px;border-radius:50%;background:#0B6E4F;color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}.rtpin.end{background:#17324D}
+.card.route{padding:8px 12px}.route .node{display:flex;gap:10px}.route .rail{display:flex;flex-direction:column;align-items:center;width:30px;flex:none;position:relative}.route .rail::after{content:"";flex:1;width:3px;background:#A8D8B7;margin:2px 0}.route .node:last-child .rail::after{display:none}.route .pin{width:30px;height:30px;border-radius:50%;background:#0B6E4F;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}.route .pin.end{background:#17324D}.route .body{flex:1;min-width:0;padding:4px 0 14px}.route .title{font-weight:800;font-size:16px}.route .meta{color:var(--mute);font-size:13.5px}.route .node.off{opacity:.55}.route .node.off .pin{background:#9aa}.rleg{display:block;font-size:12.5px;color:#2E7D5B;font-weight:700;margin-bottom:2px}.rleg:empty{display:none}.rtit{background:#F5F8F6;border-radius:12px;padding:8px 10px;margin-top:6px;font-size:14px}
+.tmopen{display:flex;align-items:center;gap:12px;width:100%;border:1.5px solid #A8D8B7;background:#E3F1E8;color:#14532D;border-radius:16px;padding:12px 14px;font:inherit;text-align:left;cursor:pointer;margin:0 0 12px}.tmopen .e{font-size:28px}.tmopen .t{flex:1;display:flex;flex-direction:column}.tmopen .t b{font-size:16px}.tmopen .t small{font-size:12.5px;opacity:.85}.tmopen .g{font-size:22px}
 .bigopts{display:flex;flex-direction:column;gap:10px}.bigopt{display:flex;align-items:center;gap:14px;border:1.5px solid var(--line);background:#fff;border-radius:16px;padding:16px;font:inherit;text-align:left;cursor:pointer}.bigopt .e{font-size:34px}.bigopt .t{flex:1;display:flex;flex-direction:column}.bigopt .t b{font-size:17px}.bigopt .t small{color:var(--mute);font-size:13.5px}.bigopt .g{font-size:24px;color:var(--mute)}
 .anr{padding:8px 0;border-bottom:1px solid var(--line)}.anr:last-child{border-bottom:0}.anh{display:flex;justify-content:space-between;gap:8px}.anb{height:8px;background:#eef1f3;border-radius:5px;margin:5px 0 3px;overflow:hidden}.anb i{display:block;height:100%;border-radius:5px}.ans{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);padding:1px 0 1px 12px}
 .holr{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer}.holr:last-child{border-bottom:0}.holr .hd{flex:0 0 50px;height:50px;border-radius:12px;background:#E3F1E8;color:#1f5c2e;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}.holr .hd b{font-size:20px}.holr .hd small{font-size:12px;font-weight:700}.holr .hn{flex:1;min-width:0;display:flex;flex-direction:column}.holr .hn b{font-size:16px}.holr .hn small{font-size:13px;color:var(--mute)}.holr.off .hd{background:#eef1f3;color:var(--mute)}.holr.off .hn b{color:var(--mute);font-weight:600}.holx summary::-webkit-details-marker{display:none}
@@ -183,12 +190,12 @@ body.editing{padding-bottom:140px}
 </nav>
 <div class="sheetbg" id="sheetbg"><div class="sheet"><div class="sh"><h2 id="shT"></h2><button type="button" class="x" data-act="shClose" aria-label="Κλείσιμο">✕</button></div><div class="sb" id="shB"></div><div class="sf" id="shF"></div></div></div>
 <div id="toast"></div>
-<script src="katalogos.js?v=1.36"></script>
-<script src="antigrafa.js?v=1.36"></script>
-<script src="efarmoges-mas.js?v=1.36"></script>
-<script src="protypa.js?v=1.36"></script>
-<script src="efarmogi.js?v=1.36"></script>
-<script src="epexergasia.js?v=1.36"></script>
-<script src="excel.js?v=1.36"></script>
+<script src="katalogos.js?v=1.37"></script>
+<script src="antigrafa.js?v=1.37"></script>
+<script src="efarmoges-mas.js?v=1.37"></script>
+<script src="protypa.js?v=1.37"></script>
+<script src="efarmogi.js?v=1.37"></script>
+<script src="epexergasia.js?v=1.37"></script>
+<script src="excel.js?v=1.37"></script>
 </body>
 </html>

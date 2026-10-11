@@ -52,6 +52,10 @@
 .tile.marked{box-shadow:0 0 0 3px #1f7a3d}
 .tile.dragging{opacity:1;background:transparent!important;border:2px dashed var(--c2,#F2B632);box-shadow:none}
 .tile.dragging>*{visibility:hidden}
+.tile.drop-into{outline:4px solid #16a34a;outline-offset:2px;transform:scale(1.06);transition:transform .12s}
+.tile.drop-into::after{content:"⬇ Μέσα";position:absolute;top:6px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-size:12px;font-weight:800;padding:2px 9px;border-radius:999px;z-index:3;white-space:nowrap}
+.crumbs button.drop-into{outline:3px solid #16a34a;background:#dcfce7;border-radius:8px}
+.ghost-tile.going-in{transform:scale(.8) rotate(0deg);opacity:.75}
 .ghost-tile{position:fixed;z-index:999;pointer-events:none;opacity:.95;transform:scale(1.06) rotate(-1.5deg);box-shadow:0 14px 34px rgba(0,0,0,.32);margin:0}
 .tile.drop-before{box-shadow:-5px 0 0 0 #1f7a3d}
 .tile.drop-after{box-shadow:5px 0 0 0 #1f7a3d}

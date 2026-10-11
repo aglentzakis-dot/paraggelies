@@ -62,7 +62,7 @@ A.menuView = function (m) {
   ${path.length ? `<div style="display:flex;align-items:center;gap:8px;margin:2px 2px 12px;border-bottom:3px solid var(--accent);padding-bottom:8px"><h2 style="margin:0;font-size:24px;flex:1;min-width:0">${path[path.length - 1].emoji ? esc(path[path.length - 1].emoji) + " " : ""}${esc(path[path.length - 1].name || "Χωρίς όνομα")}</h2><button type="button" class="btn soft sm" data-ea="catEdit">✏️ Ρυθμίσεις</button></div>` : ""}`;
   const empty = !st.menu.length;
   m.innerHTML = seg + crumbs +
-    (ed.hint && L.length ? `<div class="note" style="margin:0 0 10px"><b>Πάτα ένα προϊόν</b> για να αλλάξεις όνομα και τιμή. <b>Πάτα μια κατηγορία</b> για να μπεις μέσα της. Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά. <a href="#" data-ea="hintOff">Εντάξει</a></div>` : "") +
+    (ed.hint && L.length ? `<div class="note" style="margin:0 0 10px"><b>Πάτα ένα προϊόν</b> για να αλλάξεις όνομα και τιμή. <b>Πάτα μια κατηγορία</b> για να μπεις μέσα της. Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά, ή άφησέ το <b>πάνω σε μια κατηγορία</b> για να μπει μέσα της. <a href="#" data-ea="hintOff">Εντάξει</a></div>` : "") +
     (empty ? presetsHTML() : "") +
     (() => { const nd = liveProducts().filter(p => p.draft).length; return nd ? `<div class="warnbox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><div style="flex:1">📝 <b>${nd === 1 ? "1 ενδεικτικό προϊόν" : nd + " ενδεικτικά προϊόντα"}</b> ${nd === 1 ? "δεν φαίνεται" : "δεν φαίνονται"} ακόμα στους πελάτες (αχνά κουμπιά).</div><button type="button" class="btn sm amber" data-ev="list">Έλεγχος και ενεργοποίηση</button></div>` : ""; })() +
     (() => { if (ed.path.length) return ""; const lo = st.menu.filter(n => n.t === "p").length; return lo && st.menu.some(n => n.t === "c") ? `<div class="warnbox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><div style="flex:1">Έχεις <b>${lo} ${lo === 1 ? "προϊόν" : "προϊόντα"} χύμα</b> στην αρχική, ανάμεσα στις κατηγορίες. Ο πελάτης τα βλέπει μπερδεμένα.</div><button type="button" class="btn sm amber" data-ea="tidy">🧹 Τακτοποίηση</button></div>` : ""; })() +
@@ -348,12 +348,29 @@ function bindDrag(grid) {
     move(x, y);
     try { navigator.vibrate && navigator.vibrate(25); } catch {}
   };
+  /* στόχος «μέσα σε κατηγορία» (πράσινο κουμπί) ή «πίσω σε προηγούμενο επίπεδο» (διαδρομή επάνω) */
+  const setInto = el => {
+    if (drag.into === el) return;
+    if (drag.into) drag.into.classList.remove("drop-into");
+    drag.into = el || null;
+    if (el) { el.classList.add("drop-into"); try { navigator.vibrate && navigator.vibrate(12); } catch {} }
+    drag.ghost.classList.toggle("going-in", !!el);
+  };
   const reorderAt = (x, y) => {
-    if (Date.now() < lockUntil) return;
     drag.ghost.style.display = "none";
     const under = document.elementFromPoint(x, y);
     drag.ghost.style.display = "";
+    const crumb = under && under.closest(".crumbs button[data-crumb]");
+    if (crumb && ed.path.length) { setInto(crumb); return; }
     const t = under && under.closest("#edGrid .tile");
+    if (t && t !== drag.el && t.classList.contains("cat") && !(ed.marked.size > 1 && ed.marked.has(drag.id) && ed.marked.has(t.dataset.node))) {
+      const r = t.getBoundingClientRect(), wide = r.width > grid.clientWidth * 0.8;
+      const inX = wide || (x > r.left + r.width * 0.2 && x < r.right - r.width * 0.2);
+      const inY = y > r.top + r.height * (wide ? 0.25 : 0.2) && y < r.bottom - r.height * (wide ? 0.25 : 0.2);
+      if (inX && inY) { setInto(t); return; }
+    }
+    setInto(null);
+    if (Date.now() < lockUntil) return;
     if (!t || t === drag.el) return;
     const r = t.getBoundingClientRect();
     const wide = r.width > grid.clientWidth * 0.8;
@@ -378,6 +395,7 @@ function bindDrag(grid) {
     clearTimeout(timer); clearInterval(scrollT);
     if (!drag) return;
     const d = drag; drag = null;
+    if (d.into) { dropInto(d); return; }
     /* το κουμπί «προσγειώνεται» στη νέα του θέση */
     const r = d.el.getBoundingClientRect();
     d.ghost.style.transition = "left .15s ease, top .15s ease, transform .15s ease, opacity .15s";
@@ -399,6 +417,39 @@ function bindDrag(grid) {
       suppressClick = Date.now();
       A.render();
     }, 160);
+  };
+  /* μεταφορά μέσα σε κατηγορία ή σε προηγούμενο επίπεδο */
+  const dropInto = d => {
+    const tgt = d.into, r = tgt.getBoundingClientRect();
+    d.ghost.style.transition = "left .2s ease, top .2s ease, transform .2s ease, opacity .2s";
+    d.ghost.style.left = (r.left + r.width / 2 - d.ghost.offsetWidth / 2) + "px"; d.ghost.style.top = (r.top + r.height / 2 - d.ghost.offsetHeight / 2) + "px";
+    d.ghost.style.transform = "scale(.2)"; d.ghost.style.opacity = "0";
+    setTimeout(() => {
+      d.ghost.remove(); tgt.classList.remove("drop-into");
+      const st = S(), L = curList();
+      let dest, name;
+      if (tgt.dataset.crumb != null) {
+        const i = +tgt.dataset.crumb;
+        if (i < 0) { dest = st.menu; name = "Αρχική"; }
+        else { const n = K.findNode(st.menu, ed.path[i]).node; dest = n.kids || (n.kids = []); name = n.name || "Χωρίς όνομα"; }
+      } else {
+        const n = L.find(x => x.id === tgt.dataset.node && x.t === "c");
+        if (!n) { A.render(); return; }
+        dest = n.kids || (n.kids = []); name = n.name || "Χωρίς όνομα";
+      }
+      const ids = ed.marked.has(d.id) && ed.marked.size > 1 ? L.filter(n => ed.marked.has(n.id) && n.id !== tgt.dataset.node).map(n => n.id) : [d.id];
+      let moved = 0;
+      for (const id of ids) {
+        const i = L.findIndex(n => n.id === id); if (i < 0) continue;
+        const [n] = L.splice(i, 1);
+        if (!(n.t === "p" && dest.some(x => x.t === "p" && x.pid === n.pid))) dest.push(n);
+        ed.marked.delete(id); moved++;
+      }
+      suppressClick = Date.now();
+      if (!moved) { A.render(); return; }
+      A.save({ catalog: true }); A.render();
+      A.toast("✓ " + (moved === 1 ? "Μπήκε" : "Μπήκαν " + moved) + " στο «" + name + "»", 2500);
+    }, 200);
   };
   const tileOf = e => { const t = e.target.closest(".tile"); return t && !e.target.closest(".mk") ? t : null; };
   grid.addEventListener("touchstart", e => {
