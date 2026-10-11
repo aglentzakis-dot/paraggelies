@@ -263,7 +263,11 @@ function listDrag(e, h) {
 }
 /* ---------- έτοιμοι κατάλογοι ανά επάγγελμα (protypa.js) ---------- */
 const PRESETS = window.PROTYPA || {};
-const prodCount = P => P.c.reduce((a, c) => a + c[2].length, 0);
+/* ένα στοιχείο είναι υποκατηγορία όταν το τρίτο του μέλος είναι λίστα: [όνομα, εικονίδιο, [ ... ]] */
+const isSub = it => Array.isArray(it) && Array.isArray(it[2]);
+const countIn = items => items.reduce((a, it) => a + (isSub(it) ? countIn(it[2]) : 1), 0);
+const subCount = items => items.reduce((a, it) => a + (isSub(it) ? 1 + subCount(it[2]) : 0), 0);
+const prodCount = P => countIn(P.c);
 function presetGrid() {
   const groups = {};
   for (const [k, v] of Object.entries(PRESETS)) (groups[v.g] = groups[v.g] || []).push([k, v]);
@@ -283,26 +287,33 @@ function presetSheet(k) {
   const P = PRESETS[k]; if (!P) return;
   A.sheet(P.e + " " + P.n, `<p class="note" style="margin-top:0">${esc(P.d || "")}</p>
    ${P.w ? `<div class="warnbox">⚖️ ${esc(P.w)}</div>` : ""}
-   ${P.c.map(([cn, ce, items]) => `<div class="card"><h3>${ce} ${esc(cn)}</h3>${items.map(([n, u, pr]) => `<div class="qrow"><div class="qn"><b>${esc(n)}</b><span>ανά ${esc(u)}</span></div><b>${K.money(pr)}</b></div>`).join("")}</div>`).join("")}
+   ${P.c.map(([cn, ce, items]) => `<div class="card"><h3>${ce} ${esc(cn)}</h3>${presetItemsHTML(items, 0)}</div>`).join("")}
    <div class="okbox">📝 Μπαίνουν ως <b>ενδεικτικά</b>: δεν τα βλέπουν οι πελάτες μέχρι να ελέγξεις τιμές και να πατήσεις «Ενεργοποίηση». Όσα δεν χρειάζεσαι, τα σβήνεις.</div>
-   <p class="note">${prodCount(P)} προϊόντα σε ${P.c.length} κατηγορίες. Τιμές και ΦΠΑ είναι ενδεικτικά· έλεγξέ τα και με τον λογιστή σου.${!A.isPro() ? " Η δωρεάν έκδοση (μετά τη δοκιμή) έχει έως " + A.FREE_PRODUCTS + " ενεργά προϊόντα." : ""}</p>
+   <p class="note">${prodCount(P)} προϊόντα σε ${P.c.length} κατηγορίες${subCount(P.c) - P.c.length > 0 ? " και " + (subCount(P.c) - P.c.length) + " υποκατηγορίες" : ""}. Τιμές και ΦΠΑ είναι ενδεικτικά· έλεγξέ τα και με τον λογιστή σου.${!A.isPro() ? " Η δωρεάν έκδοση (μετά τη δοκιμή) έχει έως " + A.FREE_PRODUCTS + " ενεργά προϊόντα." : ""}</p>
    ${Object.values(S().products).some(p => !p.del) ? `<button type="button" class="btn soft wide" data-preset-swap="${k}" style="margin-top:4px">🔄 Αντικατάσταση: σβήσε τον τωρινό κατάλογο και βάλε αυτόν</button><p class="note">Η αντικατάσταση σβήνει τα τωρινά προϊόντα και κατηγορίες (οι παλιές παραγγελίες μένουν). Μπορείς να την αναιρέσεις από το «Προϊόντα και τιμές».</p>` : ""}`,
    `<button type="button" class="btn soft" data-ea="presetBack">← Επαγγέλματα</button><button type="button" class="btn amber" data-preset-go="${k}">＋ Πρόσθεσέ τα</button>`);
+}
+function presetItemsHTML(items, d) {
+  return items.map(it => isSub(it) ? `<details${d ? "" : " open"} style="margin:6px 0 2px ${d * 10}px"><summary style="cursor:pointer;font-weight:800">${it[1]} ${esc(it[0])} <span class="note" style="font-weight:400">· ${countIn(it[2])}</span></summary>${presetItemsHTML(it[2], d + 1)}</details>`
+    : `<div class="qrow"><div class="qn"><b>${esc(it[0])}</b><span>ανά ${esc(it[1])}</span></div><b>${K.money(it[2])}</b></div>`).join("");
 }
 function applyPreset(k) {
   const st = S(), P = PRESETS[k]; if (!P) return;
   const target = ed.view === "menu" && ed.path.length ? curList() : st.menu;
   let count = 0;
-  for (const [cn, ce, items] of P.c) {
+  const build = (cn, ce, items) => {
     const cat = { id: newId(), t: "c", name: cn, emoji: ce, size: "m", kids: [] };
-    for (const [n, u, pr, step, o] of items) {
-      const id = "p" + K.uid(5), op = o || {};
+    for (const it of items) {
+      if (isSub(it)) { const sub = build(it[0], it[1], it[2]); if (sub.kids.length) cat.kids.push(sub); continue; }
+      const [n, u, pr, step, o] = it, id = "p" + K.uid(5), op = o || {};
       st.products[id] = { id, name: n, unit: u, price: pr, step: step || 1, vat: op.v != null ? op.v : 13, perish: !op.np, emoji: ce, hist: [[Date.now(), pr]], created: Date.now(), draft: true };
+      if (op.d) st.products[id].desc = op.d;
       cat.kids.push({ id: newId(), t: "p", pid: id, size: "m" });
       count++;
     }
-    if (cat.kids.length) target.push(cat);
-  }
+    return cat;
+  };
+  for (const [cn, ce, items] of P.c) { const cat = build(cn, ce, items); if (cat.kids.length) target.push(cat); }
   ed.view = "list"; ed.marked.clear(); ed.q = "";
   A.save({ catalog: true }); A.closeSheet(); A.render(); window.scrollTo(0, 0);
   A.toast("✓ Μπήκαν " + count + " ενδεικτικά προϊόντα. Δεν τα βλέπουν οι πελάτες μέχρι να ελέγξεις τιμές και να πατήσεις «Ενεργοποίηση».", 6000);
