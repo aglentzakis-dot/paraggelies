@@ -1270,6 +1270,9 @@ A.dvSheet = dvSheet;
 /* ---------- 🚐 Δρομολόγιο: διαλέγεις σε ποιους θα πας και βγαίνει η διαδρομή (ίδιο στήσιμο με την εφαρμογή Δρομολόγιο) ---------- */
 const RT = { step: "pick", day: "today", sel: null, off: new Set(), res: null, busy: false };
 const rtPref = () => S.ui.rt || (S.ui.rt = { from: "base", fromText: "", end: "back", endText: "", mode: "fast", real: true });
+/* «χωρίς διόδια»: η δημόσια υπηρεσία διαδρομών δεν το υποστηρίζει σταθερά, οπότε μένει κρυφό (ο κώδικας μένει για όταν βρεθεί υπηρεσία που το κάνει σωστά) */
+const TOLLS_ON = false;
+const rtNoToll = () => TOLLS_ON && rtPref().tolls === false;
 const rtKm = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng); const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.min(1, Math.sqrt(h))) * 1.3; };
 const rtFmtKm = k => (k < 10 ? K.num(Math.round(k * 10) / 10) : K.num(Math.round(k))) + " χλμ";
 const rtMin = m => m < 60 ? Math.round(m) + " λεπτά" : Math.floor(m / 60) + " ώρ. " + Math.round(m % 60) + " λεπ.";
@@ -1314,7 +1317,7 @@ function routeView() {
     ${P.end === "text" ? `<input class="t" id="rtEndT" value="${esc(P.endText)}" placeholder="π.χ. Αποθήκη, Αχαρνών 200" style="margin-top:6px">` : ""}
     <h3 style="margin-top:12px">Τρόπος διαδρομής</h3><div class="seg rtseg">${modes.map(([k, l]) => `<button type="button" class="${P.mode === k ? "on" : ""}" data-rtmode="${k}">${l}</button>`).join("")}</div>
     <p class="note" style="margin:6px 0 0">${P.mode === "fast" ? "Βάζει μόνη της τη σειρά με τα λιγότερα λεπτά οδήγησης." : P.mode === "time" ? "Πρώτα όσοι έχουν νωρίτερη ώρα παράδοσης, μετά οι υπόλοιποι με τη συντομότερη σειρά." : "Τελειώνεις μία περιοχή και μετά πας στην επόμενη, με τη συντομότερη σειρά."}</p>
-    <h3 style="margin-top:12px">Διόδια</h3><div class="seg rtseg">${[[true, "🛣 Με διόδια"], [false, "🚫 Χωρίς διόδια"]].map(([k, l]) => `<button type="button" class="${(P.tolls !== false) === k ? "on" : ""}" data-rttoll="${k ? 1 : 0}">${l}</button>`).join("")}</div>
+    ${TOLLS_ON ? `<h3 style="margin-top:12px">Διόδια</h3><div class="seg rtseg">${[[true, "🛣 Με διόδια"], [false, "🚫 Χωρίς διόδια"]].map(([k, l]) => `<button type="button" class="${(P.tolls !== false) === k ? "on" : ""}" data-rttoll="${k ? 1 : 0}">${l}</button>`).join("")}</div>` : ""}
     <label class="ck" style="margin-top:8px"><input type="checkbox" id="rtReal"${P.real ? " checked" : ""}> Πραγματικά χιλιόμετρα και λεπτά από τον δρόμο</label></div>
    <div class="chips">${[["today", "Σήμερα"], ["tom", "Αύριο"], ["all", "Όλες οι ανοιχτές"]].map(([k, l]) => `<button type="button" class="chip${RT.day === k ? " on" : ""}" data-rtday="${k}">${l}</button>`).join("")}</div>
    <div class="card"><div style="display:flex;align-items:center;gap:8px"><h3 style="margin:0;flex:1">🚚 Παραδόσεις <span class="note" style="font-weight:400">· ${del.length}</span></h3>${del.length ? `<button type="button" class="lnk sm" data-rtall="del">Όλες / καμία</button>` : ""}</div>
@@ -1334,7 +1337,21 @@ const GR_ABBR = [[/(^|[\s,])Λεωφ\.?\s*/gi, "$1Λεωφόρος "], [/(^|[\s,
 function geoClean(q) { let t = " " + String(q || "") + " "; for (const [r, w] of GR_ABBR) t = t.replace(r, w); return t.replace(/\s+/g, " ").replace(/\s*,\s*/g, ", ").trim().replace(/^,|,$/g, "").trim(); }
 const geoKm = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng); const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.min(1, Math.sqrt(h))); };
 let geoChain = Promise.resolve();
-function geoAsk(q) { const p = geoChain.then(() => geoAsk0(q)); geoChain = p.catch(() => null); return p; }
+/* κάθε αναζήτηση γίνεται μία φορά: μνήμη αποτελεσμάτων (30 μέρες) και κοινό αίτημα όταν ζητιέται ταυτόχρονα
+   (π.χ. το «Μαρκόπουλο» για όλους τους πελάτες του Μαρκόπουλου). Μία αναζήτηση το δευτερόλεπτο, όπως ζητά το OpenStreetMap. */
+const geoFly = {};
+function geoAsk(q) {
+  const k = K.norm(q), Q = S.geoQ || (S.geoQ = {}), m = Q[k];
+  if (m && Date.now() - m.at < 30 * 864e5) return Promise.resolve(m.L);
+  if (geoFly[k]) return geoFly[k];
+  const p = geoChain.then(() => geoAsk0(q)).then(L => {
+    delete geoFly[k];
+    if (L !== null) { Q[k] = { L: L.slice(0, 5), at: Date.now() }; const ks = Object.keys(Q); if (ks.length > 600) ks.sort((a, b) => Q[a].at - Q[b].at).slice(0, 100).forEach(x => delete Q[x]); }
+    return L;
+  });
+  geoChain = p.catch(() => null); geoFly[k] = p; return p;
+}
+const GEO_MISS = 7 * 864e5;   /* διεύθυνση που δεν βρέθηκε: ξαναψάχνεται σε 7 μέρες, ή αμέσως αν αλλάξει */
 /* οι θέσεις των πελατών βρίσκονται στο παρασκήνιο, για να ανοίγει ο χάρτης αμέσως με όλες τις πινέζες */
 let geoPreT = null, geoPreOn = false;
 function geoPrefetchSoon(ms) { clearTimeout(geoPreT); geoPreT = setTimeout(geoPrefetch, ms == null ? 15000 : ms); }
@@ -1344,7 +1361,7 @@ async function geoPrefetch() {
     await geoBase();
     const L = Object.values(S.customers).filter(c => (c.addr || "").trim() && !custPin(c.key) && !custGeoCached(c));
     let n = 0;
-    for (const c of L) { const k = K.norm(String(c.addr || "").trim() + "|" + String(c.area || "").trim()), g = geoMem()[k]; if (g && g.miss && Date.now() - g.miss < 36e5) continue; await custGeo(c); n++; if (tab === "map") break; }
+    for (const c of L) { const k = K.norm(String(c.addr || "").trim() + "|" + String(c.area || "").trim()), g = geoMem()[k]; if (g && g.miss && Date.now() - g.miss < GEO_MISS) continue; await custGeo(c); n++; if (n % 5 === 0) save(); if (tab === "map") break; }
     if (n) save();
   } finally { geoPreOn = false; }
 }
@@ -1369,7 +1386,7 @@ async function geoFind(q, ctx) {
   const area = String(ctx.area || "").trim();
   const k = K.norm(q + "|" + area), G = geoMem();
   if (G[k] && G[k].lat != null) return G[k];
-  if (G[k] && G[k].miss && Date.now() - G[k].miss < 36e5) return null;
+  if (G[k] && G[k].miss && Date.now() - G[k].miss < GEO_MISS) return null;
   const base = ctx.noBase ? null : await geoBase(), FAR = 150;
   const full = geoClean(q), parts = full.split(",").map(x => x.trim()).filter(Boolean);
   const hasArea = area && K.norm(full).includes(K.norm(area));
@@ -1378,7 +1395,7 @@ async function geoFind(q, ctx) {
   const tries = [];
   const add = (t, approx) => { t = t.replace(/\s+/g, " ").trim(); if (t && !tries.some(x => x.t === t)) tries.push({ t, approx }); };
   if (area && !hasArea) add(full + ", " + area, false);
-  add(full, false);
+  if (!(area && !hasArea)) add(full, false);
   if (town && noNum && noNum !== street) add(noNum + ", " + town, false);
   if (town) add(town, true);
   let failedNet = false;
@@ -1432,7 +1449,7 @@ function rtOrder(A, pts, B, mode) {
 /* πραγματικός δρόμος (δημόσια υπηρεσία OSRM): για «γρηγορότερη» ζητάμε και τη σειρά με τα λιγότερα λεπτά */
 async function osrm(path, q) {
   if (!navigator.onLine) return null;
-  if (rtPref().tolls === false) { const r = await osrm0(path, q + "&exclude=toll"); if (r) return r; RT.tollWarn = true; }
+  if (rtNoToll()) { const r = await osrm0(path, q + "&exclude=toll"); if (r) return r; RT.tollWarn = true; }
   return osrm0(path, q);
 }
 async function osrm0(path, q) {
@@ -1497,7 +1514,7 @@ async function rtRefine() {
   if (rt) {
     const legs = rt.legs.map(l => ({ km: l.distance / 1000, min: l.duration / 60, geo: (l.steps || []).flatMap(st => (st.geometry && st.geometry.coordinates) || []) }));
     const back = !!R.B && legs.length > 1, go = back ? legs.slice(0, -1) : legs, bk = back ? legs[legs.length - 1] : null;
-    R.road = { km: rt.distance / 1000, min: rt.duration / 60, geoGo: go.flatMap(l => l.geo), geoBack: bk ? bk.geo : null, backKm: bk ? bk.km : 0, backMin: bk ? bk.min : 0, legs, sig: llq(L), noToll: rtPref().tolls === false && !RT.tollWarn };
+    R.road = { km: rt.distance / 1000, min: rt.duration / 60, geoGo: go.flatMap(l => l.geo), geoBack: bk ? bk.geo : null, backKm: bk ? bk.km : 0, backMin: bk ? bk.min : 0, legs, sig: llq(L), noToll: rtNoToll() && !RT.tollWarn };
   } else R.road = null;
   const el = $("#rtSum"); if (el) el.innerHTML = rtSumHTML();
   rtLegs(); rtMap();
@@ -1506,7 +1523,7 @@ function rtSumHTML() {
   const R = RT.res, n = rtActive().length, e = rtEst(), road = R.road && R.road.sig === llq(rtLine()) ? R.road : null;
   const k = road ? road.km : e.km, m = road ? road.min + n * 4 : e.min;
   const leg = R.B ? `<div class="rtleg2"><span><i style="background:#0B6E4F"></i>Πήγαινε${road ? " " + rtFmtKm(road.km - road.backKm) + " · " + rtMin(road.min - road.backMin + n * 4) : ""}</span><span><i style="background:#E07A00"></i>Επιστροφή${road ? " " + rtFmtKm(road.backKm) + " · " + rtMin(road.backMin) : ""}</span></div>` : "";
-  const tl = rtPref().tolls === false ? (RT.tollWarn ? ` <span class="note" style="margin:0;color:#B45309">· η υπηρεσία δεν δέχτηκε «χωρίς διόδια», δείχνει κανονική διαδρομή</span>` : ` <span class="note" style="margin:0">· χωρίς διόδια</span>`) : "";
+  const tl = rtNoToll() ? (RT.tollWarn ? ` <span class="note" style="margin:0;color:#B45309">· η υπηρεσία δεν δέχτηκε «χωρίς διόδια», δείχνει κανονική διαδρομή</span>` : ` <span class="note" style="margin:0">· χωρίς διόδια</span>`) : "";
   return leg + `<b>${n === 1 ? "1 στάση" : n + " στάσεις"}</b> · ${road ? "" : "περίπου "}${rtFmtKm(k)} · ${rtMin(m)}${tl}${road ? ` <span class="note" style="margin:0">(πραγματικός δρόμος, μαζί με 4 λεπτά ανά στάση)</span>` : rtPref().real && R.tried !== llq(rtLine()) ? ` <span class="note" style="margin:0">υπολογίζω πραγματικό δρόμο…</span>` : ` <span class="note" style="margin:0">εκτίμηση σε ευθεία</span>`}`;
 }
 const gmLL = p => p.lat.toFixed(6) + "," + p.lng.toFixed(6);
@@ -1515,7 +1532,7 @@ function rtGmaps() {
   const R = RT.res, S2 = rtActive(), L = S2.map(p => p.loc).concat(R.B ? [R.B] : []), out = [];
   let start = R.A, i = 0, part = 1;
   while (i < L.length) { const chunk = L.slice(i, i + 10), dest = chunk[chunk.length - 1], wp = chunk.slice(0, -1);
-    const url = rtPref().tolls === false
+    const url = rtNoToll()
       ? "https://www.google.com/maps?saddr=" + gmLL(start) + "&daddr=" + chunk.map(gmLL).join("+to:") + "&dirflg=t"
       : "https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=" + gmLL(start) + "&destination=" + gmLL(dest) + (wp.length ? "&waypoints=" + encodeURIComponent(wp.map(gmLL).join("|")) : "");
     out.push({ part, from: i + 1, to: Math.min(i + chunk.length, S2.length), url });
@@ -1540,7 +1557,7 @@ function rtResHTML() {
       <div class="rthead"><div class="title">${esc(names)}</div><span class="rtic">${off ? "" : `${ph ? `<a href="tel:${esc(ph)}" aria-label="Κλήση">📞</a>` : ""}<a href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${gmLL(p.loc)}" target="_blank" rel="noopener" aria-label="Πλοήγηση μόνο εδώ">🧭</a>`}<button type="button" data-rtoff="${esc(p.key)}" aria-label="${off ? "Βάλ' την ξανά" : "Παράλειψη στάσης"}" title="${off ? "Βάλ' την ξανά" : "Παράλειψη στάσης"}">${off ? "↩" : "⏭"}</button></span></div><div class="meta">📍 ${esc(p.addr)}</div>${off ? "" : lines}</div></div>`; };
   const G = rtGmaps();
   return `<div class="row" style="margin:2px 2px 10px;align-items:center"><button type="button" class="btn soft sm" data-rt="back">‹ Στάσεις</button><h2 style="margin:0 0 0 6px;font-size:20px" class="grow">🚐 Διαδρομή</h2></div>
-   <div class="seg rtseg" style="margin-bottom:8px">${[[true, "🛣 Με διόδια"], [false, "🚫 Χωρίς διόδια"]].map(([k, l]) => `<button type="button" class="${(P.tolls !== false) === k ? "on" : ""}" data-rttoll="${k ? 1 : 0}">${l}</button>`).join("")}</div>
+   ${TOLLS_ON ? `<div class="seg rtseg" style="margin-bottom:8px">${[[true, "🛣 Με διόδια"], [false, "🚫 Χωρίς διόδια"]].map(([k, l]) => `<button type="button" class="${(P.tolls !== false) === k ? "on" : ""}" data-rttoll="${k ? 1 : 0}">${l}</button>`).join("")}</div>` : ""}
    <div class="card" id="rtSum" style="padding:12px 14px">${rtSumHTML()}</div>
    <div class="rtmapw"><div id="rtMap" class="rtmap"></div><button type="button" class="rtfull" data-rt="full">⛶ Όλη η οθόνη</button></div>
    <div class="rtnav">${G.map(g => `<a class="btn amber wide" href="${esc(g.url)}" target="_blank" rel="noopener">🧭 Πλοήγηση${G.length > 1 ? ` · μέρος ${g.part} (στάσεις ${g.from}–${g.to})` : " στους Χάρτες Google"}</a>`).join("")}</div>
@@ -1700,17 +1717,19 @@ async function cmDrawCust(fit) {
   if (!doFocus() && fit && pts.length) { if (pts.length === 1) M.setView(pts[0], 15); else M.fitBounds(pts, { padding: [40, 40], maxZoom: 16 }); }
   if (!L.length) toast("Κανένας πελάτης με αυτό το φίλτρο.", 2500);
   /* όσοι δεν έχουν βρεθεί ακόμα: ένας ένας, με μνήμη (την πρώτη φορά μόνο) */
-  const found = [];
+  /* όσοι βρίσκονται τώρα μπαίνουν σε ομάδες (κάθε 5 ή κάθε 3 δευτερόλεπτα), όχι ένας ένας και όχι μόνο στο τέλος */
+  let found = [], lastFlush = Date.now();
+  const flush = () => { for (const x of found) { put(x); cm.shown.push(x.c.key); } found = []; lastFlush = Date.now(); doFocus(); };
   for (const x of need) {
-    if (cm.stamp !== stamp || !($("#cmDlg") && $("#cmDlg").classList.contains("open"))) return;
+    if (cm.stamp !== stamp || !($("#cmDlg") && $("#cmDlg").classList.contains("open"))) { if (done) save(); return; }
     const p = await custGeo(x.c); done++;
     if (cm.stamp !== stamp) return;
     if (p) { x.loc = p; found.push(x); } else { miss++; cm.missList.push(x.c.key); }
+    if (found.length >= 5 || (found.length && Date.now() - lastFlush > 3000)) flush();
+    if (done % 5 === 0) save();
     status();
   }
-  /* όσοι βρέθηκαν τώρα μπαίνουν όλοι μαζί, όχι ένας ένας */
-  for (const x of found) { put(x); cm.shown.push(x.c.key); }
-  doFocus(); status();
+  flush(); status();
   if (need.length) { save(); if (pts.length && fit && !focused) { if (pts.length === 1) M.setView(pts[0], 15); else M.fitBounds(pts, { padding: [40, 40], maxZoom: 16 }); } }
 }
 /* η διαδρομή σε όλη την οθόνη, με πατήσιμες πινέζες */
@@ -2462,7 +2481,7 @@ async function boot() {
   render();
   await handleHash();
   render();
-  startPoll(); gdInit(); efmInit(); render(); setTimeout(() => { try { liveKeep(); } catch {} }, 3000); setTimeout(() => { try { packAsk(); } catch {} }, 1500); setTimeout(() => { try { geoPrefetch(); } catch {} }, 4000);
+  startPoll(); gdInit(); efmInit(); render(); setTimeout(() => { try { liveKeep(); } catch {} }, 3000); setTimeout(() => { try { packAsk(); } catch {} }, 1500); setTimeout(() => { try { geoPrefetch(); } catch {} }, 1500);
   setTimeout(() => checkUpdate(false), 3000);
 }
 A.boot = boot;
