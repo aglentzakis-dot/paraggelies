@@ -9,14 +9,6 @@
   const KEY = "paraggelies-lang";
   let lang = "el";
   try { lang = localStorage.getItem(KEY) || "el"; } catch (e) {}
-  /* Η πύλη GlenApps μπορεί να ζητήσει γλώσσα με ?gl=el|en — υπερισχύει και αποθηκεύεται */
-  try {
-    const gl = new URLSearchParams(location.search).get("gl");
-    if (gl === "el" || gl === "en") {
-      lang = gl;
-      try { localStorage.setItem(KEY, gl); localStorage.setItem("paraggelies-tameio-lang", gl); } catch (e) {}
-    }
-  } catch (e) {}
   if (lang !== "en") lang = "el";
   const G = window.Glossa = { lang, set(l) { try { localStorage.setItem(KEY, l); localStorage.setItem("paraggelies-tameio-lang", l); } catch (e) {} location.reload(); }, t: s => s };
   document.documentElement.lang = lang;
