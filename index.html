@@ -8,7 +8,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.39">
+<meta name="app-version" content="1.40">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#17324D">
 <title>Παραγγελίες</title>
@@ -17,9 +17,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Παραγγελίες">
 <meta name="description" content="Οι πελάτες σου παραγγέλνουν από σύνδεσμο στο Viber, χωρίς τηλεφωνήματα.">
-<link rel="icon" href="eikonidia/icon-192.png?v=1.39">
-<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.39">
-<link rel="stylesheet" href="koino.css?v=1.39">
+<link rel="icon" href="eikonidia/icon-192.png?v=1.40">
+<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.40">
+<link rel="stylesheet" href="koino.css?v=1.40">
 <style>
 :root{--brand:#17324D;--onbrand:#fff;--accent:#F2B632;--onaccent:#17324D;--paper:#EDF1F2;--card:#fff;--ink:#16232f;--mute:#5d6873;--line:#d9dfe3;--ok:#1f7a3d;--bad:#b3261e;--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D}
 *{box-sizing:border-box}
@@ -133,6 +133,10 @@ body.editing{padding-bottom:140px}
 .cmbox{flex:1;min-height:0;position:relative;z-index:0;isolation:isolate}.cmbar{display:flex;align-items:center;gap:8px;background:var(--card,#fff);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));font-size:14px}.cmbar:empty{display:none}
 .jpin{background:none;border:0}.jpop{font:14px/1.35 system-ui,sans-serif;min-width:200px}.jpop b{font-size:15.5px}.jpop .meta{color:#555;margin-top:3px}.jpop .row2{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.jpop .row2 button,.jpop .row2 a{border:1px solid #cfd8dc;background:#f4f7f8;color:#17324D!important;border-radius:10px;padding:7px 10px;font:600 13.5px system-ui,sans-serif;text-decoration:none;cursor:pointer}
 .rtmapw{position:relative;z-index:0;isolation:isolate}.rtfull{position:absolute;right:10px;bottom:20px;z-index:500;border:0;background:#17324D;color:#fff;border-radius:12px;padding:9px 12px;font:inherit;font-weight:700;font-size:14px;box-shadow:0 3px 10px rgba(0,0,0,.25);cursor:pointer}
+.appic{width:40px;height:40px;border-radius:11px;flex:none;box-shadow:0 1px 4px rgba(0,0,0,.25)}.htt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}.htt small{font-size:13px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top .hbtn{border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:12px;height:38px;min-width:40px;padding:0 9px;font:inherit;font-weight:800;font-size:14px;cursor:pointer;flex:none}#gearBtn{font-size:19px}
+.cmdlg.docked .cmh{display:none}.sendcat{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin:0 0 12px;border:0;border-radius:14px;padding:13px;background:var(--accent);color:var(--onaccent);font:inherit;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.cact{display:flex;gap:6px;flex:none;margin-left:6px}.cact a,.cact button{width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;text-decoration:none;cursor:pointer;padding:0}
+.paysel{display:flex;gap:6px}.paysel button{flex:1;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:11px 6px;font:inherit;font-weight:800;cursor:pointer}.paysel button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
 .tmwrap{position:fixed;left:0;right:0;z-index:25;display:flex;flex-direction:column;background:var(--bg,#eef2f3)}.tmwrap[hidden]{display:none}.tmstrip{display:flex;gap:6px;flex-wrap:wrap;padding:8px 10px;background:var(--card,#fff);border-bottom:1px solid var(--line)}.tmstrip:empty{display:none}.tmfw{flex:1;min-height:0}.tmfw iframe{width:100%;height:100%;border:0;display:block}body.tmon{overflow:hidden}
 .tmopen{display:flex;align-items:center;gap:12px;width:100%;border:1.5px solid #A8D8B7;background:#E3F1E8;color:#14532D;border-radius:16px;padding:12px 14px;font:inherit;text-align:left;cursor:pointer;margin:0 0 12px}.tmopen .e{font-size:28px}.tmopen .t{flex:1;display:flex;flex-direction:column}.tmopen .t b{font-size:16px}.tmopen .t small{font-size:12.5px;opacity:.85}.tmopen .g{font-size:22px}
 .bigopts{display:flex;flex-direction:column;gap:10px}.bigopt{display:flex;align-items:center;gap:14px;border:1.5px solid var(--line);background:#fff;border-radius:16px;padding:16px;font:inherit;text-align:left;cursor:pointer}.bigopt .e{font-size:34px}.bigopt .t{flex:1;display:flex;flex-direction:column}.bigopt .t b{font-size:17px}.bigopt .t small{color:var(--mute);font-size:13.5px}.bigopt .g{font-size:24px;color:var(--mute)}
@@ -187,9 +191,10 @@ body.editing{padding-bottom:140px}
 </style>
 </head>
 <body>
-<header class="top"><h1 id="ttl">Παραγγελίες</h1><button type="button" class="lnk" data-act="link">📤 Στείλε κατάλογο</button><button type="button" id="gearBtn" data-tab="more" aria-label="Ρυθμίσεις" style="border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:12px;width:40px;height:38px;font-size:19px;cursor:pointer;order:9">⚙️</button></header>
+<header class="top"><img class="appic" src="eikonidia/icon-192.png" alt="" aria-hidden="true"><div class="htt"><h1 id="ttl">Παραγγελίες</h1><small id="ttlSub"></small></div><button type="button" class="hbtn" id="langBtn" data-act="lang" aria-label="Γλώσσα">🇬🇷 ΕΛ</button><button type="button" class="hbtn" id="gearBtn" data-tab="more" aria-label="Ρυθμίσεις">⚙️</button></header>
 <main id="main"></main>
 <nav class="tabs" id="tabs">
+  <button type="button" data-tab="map"><span class="i">🗺</span>Χάρτης</button>
   <button type="button" data-tab="orders"><span class="i">🧾</span>Παραγγελίες</button>
   <button type="button" data-tab="menu"><span class="i">🛒</span>Κατάλογος</button>
   <button type="button" data-tab="custs"><span class="i">👥</span>Πελάτες</button>
@@ -198,12 +203,14 @@ body.editing{padding-bottom:140px}
 </nav>
 <div class="sheetbg" id="sheetbg"><div class="sheet"><div class="sh"><h2 id="shT"></h2><button type="button" class="x" data-act="shClose" aria-label="Κλείσιμο">✕</button></div><div class="sb" id="shB"></div><div class="sf" id="shF"></div></div></div>
 <div id="toast"></div>
-<script src="katalogos.js?v=1.39"></script>
-<script src="antigrafa.js?v=1.39"></script>
-<script src="efarmoges-mas.js?v=1.39"></script>
-<script src="protypa.js?v=1.39"></script>
-<script src="efarmogi.js?v=1.39"></script>
-<script src="epexergasia.js?v=1.39"></script>
-<script src="excel.js?v=1.39"></script>
+<script src="glossa-en.js?v=1.40"></script>
+<script src="glossa.js?v=1.40"></script>
+<script src="katalogos.js?v=1.40"></script>
+<script src="antigrafa.js?v=1.40"></script>
+<script src="efarmoges-mas.js?v=1.40"></script>
+<script src="protypa.js?v=1.40"></script>
+<script src="efarmogi.js?v=1.40"></script>
+<script src="epexergasia.js?v=1.40"></script>
+<script src="excel.js?v=1.40"></script>
 </body>
 </html>

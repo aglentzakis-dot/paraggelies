@@ -53,7 +53,7 @@ function activate(ids) {
 /* ---------- προβολή ---------- */
 A.menuView = function (m) {
   const st = S();
-  const seg = `<div class="seg"><button type="button" class="${ed.view === "menu" ? "on" : ""}" data-ev="menu">🧩 Μενού πελάτη</button><button type="button" class="${ed.view === "list" ? "on" : ""}" data-ev="list">📋 Προϊόντα και τιμές</button></div>`;
+  const seg = `<button type="button" class="sendcat" data-act="link">📤 Στείλε κατάλογο στους πελάτες</button><div class="seg"><button type="button" class="${ed.view === "menu" ? "on" : ""}" data-ev="menu">🧩 Μενού πελάτη</button><button type="button" class="${ed.view === "list" ? "on" : ""}" data-ev="list">📋 Προϊόντα και τιμές</button></div>`;
   if (ed.view === "list") { m.innerHTML = seg + listHTML(); bindListDrag(m); return; }
   const L = curList();
   for (const id of [...ed.marked]) if (!L.some(n => n.id === id)) ed.marked.delete(id);

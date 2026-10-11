@@ -341,7 +341,8 @@ async function handleHash() {
 /* ---------- απόδοση ---------- */
 function render() {
   if (!S) return;
-  $("#ttl").textContent = S.shop.name || "Παραγγελίες";
+  $("#ttl").textContent = "Παραγγελίες"; $("#ttlSub").textContent = S.shop.name || "";
+  { const lb = $("#langBtn"), en = window.Glossa && Glossa.lang === "en"; if (lb) lb.textContent = en ? "🇬🇧 EN" : "🇬🇷 ΕΛ"; }
   let rb = $("#roleBtn");
   if (S.ui.test && !rb) { $(".top").insertAdjacentHTML("beforeend", `<button type="button" class="lnk" id="roleBtn" data-act="role" aria-label="Προβολή ως πελάτης" style="background:#fff;color:#17324D;padding:8px 10px">👤</button>`); }
   else if (!S.ui.test && rb) rb.remove();
@@ -352,11 +353,12 @@ function render() {
   if (nNew) ob.insertAdjacentHTML("beforeend", `<span class="dot">${nNew}</span>`);
   document.body.classList.remove("editing");
   const m = $("#main");
-  tmShow(tab === "totals");
+  tmShow(tab === "totals"); cmDock(tab === "map");
   if (tab === "orders") m.innerHTML = ordersView();
   else if (tab === "totals") m.innerHTML = totalsView();
   else if (tab === "menu") { A.menuView(m); return; }
   else if (tab === "custs") m.innerHTML = custsView();
+  else if (tab === "map") m.innerHTML = "";
   else if (tab === "route") { m.innerHTML = routeView(); if (RT.step === "res" && RT.res) setTimeout(rtAfter, 0); }
   else m.innerHTML = moreView();
   if (tab === "orders" || tab === "more") efmMount();
@@ -452,7 +454,7 @@ function ordersView() {
   return demoBanner() + updBanner() + installBanner() + (DEMO ? "" : onboarding()) + (DEMO ? "" : lk + ntw) + remindersHTML() + `
    <div class="note" id="liveSt" style="margin:0 2px 8px">${liveText()}</div>
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-act="newOrder">＋ Παραγγελία</button><button type="button" class="btn ghost grow" data-act="paste">📋 Από μήνυμα</button><button type="button" class="btn soft" data-act="poll" aria-label="Έλεγχος για νέες">⟳</button></div>
-   <div class="row" style="margin-bottom:10px"><button type="button" class="btn green grow" data-act="rtOpen">🚐 Δρομολόγιο</button><button type="button" class="btn soft grow" data-act="dvOpen">🚚 Διανομή ημέρας</button></div>
+   <div class="row" style="margin-bottom:10px"><button type="button" class="btn green grow" data-act="rtOpen">🚐 Δρομολόγιο</button><button type="button" class="btn soft grow" data-act="dvOpen">🚚 Διανομή</button><button type="button" class="btn soft grow" data-act="prepSheet">📦 Ετοιμασία</button></div>
    <div class="chips">${tabsDef.map(([k, l]) => `<button type="button" class="chip${ordFilter.st === k ? " on" : ""}" data-ost="${k}">${l}<span class="n">${cnt(k)}</span></button>`).join("")}</div>
    ${days.length ? `<div class="chips"><button type="button" class="chip${!ordFilter.day ? " on" : ""}" data-oday="">Όλες οι ημέρες</button>${days.map(d => `<button type="button" class="chip${ordFilter.day === d ? " on" : ""}" data-oday="${d}">${esc(K.dayLabel(d))}</button>`).join("")}</div>` : ""}
    ${ordFilter.st === "dup" ? `<div class="warnbox">Αυτές ήρθαν δεύτερη φορά με ίδια είδη από τον ίδιο πελάτη μέσα σε 15 λεπτά. Κράτησέ τες μόνο αν είναι πράγματι νέες παραγγελίες.</div>` : ""}
@@ -479,10 +481,21 @@ const paidOf = o => o.paid ? (o.paidAmt != null ? o.paidAmt : o.total) : 0;
 /* διαφορά παραγγελίας που άλλαξε μετά την πληρωμή: θετική = χρωστά, αρνητική = του επιστρέφεις */
 const diffOf = o => o.paid ? K.round2(o.total - paidOf(o)) : 0;
 A.diffOf = diffOf;
+/* κάθε είσπραξη κρατιέται χωριστά (ολική ή μερική εξόφληση) και γίνεται χωριστή κίνηση στο Ταμείο */
+function paySeed(o) { if (!o.pays) o.pays = o.paid ? [{ at: o.paidAt || o.rx, amt: K.round2(paidOf(o)), via: o.payVia || "" }] : []; return o.pays; }
+function payAdd(o, amt, via) {
+  amt = K.round2(amt); if (!amt) return;
+  paySeed(o).push({ at: Date.now(), amt, via: via || "" });
+  const sum = K.round2(o.pays.reduce((a, p) => a + p.amt, 0));
+  o.paid = sum > 0; o.paidAt = Date.now(); o.paidAmt = sum; if (via) o.payVia = via;
+  o.partial = o.paid && sum < o.total - 0.004;
+  o.log.push([Date.now(), (amt < 0 ? "Επιστροφή " + K.money(-amt) : (o.partial ? "Μερική πληρωμή " : "Πληρώθηκε ") + K.money(amt)) + (via ? " (" + via + ")" : "") + (o.partial ? " · μένουν " + K.money(K.round2(o.total - sum)) : "")]);
+}
+A.payAdd = payAdd;
 function setStatus(o, st) {
-  if (st === "paid") { o.paid = true; o.paidAt = Date.now(); o.paidAmt = o.total; o.log.push([Date.now(), "Πληρώθηκε " + K.money(o.total)]); save(); return true; }
-  if (st === "paydiff") { const d = diffOf(o); o.paidAmt = o.total; o.paidAt = Date.now(); o.log.push([Date.now(), d > 0 ? "Πληρώθηκε η διαφορά " + K.money(d) : "Επιστράφηκε η διαφορά " + K.money(-d)]); save(); return true; }
-  if (st === "unpaid") { if (!confirm("Να σημειωθεί ξανά ως απλήρωτη η παραγγελία #" + o.no + ";")) return false; o.paid = false; o.paidAt = 0; o.log.push([Date.now(), "Σημειώθηκε απλήρωτη"]); save(); return true; }
+  if (st === "paid") { o.pays = [{ at: Date.now(), amt: o.total, via: o.payVia || "" }]; o.partial = false; o.paid = true; o.paidAt = Date.now(); o.paidAmt = o.total; o.log.push([Date.now(), "Πληρώθηκε " + K.money(o.total)]); save(); return true; }
+  if (st === "paydiff") { const d = diffOf(o); paySeed(o).push({ at: Date.now(), amt: d, via: o.payVia || "" }); o.partial = false; o.paidAmt = o.total; o.paidAt = Date.now(); o.log.push([Date.now(), d > 0 ? "Πληρώθηκε η διαφορά " + K.money(d) : "Επιστράφηκε η διαφορά " + K.money(-d)]); save(); return true; }
+  if (st === "unpaid") { if (!confirm("Να σημειωθεί ξανά ως απλήρωτη η παραγγελία #" + o.no + ";")) return false; o.paid = false; o.paidAt = 0; o.pays = []; o.partial = false; o.log.push([Date.now(), "Σημειώθηκε απλήρωτη"]); save(); return true; }
   if (st === o.st) return false;
   if (o.st === "cancel") { toast("Η παραγγελία έχει ακυρωθεί οριστικά."); return false; }
   if (st === "cancel" && o.st === "done") { toast("Η παραγγελία έχει παραδοθεί· δεν ακυρώνεται."); return false; }
@@ -519,7 +532,7 @@ function openOrder(id) {
     <p class="note">Οι τιμές γράφτηκαν από τον δικό σου κατάλογο, όπως ίσχυαν ${fmtTime(o.at)}.${o.src === "link" ? " Ο πελάτης αποδέχθηκε τους όρους και την ενημέρωση απορρήτου πριν την αποστολή." : ""}</p></div>
    <h3 style="margin:4px 2px 6px;font-size:15px">Κατάσταση</h3>
    <div class="chips">${stBtn("new", "Νέα")}${stBtn("prep", "Ετοιμάζεται")}${stBtn("done", "Παραδόθηκε")}${stBtn("cancel", "Ακυρώθηκε")}</div>
-   ${diffOf(o) ? `<div class="${diffOf(o) > 0 ? "errbox" : "warnbox"}"><b>Η παραγγελία άλλαξε μετά την πληρωμή.</b><br>Πληρώθηκαν ${K.money(paidOf(o))}, νέο σύνολο ${K.money(o.total)}.<br>${diffOf(o) > 0 ? "Ο πελάτης <b>χρωστά " + K.money(diffOf(o)) + "</b>." : "Του <b>επιστρέφεις " + K.money(-diffOf(o)) + "</b>."}<div style="margin-top:8px"><button type="button" class="btn sm ${diffOf(o) > 0 ? "green" : "amber"}" data-ordpaid="diff">${diffOf(o) > 0 ? "€ Πλήρωσε τη διαφορά " + K.money(diffOf(o)) : "↩ Επιστράφηκαν " + K.money(-diffOf(o))}</button></div></div>` : ""}
+   ${diffOf(o) ? `<div class="${diffOf(o) > 0 ? "errbox" : "warnbox"}"><b>${o.partial ? "Μερική εξόφληση." : "Η παραγγελία άλλαξε μετά την πληρωμή."}</b><br>Πληρώθηκαν ${K.money(paidOf(o))}, ${o.partial ? "" : "νέο "}σύνολο ${K.money(o.total)}.<br>${diffOf(o) > 0 ? "Ο πελάτης <b>χρωστά " + K.money(diffOf(o)) + "</b>." : "Του <b>επιστρέφεις " + K.money(-diffOf(o)) + "</b>."}<div style="margin-top:8px"><button type="button" class="btn sm ${diffOf(o) > 0 ? "green" : "amber"}" data-ordpaid="diff">${diffOf(o) > 0 ? "€ Πλήρωσε τη διαφορά " + K.money(diffOf(o)) : "↩ Επιστράφηκαν " + K.money(-diffOf(o))}</button></div></div>` : ""}
    <div class="row" style="margin:0 0 12px">${o.paid ? `<span class="pill paid" style="font-size:14px;padding:8px 12px">✓ Πληρωμένη ${K.money(paidOf(o))}</span><button type="button" class="btn ghost grow" style="border-color:var(--bad);color:var(--bad)" data-ordpaid="0">✕ Σημείωσε απλήρωτη</button>` : `<button type="button" class="btn green grow" data-ordpaid="1">€ Πληρώθηκε ${K.money(o.total)}</button>`}</div>
    <div class="card" style="border-left:5px solid var(--accent)"><h3 style="margin:0 0 4px">💬 Ενημέρωση πελάτη</h3>
     <p class="note" style="margin:0 0 10px">Στέλνει στον πελάτη έτοιμο μήνυμα με την κατάσταση της παραγγελίας («${esc(ST[o.st])}»), τον κωδικό και το σύνολο.</p>
@@ -751,11 +764,16 @@ function orderVats(o, amt) {
 function emDesired() {
   const W = new Map();
   for (const o of S.orders) if (o.paid && !o.test && o.st !== "cancel" && o.st !== "dup" && paidOf(o) > 0) {
-    const amt = K.round2(paidOf(o)), v = orderVats(o, amt) || [];
-    const e = { dir: "in", kind: "ae73", sub: "Πωλήσεις εμπορευμάτων", amount: amt, date: new Date(o.paidAt || o.rx).toISOString(), note: "Παραγγελία #" + o.no, cp: (o.inv && o.inv.t === "i" && o.inv.n) || o.cust.name || "", pay: PAYMAP[o.payVia] || "cash", doc: o.inv && o.inv.t === "i" ? "inv" : "rcpt" };
-    if (o.inv && o.inv.t === "i" && o.inv.f) e.afm = o.inv.f;
-    if (v.length === 1) e.vat = v[0].r; else if (v.length > 1) e.vats = v;
-    W.set("pg-o" + o.id, e);
+    const P = o.pays && o.pays.length ? o.pays : [{ at: o.paidAt || o.rx, amt: K.round2(paidOf(o)), via: o.payVia || "" }];
+    P.forEach((py, i) => {
+      if (!py.amt) return;
+      const back = py.amt < 0, amt = K.round2(Math.abs(py.amt)), v = orderVats(o, amt) || [];
+      const e = back ? { dir: "out", kind: "aeoth", sub: "Επιστροφή σε πελάτη", amount: amt, date: new Date(py.at).toISOString(), note: "Παραγγελία #" + o.no, cp: o.cust.name || "", pay: PAYMAP[py.via] || "cash" }
+        : { dir: "in", kind: "ae73", sub: "Πωλήσεις εμπορευμάτων", amount: amt, date: new Date(py.at).toISOString(), note: "Παραγγελία #" + o.no + (P.length > 1 ? " · " + (i + 1) + "η είσπραξη" : ""), cp: (o.inv && o.inv.t === "i" && o.inv.n) || o.cust.name || "", pay: PAYMAP[py.via] || "cash", doc: o.inv && o.inv.t === "i" ? "inv" : "rcpt" };
+      if (!back && o.inv && o.inv.t === "i" && o.inv.f) e.afm = o.inv.f;
+      if (!back) { if (v.length === 1) e.vat = v[0].r; else if (v.length > 1) e.vats = v; }
+      W.set("pg-o" + o.id + (P.length > 1 || (o.pays && o.pays.length > 1) ? "-" + i : ""), e);
+    });
   }
   return W;
 }
@@ -856,6 +874,9 @@ async function packAsk() {
   linkSheet2();
 }
 /* ---------- η καρτέλα «Ταμείο» ---------- */
+/* «Σου χρωστάνε» μέσα στο Ταμείο: το ζητάει το ίδιο το Ταμείο */
+A.owedInfo = () => { const D = debtors(); return { sum: K.round2(D.reduce((a, x) => a + x.v, 0)), n: D.length }; };
+A.owedOpen = () => collectList();
 let tmFrameEl = null;
 function tmWrap() {
   let w = $("#tmWrap"); if (w) return w;
@@ -867,9 +888,9 @@ function tmShow(on) {
   const w = tmWrap();
   if (!on) { w.hidden = true; document.body.classList.remove("tmon"); return; }
   if (!tmFrameEl) { tmFrameEl = document.createElement("iframe"); tmFrameEl.id = "tmFrame"; tmFrameEl.title = "Ταμείο"; tmFrameEl.src = "tameio/index.html?v=" + encodeURIComponent($('meta[name="app-version"]').content); $("#tmFw").appendChild(tmFrameEl); }
-  const debt = debtors(), sum = K.round2(debt.reduce((a, x) => a + x.v, 0));
-  $("#tmStrip").innerHTML = `<button type="button" class="btn sm" data-act="owedSheet" style="background:${sum ? "#FBE7E3" : "#E3F1E8"};color:${sum ? "#C8412B" : "#2E7D5B"};border:1px solid ${sum ? "#F1B3AD" : "#A8D8B7"}">${sum ? "🔴 Σου χρωστάνε " + K.money(sum) : "✓ Κανείς δεν χρωστά"}</button>${sum ? `<button type="button" class="btn sm green" data-act="collectList">💶 Είσπραξη</button>` : ""}<button type="button" class="btn sm soft" data-act="prepSheet">📦 Ετοιμασία</button>`;
+  $("#tmStrip").innerHTML = ""; if (0) `<button type="button" class="btn sm" data-act="owedSheet" style="background:${sum ? "#FBE7E3" : "#E3F1E8"};color:${sum ? "#C8412B" : "#2E7D5B"};border:1px solid ${sum ? "#F1B3AD" : "#A8D8B7"}">${sum ? "🔴 Σου χρωστάνε " + K.money(sum) : "✓ Κανείς δεν χρωστά"}</button>${sum ? `<button type="button" class="btn sm green" data-act="collectList">💶 Είσπραξη</button>` : ""}<button type="button" class="btn sm soft" data-act="prepSheet">📦 Ετοιμασία</button>`;
   w.hidden = false; document.body.classList.add("tmon"); tmPos();
+  try { tmFrameEl.contentWindow.emDebtCard && tmFrameEl.contentWindow.emDebtCard(); } catch {}
   /* ό,τι πληρώθηκε μπαίνει αμέσως */
   tmSync();
 }
@@ -919,14 +940,17 @@ function collectList() {
     <div class="row" style="padding:0 4px"><b class="grow">Σύνολο</b><b style="color:#C8412B;font-size:19px">${K.money(sum)}</b></div>` : `<div class="okbox">✓ Κανείς δεν σου χρωστά.</div>`, `<button type="button" class="btn soft" data-cash="in">← Πίσω</button>`);
 }
 function custUnpaid(k) { return S.orders.filter(o => custKey(o.cust.phone) === k && o.st !== "cancel" && o.st !== "dup" && ((o.st === "done" && !o.paid) || (o.paid && diffOf(o)))).sort((a, b) => (a.when.date || "").localeCompare(b.when.date || "") || a.rx - b.rx); }
-function collectCust(k) {
+function collectCust(k, mode) {
   const c = S.customers[k]; if (!c) return;
-  const L = custUnpaid(k), via = S.ui.payVia || "Μετρητά";
-  const amt = o => o.paid ? diffOf(o) : o.total;
-  sheet("💶 " + c.name, `<div class="card">${L.map(o => `<label class="ck" style="align-items:center"><input type="checkbox" data-colo="${o.id}" data-amt="${amt(o)}" checked><span style="flex:1"><b>#${o.no}</b> · ${esc(fmtWhen(o))}${o.paid ? " · διαφορά" : ""}</span><b>${K.money(amt(o))}</b></label>`).join("")}</div>
+  const L = custUnpaid(k), via = S.ui.payVia || "Μετρητά", rem = o => o.paid ? diffOf(o) : o.total, tot = K.round2(L.reduce((a, o) => a + rem(o), 0));
+  mode = mode || "full";
+  sheet("💶 " + c.name, `<div class="okbox" style="margin-top:0;background:#FBE7E3;border-color:#F1B3AD;color:#8a2a1c">Χρωστά <b style="font-size:18px">${K.money(tot)}</b> από ${L.length === 1 ? "1 παραγγελία" : L.length + " παραγγελίες"}</div>
+    <div class="paysel"><button type="button" class="${mode === "full" ? "on" : ""}" data-colmode="full">✓ Ολική εξόφληση</button><button type="button" class="${mode === "part" ? "on" : ""}" data-colmode="part">½ Μερική</button></div>
+    ${mode === "full" ? `<div class="card" style="margin-top:10px">${L.map(o => `<label class="ck" style="align-items:center"><input type="checkbox" data-colo="${o.id}" data-amt="${rem(o)}" checked><span style="flex:1"><b>#${o.no}</b> · ${esc(fmtWhen(o))}${o.partial ? " · υπόλοιπο" : o.paid ? " · διαφορά" : ""}</span><b>${K.money(rem(o))}</b></label>`).join("")}</div>`
+    : `<div class="card" style="margin-top:10px"><label class="f" for="colAmt" style="margin-top:0">Πόσα έδωσε (€)</label><input class="t" id="colAmt" inputmode="decimal" placeholder="π.χ. 20" style="font-size:22px;font-weight:800"><p class="note" style="margin:6px 0 0">Εξοφλούνται πρώτα οι παλαιότερες παραγγελίες· ό,τι μείνει φαίνεται ως υπόλοιπο.</p></div>`}
     <div class="card"><h3>Πώς πλήρωσε</h3><div class="chips">${["Μετρητά", "Κάρτα", "Τράπεζα"].map(v => `<button type="button" class="chip${v === via ? " on" : ""}" data-pv="${v}">${v === "Μετρητά" ? "💵" : v === "Κάρτα" ? "💳" : "🏦"} ${v}</button>`).join("")}</div></div>`,
-    `<button type="button" class="btn soft" data-act="collectList">← Πίσω</button><button type="button" class="btn green" data-act="collectGo" id="colBtn">✓ Εισπράχθηκαν ${K.money(L.reduce((a, o) => a + amt(o), 0))}</button>`,
-    el => { el.dataset.cust = k; });
+    `<button type="button" class="btn soft" data-act="collectList">← Πίσω</button><button type="button" class="btn green" data-act="collectGo" id="colBtn">${mode === "full" ? "✓ Εισπράχθηκαν " + K.money(tot) : "✓ Καταχώριση πληρωμής"}</button>`,
+    el => { el.dataset.cust = k; el.dataset.mode = mode; const i = el.querySelector("#colAmt"); if (i) setTimeout(() => i.focus(), 80); });
 }
 function collectSum() { let t = 0; $$("[data-colo]").forEach(i => { if (i.checked) t += +i.dataset.amt || 0; }); const b = $("#colBtn"); if (b) b.textContent = "✓ Εισπράχθηκαν " + K.money(K.round2(t)); }
 
@@ -1032,6 +1056,22 @@ function custStats(k) {
   const owed = K.round2(act.filter(o => o.st === "done" && !o.paid).reduce((a, o) => a + o.total, 0) + act.reduce((a, o) => a + diffOf(o), 0));
   return { n: act.length, sum: K.round2(act.reduce((a, o) => a + o.total, 0)), owed, list: L.sort((a, b) => b.rx - a.rx) };
 }
+/* 📞 κλήση · 💬 μήνυμα · 📍 στον χάρτη, δίπλα σε κάθε πελάτη */
+const custActs = c => `<span class="cact">${c.phone ? `<a href="tel:${esc(c.phone)}" data-noprop="1" aria-label="Κλήση">📞</a><button type="button" data-cmsg="${esc(c.key)}" aria-label="Μήνυμα">💬</button>` : ""}<button type="button" data-cpin="${esc(c.key)}" aria-label="Στον χάρτη">📍</button></span>`;
+const intlPhone = p => { let d = String(p || "").replace(/\D/g, ""); if (d.startsWith("00")) d = d.slice(2); if (d.length === 10) d = "30" + d; return d; };
+function custMsg(k) {
+  const c = S.customers[k]; if (!c || !c.phone) return;
+  const n = intlPhone(c.phone);
+  sheet("💬 " + c.name, `<div class="bigopts">
+    <a class="bigopt" href="viber://chat?number=%2B${n}" style="text-decoration:none;color:inherit"><span class="e">🟣</span><span class="t"><b>Viber</b><small>${esc(c.phone)}</small></span><span class="g">›</span></a>
+    <a class="bigopt" href="https://wa.me/${n}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><span class="e">🟢</span><span class="t"><b>WhatsApp</b><small>${esc(c.phone)}</small></span><span class="g">›</span></a>
+    <a class="bigopt" href="sms:${esc(c.phone)}" style="text-decoration:none;color:inherit"><span class="e">✉️</span><span class="t"><b>Γραπτό μήνυμα (SMS)</b><small>${esc(c.phone)}</small></span><span class="g">›</span></a></div>`);
+}
+function custPinGo(k) {
+  const c = S.customers[k]; if (!c) return;
+  if (!(c.addr || "").trim() && !(c.pin && c.pin.lat != null)) { toast("Ο πελάτης δεν έχει διεύθυνση. Πρόσθεσέ τη στην καρτέλα του, ή πάτα «📍 Είμαι εδώ» όταν είσαι εκεί.", 4500); openCust(k); return; }
+  closeSheet(); cm.focus = k; cm.f = "all"; cm.area = ""; tab = "map"; render();
+}
 function custsView() {
   const q = K.norm(custQ);
   const owe = {}; for (const k of Object.keys(S.customers)) owe[k] = custStats(k).owed;
@@ -1040,7 +1080,7 @@ function custsView() {
   return `<div class="row" style="margin-bottom:10px"><input class="t grow" id="custQ" placeholder="🔍 Αναζήτηση πελάτη" value="${esc(custQ)}"><button type="button" class="btn amber" data-act="custNewBtn">＋ Νέος</button></div>
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn green grow" data-act="custMap">🗺 Χάρτης πελατών</button><button type="button" class="btn soft grow" data-act="rtOpen">🚐 Δρομολόγιο</button></div>
    ${owedAll > 0 ? `<div class="warnbox">Σου χρωστάνε συνολικά <b>${K.money(owedAll)}</b> από παραδομένες παραγγελίες.</div>` : ""}
-   <div class="card list">${L.length ? L.map(c => { const s = custStats(c.key); return `<div class="it" data-cust="${c.key}"><div class="ic">👤</div><div class="t"><b>${esc(c.name)}${rateAvg(c.ratings) ? ` <span style="color:#F2B632;font-size:13px">★${rateAvg(c.ratings)}</span>` : ""}</b><span>${esc(c.phone)} · ${s.n} ${s.n === 1 ? "παραγγελία" : "παραγγελίες"} · τζίρος ${K.money(s.sum)}</span></div>${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : s.owed < 0 ? `<span class="pill warn">επιστροφή ${K.money(-s.owed)}</span>` : ""}</div>`; }).join("") : `<p class="note">Οι πελάτες προστίθενται μόνοι τους με την πρώτη τους παραγγελία, ή με «＋ Νέος».</p>`}</div>`;
+   <div class="card list">${L.length ? L.map(c => { const s = custStats(c.key); return `<div class="it" data-cust="${c.key}"><div class="ic">👤</div><div class="t" style="min-width:0"><b>${esc(c.name)}${rateAvg(c.ratings) ? ` <span style="color:#F2B632;font-size:13px">★${rateAvg(c.ratings)}</span>` : ""}</b><span>${esc(c.phone)} · ${s.n} ${s.n === 1 ? "παραγγελία" : "παραγγελίες"} · τζίρος ${K.money(s.sum)}</span></div>${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : s.owed < 0 ? `<span class="pill warn">επιστροφή ${K.money(-s.owed)}</span>` : ""}${custActs(c)}</div>`; }).join("") : `<p class="note">Οι πελάτες προστίθενται μόνοι τους με την πρώτη τους παραγγελία, ή με «＋ Νέος».</p>`}</div>`;
 }
 /* ---------- αξιολόγηση πελάτη (όπως στο Δρομολόγιο, για πωλητή) ---------- */
 const RATE_CATS = [
@@ -1115,7 +1155,7 @@ function openCust(k) {
    ${custPriceCard(c)}
    <div class="card"><h3>🚚 Πότε περνάς</h3><p style="margin:0 0 8px">${c.route && c.route.days && c.route.days.length ? esc(c.route.days.map(x => K.WD[x]).join(", ")) + (c.route.slot ? " · " + esc(c.route.slot) : "") + (c.route.note ? " · " + esc(c.route.note) : "") + (c.route.ex !== false ? " · ⚡ δέχεται έκτακτη" : "") : `<span class="note">Δεν έχεις δηλώσει ημέρες· βλέπει τις γενικές.</span>`}</p>
     <div class="row"><button type="button" class="btn soft sm grow" data-act="custRoute">📅 Ημέρες</button><button type="button" class="btn amber sm grow" data-act="custLink">📤 Στείλε του τον κατάλογο</button></div></div>
-   <div class="row" style="margin-bottom:12px"><a class="btn soft grow" href="tel:${esc(c.phone)}">📞 Κλήση</a><button type="button" class="btn amber grow" data-act="custNew">＋ Παραγγελία</button>${s.list.length ? `<button type="button" class="btn ghost grow" data-act="custRepeat">🔁 Ξανά την τελευταία</button>` : ""}</div>
+   <div class="row" style="margin-bottom:12px"><a class="btn soft grow" href="tel:${esc(c.phone)}">📞 Κλήση</a><button type="button" class="btn soft" data-cmsg="${esc(k)}" aria-label="Μήνυμα">💬</button><button type="button" class="btn soft" data-cpin="${esc(k)}" aria-label="Στον χάρτη">📍</button><button type="button" class="btn amber grow" data-act="custNew">＋ Παραγγελία</button>${s.list.length ? `<button type="button" class="btn ghost grow" data-act="custRepeat">🔁 Ξανά την τελευταία</button>` : ""}</div>
    ${s.owed > 0 ? `<button type="button" class="btn green wide" data-act="custPayAll" style="margin-bottom:12px">€ Πλήρωσε όλα όσα χρωστά (${K.money(s.owed)})</button>` : s.owed < 0 ? `<button type="button" class="btn amber wide" data-act="custPayAll" style="margin-bottom:12px">↩ Επιστράφηκαν ${K.money(-s.owed)}</button>` : ""}
    <div class="card list"><h3>Ιστορικό</h3>${s.list.map(o => `<div class="it" data-ord="${o.id}"><div class="t"><b>#${o.no} · ${K.money(o.total)}</b><span>${esc(fmtWhen(o))} · ${esc(o.lines.map(l => K.num(l.q) + " " + l.name).join(", "))}</span></div><span class="pill ${o.paid ? "paid" : o.st}">${o.paid ? "Πληρωμένη" : ST[o.st]}</span></div>`).join("") || `<p class="note">Καμία παραγγελία.</p>`}</div>
    <button type="button" class="btn red wide" data-act="custDel">Διαγραφή πελάτη και των παραγγελιών του</button>
@@ -1495,11 +1535,22 @@ function cmDlg() {
    <div class="cmf" id="cmF"></div><div id="cmBox" class="cmbox"></div><div class="cmbar" id="cmBar"></div>`;
   document.body.appendChild(d); return d;
 }
-const cmIsOpen = () => !!($("#cmDlg") && $("#cmDlg").classList.contains("open"));
-function cmClose(fromPop) { const d = $("#cmDlg"); if (!d || !d.classList.contains("open")) return; d.classList.remove("open"); document.body.classList.remove("cmon"); if (!fromPop) { skipPop++; history.back(); } }
+const cmIsOpen = () => !!($("#cmDlg") && $("#cmDlg").classList.contains("open") && !$("#cmDlg").classList.contains("docked"));
+/* η καρτέλα «🗺 Χάρτης» της κάτω μπάρας: ο χάρτης πελατών ανάμεσα στην πάνω και την κάτω μπάρα */
+function cmDock(on) {
+  const d = $("#cmDlg");
+  if (!on) { if (d && d.classList.contains("docked")) d.classList.remove("open", "docked"); return; }
+  const w = cmDlg(); w.classList.add("docked");
+  const h = $("header.top"), tb = $("#tabs"), nb = $("#newBar");
+  let top = h ? h.getBoundingClientRect().bottom : 56; if (nb && nb.offsetParent !== null) top = Math.max(top, nb.getBoundingClientRect().bottom);
+  w.style.top = top + "px"; w.style.bottom = (tb ? tb.getBoundingClientRect().height : 70) + "px";
+  if (!w.classList.contains("open") || cm.focus) custMap();
+}
+function cmClose(fromPop) { const d = $("#cmDlg"); if (!d || !d.classList.contains("open") || d.classList.contains("docked")) return; d.classList.remove("open"); document.body.classList.remove("cmon"); if (!fromPop) { skipPop++; history.back(); } }
 async function cmShow() {
   let Lf; try { Lf = await loadLeaflet(); } catch { toast("Ο χάρτης χρειάζεται σύνδεση στο διαδίκτυο.", 3500); return null; }
-  const d = cmDlg(); if (!d.classList.contains("open")) { d.classList.add("open"); document.body.classList.add("cmon"); histPush({ cm: 1 }); }
+  const d = cmDlg(); if (!d.classList.contains("docked")) { d.style.top = ""; d.style.bottom = ""; }
+  if (!d.classList.contains("open")) { d.classList.add("open"); if (!d.classList.contains("docked")) { document.body.classList.add("cmon"); histPush({ cm: 1 }); } }
   if (!cm.map) {
     cm.map = Lf.map($("#cmBox"), { zoomControl: true }).setView([37.9755, 23.7348], 11);
     if (cm.map.on) cm.map.on("popupopen", e => mpBind(e.popup.getElement()));
@@ -1530,23 +1581,25 @@ async function cmDrawCust(fit) {
   let miss = 0, done = 0;
   const need = L.filter(x => !custPin(x.c.key) && (x.c.addr || "").trim() && !(geoMem()[K.norm(x.c.addr.trim())] || {}).lat);
   const stamp = cm.stamp = Date.now();
-  const put = x => { pts.push([x.loc.lat, x.loc.lng]); Lf.marker([x.loc.lat, x.loc.lng], { icon: Lf.divIcon({ className: "jpin", iconSize: [34, 42], iconAnchor: [17, 41], html: pinSvg(cmColor(x)) }) }).addTo(cm.layer).bindPopup(cmPopup(x), { maxWidth: 290 }); };
+  let focusMk = null;
+  const put = x => { pts.push([x.loc.lat, x.loc.lng]); const mk = Lf.marker([x.loc.lat, x.loc.lng], { icon: Lf.divIcon({ className: "jpin", iconSize: [34, 42], iconAnchor: [17, 41], html: pinSvg(cmColor(x)) }) }).addTo(cm.layer).bindPopup(cmPopup(x), { maxWidth: 290 }); if (cm.focus === x.c.key) focusMk = { mk, x }; };
   const status = () => { if (cm.stamp !== stamp) return; const shown = pts.length;
     bar.innerHTML = `<div class="grow"><b>${shown}</b> ${shown === 1 ? "πελάτης" : "πελάτες"} στον χάρτη${need.length && done < need.length ? ` · βρίσκω διευθύνσεις ${done}/${need.length}…` : ""}${miss ? ` · <span style="color:#C8412B">${miss} δεν βρέθηκαν</span>` : ""}${noAd.length ? ` · ${noAd.length} χωρίς διεύθυνση` : ""}</div>${shown ? `<button type="button" class="btn sm green" data-cm="route">🚐 Δρομολόγιο με αυτούς</button>` : ""}`; };
   cm.shown = [];
   for (const x of L) { const p = custPin(x.c.key) || (geoMem()[K.norm((x.c.addr || "").trim())] || {}); if (p.lat != null) { x.loc = p; put(x); cm.shown.push(x.c.key); } }
   status();
-  if (fit && pts.length) { if (pts.length === 1) M.setView(pts[0], 15); else M.fitBounds(pts, { padding: [40, 40], maxZoom: 16 }); }
+  const doFocus = () => { if (!focusMk) return false; M.setView([focusMk.x.loc.lat, focusMk.x.loc.lng], 16); try { focusMk.mk.openPopup(); } catch {} cm.focus = null; focused = true; return true; }; let focused = false;
+  if (!doFocus() && fit && pts.length) { if (pts.length === 1) M.setView(pts[0], 15); else M.fitBounds(pts, { padding: [40, 40], maxZoom: 16 }); }
   if (!L.length) toast("Κανένας πελάτης με αυτό το φίλτρο.", 2500);
   /* όσοι δεν έχουν βρεθεί ακόμα: ένας ένας, με μνήμη (την πρώτη φορά μόνο) */
   for (const x of need) {
-    if (cm.stamp !== stamp || !cmIsOpen()) return;
+    if (cm.stamp !== stamp || !($("#cmDlg") && $("#cmDlg").classList.contains("open"))) return;
     const p = await geoFind(x.c.addr); done++;
     if (cm.stamp !== stamp) return;
-    if (p) { x.loc = p; put(x); cm.shown.push(x.c.key); } else miss++;
+    if (p) { x.loc = p; put(x); cm.shown.push(x.c.key); doFocus(); } else miss++;
     status();
   }
-  if (need.length) { save(); if (pts.length && fit) { if (pts.length === 1) M.setView(pts[0], 15); else M.fitBounds(pts, { padding: [40, 40], maxZoom: 16 }); } }
+  if (need.length) { save(); if (pts.length && fit && !focused) { if (pts.length === 1) M.setView(pts[0], 15); else M.fitBounds(pts, { padding: [40, 40], maxZoom: 16 }); } }
 }
 /* η διαδρομή σε όλη την οθόνη, με πατήσιμες πινέζες */
 async function routeMapFull() {
@@ -2017,6 +2070,7 @@ const ACT = {
   },
   demoStart: () => demoStart(),
   demoEnd: () => demoEnd(),
+  lang: () => sheet("🌐 Γλώσσα · Language", `<div class="bigopts">${[["el", "🇬🇷", "Ελληνικά"], ["en", "🇬🇧", "English"]].map(([k, f, n]) => `<button type="button" class="bigopt" data-setlang="${k}"><span class="e">${f}</span><span class="t"><b data-notr="1">${n}</b></span>${(window.Glossa && Glossa.lang) === k ? '<span class="g">✓</span>' : ""}</button>`).join("")}</div><p class="note" data-notr="1">Η γλώσσα αφορά την εφαρμογή σου. Οι πελάτες βλέπουν τη σελίδα παραγγελίας στα ελληνικά. · The language applies to your app. Customers see the order page in Greek.</p>`),
   prepSheet: () => sheet("📦 Ετοιμασία ημέρας", prepView()),
   lkSave: () => { S.ui.tmSync = !!$("#lkTm").checked; S.ui.imSync = !!($("#lkIm") && $("#lkIm").checked && packSt && packSt.full); save(); closeSheet(); tmSync(); toast("✓ Αποθηκεύτηκε", 2000); render(); },
   tmYes: () => { S.ui.tmSync = true; save(); closeSheet(); tmSync(); toast("✓ Τα έσοδα και τα έξοδα θα φαίνονται και στα Ταμεία (βιβλίο «Εταιρεία»).", 4000); render(); },
@@ -2091,7 +2145,7 @@ const ACT = {
   seeNew: () => A.seeNew(),
   dvOpen: () => dvSheet(ordFilter.day || today()),
   rtOpen: () => rtOpen(),
-  custMap: () => custMap(),
+  custMap: () => { closeSheet(); tab = "map"; window.scrollTo(0, 0); render(); },
   rtDay: () => { const d = dvDay, L = dvOrders(d).filter(o => (o.st === "new" || o.st === "prep") && o.when.how !== "pick"); closeSheet(); RT.day = d === today() ? "today" : d === addDays(today(), 1) ? "tom" : "all"; rtOpen(L.map(o => "o:" + o.id)); },
   custPinHere: async () => { const k = $("#shB").dataset.cust, c = S.customers[k]; if (!c) return; toast("📍 Βρίσκω τη θέση σου…"); const p = await myPos(); if (!p) { toast("Δεν βρέθηκε η θέση. Άνοιξε τον εντοπισμό του κινητού.", 4000); return; } c.pin = { lat: p.lat, lng: p.lng, at: Date.now() }; save(); toast("✓ Κρατήθηκε η θέση του πελάτη για το Δρομολόγιο"); },
   collectList: () => collectList(),
@@ -2101,9 +2155,21 @@ const ACT = {
     location.href = "mailto:" + PRO_MAIL + "?subject=" + encodeURIComponent("Κλειδί Pro Παραγγελίες" + (S.lic.until ? " (ανανέωση)" : "")) + "&body=" + encodeURIComponent(body); },
   refShare: async () => { const c = await refCode(S.lic.email), t = "Για τις παραγγελίες των πελατών μου χρησιμοποιώ τις «Παραγγελίες» της GlenApps. Με τον κωδικό σύστασής μου " + c + " πληρώνεις " + PRO_INTRO + " € και τον δεύτερο χρόνο του Pro: " + BASE;
     if (navigator.share) { try { await navigator.share({ text: t }); return; } catch (e) { if (e && e.name === "AbortError") return; } } try { await navigator.clipboard.writeText(t); toast("✓ Αντιγράφηκε"); } catch { prompt("", t); } },
-  collectGo: () => { const k = $("#shB").dataset.cust, via = S.ui.payVia || "Μετρητά"; let n = 0, sum = 0;
-    $$("[data-colo]").forEach(i => { if (!i.checked) return; const o = S.orders.find(x => x.id === i.dataset.colo); if (!o) return; sum += +i.dataset.amt || 0; if (!o.paid) setStatus(o, "paid"); else setStatus(o, "paydiff"); o.payVia = via; o.log.push([Date.now(), "Τρόπος πληρωμής: " + via]); n++; });
-    if (!n) { toast("Διάλεξε τουλάχιστον μία παραγγελία."); return; } save(); render(); toast("✓ Εισπράχθηκαν " + K.money(K.round2(sum)) + " (" + via + ")"); collectList(); },
+  collectGo: () => {
+    const b = $("#shB"), k = b.dataset.cust, via = S.ui.payVia || "Μετρητά", L = custUnpaid(k), rem = o => o.paid ? diffOf(o) : o.total;
+    let sum = 0, n = 0;
+    if (b.dataset.mode === "part") {
+      let left = K.parseNum(($("#colAmt") || {}).value || ""), tot = K.round2(L.reduce((a, o) => a + rem(o), 0));
+      if (!(left > 0)) { toast("Γράψε πόσα έδωσε."); return; }
+      if (left > tot + 0.004) { toast("Είναι περισσότερα από όσα χρωστά (" + K.money(tot) + ")."); return; }
+      for (const o of L) { if (left <= 0.004) break; const take = K.round2(Math.min(rem(o), left)); if (take > 0) { payAdd(o, take, via); left = K.round2(left - take); sum += take; n++; } }
+    } else {
+      $$("[data-colo]").forEach(i => { if (!i.checked) return; const o = S.orders.find(x => x.id === i.dataset.colo); if (!o) return; const r = rem(o); if (r > 0) { payAdd(o, r, via); sum += r; n++; } });
+    }
+    if (!n) { toast("Διάλεξε τουλάχιστον μία παραγγελία."); return; }
+    save(); render(); const still = custStats(k).owed;
+    toast("✓ Εισπράχθηκαν " + K.money(K.round2(sum)) + " (" + via + ")" + (still > 0 ? " · μένουν " + K.money(still) : " · εξοφλήθηκε"), 4000);
+    if (still > 0) collectCust(k); else collectList(); },
   acctSet: () => { const m = (prompt("Ηλεκτρονικό ταχυδρομείο του λογιστή σου:", S.shop.acct || "") || "").trim(); S.shop.acct = m; save(); toast(m ? "✓ Αποθηκεύτηκε" : "Αφαιρέθηκε"); },
   presetsGo: () => { tab = "menu"; render(); setTimeout(() => { const b = document.createElement("button"); b.dataset.ea = "presets"; b.hidden = true; document.body.appendChild(b); b.click(); b.remove(); }, 50); },
   remHideAll: () => { S.ui.remHide = { d: today(), ids: remindersList().map(r => r.id).concat((S.ui.remHide && S.ui.remHide.d === today() ? S.ui.remHide.ids : [])) }; save(); render(); toast("Θα ξαναεμφανιστούν αύριο."); },
@@ -2116,6 +2182,10 @@ document.addEventListener("click", async e => {
   const t = e.target;
   const tb = t.closest("#tabs [data-tab], #gearBtn"); if (tb) { if (tab !== tb.dataset.tab) { tab = tb.dataset.tab; window.scrollTo(0, 0); render(); } return; }
   if (t.id === "sheetbg") { closeSheet(); return; }
+  { const x = t.closest("[data-setlang]"); if (x) { if (window.Glossa) Glossa.set(x.dataset.setlang); return; } }
+  { const x = t.closest("[data-cmsg]"); if (x) { e.stopPropagation(); custMsg(x.dataset.cmsg); return; } }
+  { const x = t.closest("[data-cpin]"); if (x) { e.stopPropagation(); custPinGo(x.dataset.cpin); return; } }
+  if (t.closest("[data-noprop]")) return;
   { let x;
     if ((x = t.closest("[data-cm]"))) { cmAct(x.dataset.cm); return; }
     if ((x = t.closest("[data-cmf]"))) { custMap(x.dataset.cmf); return; }
@@ -2165,6 +2235,7 @@ document.addEventListener("click", async e => {
   const cs = t.closest("[data-cash]"); if (cs) { collectList(); return; }
   const cn = t.closest("[data-cashnew]"); if (cn) { cashSheet(cn.dataset.cashnew); return; }
   const co = t.closest("[data-coll]"); if (co) { collectCust(co.dataset.coll); return; }
+  const cm2 = t.closest("[data-colmode]"); if (cm2) { collectCust($("#shB").dataset.cust, cm2.dataset.colmode); return; }
   const pv = t.closest("[data-pv]"); if (pv) { S.ui.payVia = pv.dataset.pv; $$("[data-pv]").forEach(x => x.classList.toggle("on", x === pv)); return; }
   const an = t.closest("[data-ana]"); if (an) { anaSheet(an.dataset.ana); return; }
   const ap = t.closest("[data-anaper]"); if (ap) { totPer = ap.dataset.anaper; anaSheet(ap.dataset.anak); render(); return; }

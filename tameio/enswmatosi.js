@@ -28,6 +28,7 @@ function emStart() {
   emInbox();
   try { document.getElementById("appTitle").textContent = "Ταμείο"; } catch (e) {}
   emSettings();
+  if (!window.__emR) { window.__emR = 1; var r0 = render; render = function () { var x = r0.apply(this, arguments); emDebtCard(); return x; }; setTimeout(emDebtCard, 0); }
   if (!window.__emW) { window.__emW = 1; var w0 = write; write = function () { var r = w0.apply(this, arguments); try { var A = emParent(); if (A && A.tameioChanged) A.tameioChanged(); } catch (e) {} return r; }; }
 }
 function emEnsureKind(k, b) {
@@ -82,3 +83,16 @@ function emSettings() {
 }
 /* οι Παραγγελίες «σπρώχνουν» αμέσως κάθε νέα πληρωμή όταν το Ταμείο είναι ανοιχτό */
 window.emPoke = function () { try { if (typeof S !== "undefined" && S && emInbox()) { write(); render(); } } catch (e) {} };
+/* «Σου χρωστάνε» μέσα στο Ταμείο: πατάς και βλέπεις ποιοι χρωστάνε, με ολική ή μερική εξόφληση */
+function emDebtCard() {
+  try {
+    var A = emParent(); if (!A || !A.owedInfo) return;
+    var m = document.getElementById("main"); if (!m) return;
+    var i = A.owedInfo(), old = document.getElementById("emDebt");
+    var en = typeof LANG !== "undefined" && LANG === "en", amt = i.sum.toLocaleString(en ? "en-GB" : "el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+    var html = '<button type="button" id="emDebt" class="emdebt' + (i.sum > 0 ? " owe" : "") + '"><span class="e">' + (i.sum > 0 ? "🔴" : "✓") + '</span><span class="t"><b>' + (i.sum > 0 ? (en ? "You are owed " : "Σου χρωστάνε ") + amt : (en ? "Nobody owes you" : "Κανείς δεν σου χρωστά")) + '</b><small>' + (i.sum > 0 ? (en ? (i.n === 1 ? "1 customer" : i.n + " customers") + " · tap to collect, full or partial" : (i.n === 1 ? "1 πελάτης" : i.n + " πελάτες") + " · πάτα για είσπραξη, ολική ή μερική") : (en ? "from orders" : "από τις παραγγελίες")) + '</small></span>' + (i.sum > 0 ? '<span class="g">›</span>' : "") + "</button>";
+    if (old) old.outerHTML = html; else m.insertAdjacentHTML("afterbegin", html);
+    document.getElementById("emDebt").onclick = function () { if (A.owedInfo().sum > 0) A.owedOpen(); };
+  } catch (e) {}
+}
+window.emDebtCard = emDebtCard;
