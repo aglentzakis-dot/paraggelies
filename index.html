@@ -17,9 +17,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Παραγγελίες">
 <meta name="description" content="Οι πελάτες σου παραγγέλνουν από σύνδεσμο στο Viber, χωρίς τηλεφωνήματα.">
-<link rel="icon" href="eikonidia/icon-192.png?v=1.35">
-<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.35">
-<link rel="stylesheet" href="koino.css?v=1.35">
+<link rel="icon" href="eikonidia/icon-192.png?v=1.36">
+<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.36">
+<link rel="stylesheet" href="koino.css?v=1.36">
 <style>
 :root{--brand:#17324D;--onbrand:#fff;--accent:#F2B632;--onaccent:#17324D;--paper:#EDF1F2;--card:#fff;--ink:#16232f;--mute:#5d6873;--line:#d9dfe3;--ok:#1f7a3d;--bad:#b3261e;--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D}
 *{box-sizing:border-box}
@@ -39,8 +39,11 @@ main{max-width:720px;margin:0 auto;padding:12px 14px}
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);display:flex;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
 nav.tabs button{flex:1;border:0;background:none;padding:8px 2px 9px;font-size:11.5px;color:var(--mute);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;position:relative}
 nav.tabs button .i{font-size:21px;line-height:1}
-nav.tabs button.on{color:var(--brand);font-weight:800}
-nav.tabs button.on::before{content:"";position:absolute;top:0;left:22%;right:22%;height:3px;border-radius:0 0 3px 3px;background:var(--accent)}
+nav.tabs button{z-index:0}nav.tabs button .i{transition:transform .15s}
+nav.tabs button.on{color:var(--brand);font-weight:900}
+nav.tabs button.on::before{content:"";position:absolute;top:4px;bottom:4px;left:5%;right:5%;border-radius:14px;background:color-mix(in srgb,var(--accent) 28%,#fff);border:2px solid var(--accent);z-index:-1}
+nav.tabs button.on .i{transform:scale(1.18)}
+nav.tabs button:not(.on){opacity:.72}
 nav.tabs .dot{position:absolute;top:4px;right:calc(50% - 22px);background:var(--bad);color:#fff;border-radius:9px;font-size:11px;font-weight:800;min-width:18px;height:18px;line-height:18px;padding:0 4px}
 .card{background:var(--card);border-radius:16px;padding:14px;margin:0 0 12px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
 .card h2,.card h3{margin:0 0 8px;font-size:17px}
@@ -180,12 +183,12 @@ body.editing{padding-bottom:140px}
 </nav>
 <div class="sheetbg" id="sheetbg"><div class="sheet"><div class="sh"><h2 id="shT"></h2><button type="button" class="x" data-act="shClose" aria-label="Κλείσιμο">✕</button></div><div class="sb" id="shB"></div><div class="sf" id="shF"></div></div></div>
 <div id="toast"></div>
-<script src="katalogos.js?v=1.35"></script>
-<script src="antigrafa.js?v=1.35"></script>
-<script src="efarmoges-mas.js?v=1.35"></script>
-<script src="protypa.js?v=1.35"></script>
-<script src="efarmogi.js?v=1.35"></script>
-<script src="epexergasia.js?v=1.35"></script>
-<script src="excel.js?v=1.35"></script>
+<script src="katalogos.js?v=1.36"></script>
+<script src="antigrafa.js?v=1.36"></script>
+<script src="efarmoges-mas.js?v=1.36"></script>
+<script src="protypa.js?v=1.36"></script>
+<script src="efarmogi.js?v=1.36"></script>
+<script src="epexergasia.js?v=1.36"></script>
+<script src="excel.js?v=1.36"></script>
 </body>
 </html>
