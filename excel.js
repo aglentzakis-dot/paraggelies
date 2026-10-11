@@ -287,7 +287,7 @@ function makePlan(sheets) {
 
 function applyPlan(plan, delMissing) {
   const st = S(), now = Date.now();
-  st.undoImport = { at: now, menu: JSON.parse(JSON.stringify(st.menu)), products: JSON.parse(JSON.stringify(st.products)) };
+  st.undoImport = { at: now, label: "Ανέβασμα από Excel", menu: JSON.parse(JSON.stringify(st.menu)), products: JSON.parse(JSON.stringify(st.products)) };
   /* παλιές ρυθμίσεις κουμπιών για να μη χαθούν */
   const oldNode = {}, oldCat = {};
   const w = (L, tr) => { for (const n of L) { if (n.t === "c") { const t2 = tr.concat(K.norm(n.name)); oldCat[t2.join(">")] = n; w(n.kids || [], t2); } else if (n.t === "p" && !oldNode[n.pid]) oldNode[n.pid] = n; } };

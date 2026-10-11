@@ -2,7 +2,7 @@
   Παραγγελίες
   © 2026 Ανδρέας Μ. Γλεντζάκης (Andreas M. Glentzakis). Με την επιφύλαξη παντός δικαιώματος. All rights reserved.
 */
-const CACHE="paraggelies-1.33",SHELL=["./","./index.html","./p.html","./katalogos.js?v=1.33","./koino.css?v=1.33","./efarmogi.js?v=1.33","./epexergasia.js?v=1.33","./excel.js?v=1.33","./protypa.js?v=1.33","./antigrafa.js?v=1.33","./efarmoges-mas.js?v=1.33","./oroi.html","./aporrito.html","./manifest.json","./eikonidia/icon-192.png?v=1.33","./eikonidia/icon-512.png?v=1.33","./eikonidia/icon-512-maskable.png?v=1.33","./eikonidia/apple-touch-icon.png?v=1.33"];
+const CACHE="paraggelies-1.34",SHELL=["./","./index.html","./p.html","./katalogos.js?v=1.34","./koino.css?v=1.34","./efarmogi.js?v=1.34","./epexergasia.js?v=1.34","./excel.js?v=1.34","./protypa.js?v=1.34","./antigrafa.js?v=1.34","./efarmoges-mas.js?v=1.34","./oroi.html","./aporrito.html","./manifest.json","./eikonidia/icon-192.png?v=1.34","./eikonidia/icon-512.png?v=1.34","./eikonidia/icon-512-maskable.png?v=1.34","./eikonidia/apple-touch-icon.png?v=1.34"];
 self.addEventListener("install",e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>Promise.all(SHELL.map(u=>c.add(u).catch(()=>{})))))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x.startsWith("paraggelies-")&&x!==CACHE).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
 self.addEventListener("message",e=>{e.data&&e.data.type==="skipWaiting"&&self.skipWaiting()});

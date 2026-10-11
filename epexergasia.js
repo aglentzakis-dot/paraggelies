@@ -84,7 +84,7 @@ function actbar() {
    <button type="button" data-ea="size">↔ Μέγεθος</button><button type="button" data-ea="color">🎨 Χρώμα</button>
    ${one ? `<button type="button" data-ea="rename">✏️ Όνομα</button>` : ""}
    <button type="button" data-ea="moveTo">📁 Μετακίνηση</button><button type="button" data-ea="all">Όλα</button>
-   <button type="button" class="red" data-ea="del">🗑</button><button type="button" data-ea="unmark">✕</button></div>`);
+   <button type="button" class="red" data-ea="del">🗑 Διαγραφή</button><button type="button" data-ea="unmark">✕</button></div>`);
 }
 function tagsHTML(p) {
   const st = S(), t = [];
@@ -125,13 +125,14 @@ function listHTML() {
   const head = `<div class="row" style="margin-bottom:10px"><input class="t grow" id="edQ" placeholder="🔍 Αναζήτηση προϊόντος" value="${esc(ed.q)}"></div>
   <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-ea="newProd">🛒 ＋ Νέο προϊόν</button><button type="button" class="btn grow" data-ea="newCat">📁 ＋ Νέα κατηγορία</button></div>
   <div class="row" style="margin-bottom:10px"><button type="button" class="btn soft grow" data-ea="presets">📋 Επαγγέλματα</button><button type="button" class="btn soft grow" data-xl="open">📊 Excel</button></div>
-  ${(() => { const u = S().undoImport; return u && Date.now() - u.at < 2 * 864e5 ? `<div class="okbox" style="display:flex;gap:10px;align-items:center;margin:0 0 10px"><div style="flex:1">Άλλαξες ολόκληρο τον κατάλογο ${new Date(u.at).toLocaleString("el-GR", { weekday: "long", hour: "2-digit", minute: "2-digit" })}.</div><button type="button" class="btn sm soft" data-xl="undo">↩️ Αναίρεση</button></div>` : ""; })()}
+  ${(() => { const u = S().undoImport; return u && Date.now() - u.at < 2 * 864e5 ? `<div class="okbox" style="display:flex;gap:10px;align-items:center;margin:0 0 10px"><div style="flex:1">${esc(u.label || "Αλλαγή ολόκληρου του καταλόγου")} · ${new Date(u.at).toLocaleString("el-GR", { weekday: "long", hour: "2-digit", minute: "2-digit" })}</div><button type="button" class="btn sm soft" data-xl="undo">↩️ Αναίρεση</button></div>` : ""; })()}
 `;
   if (q) for (const g of groups) if (!g.items.length) g.skip = 1;
   const nSub = id => { const f = K.findNode(st.menu, id); return f ? (f.node.kids || []).filter(n => n.t === "c").length : 0; };
   const nd = liveProducts().filter(p => p.draft).length;
   const dbox = nd ? `<div class="warnbox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><div style="flex:1">📝 <b>${nd === 1 ? "1 ενδεικτικό προϊόν" : nd + " ενδεικτικά προϊόντα"}</b> από έτοιμο κατάλογο. Δεν τα βλέπουν οι πελάτες. Διόρθωσε τιμές, σβήσε όσα δεν χρειάζεσαι και ενεργοποίησέ τα.</div><button type="button" class="btn sm amber" data-pactall="*">✓ Όλα</button></div>` : "";
   return head + dbox + (L.length > 1 && !q ? `<p class="note" style="margin:0 2px 10px">Κράτα το <b>⠿</b> και σύρε για να αλλάξεις σειρά ή να πας ένα προϊόν σε άλλη κατηγορία· ή πάτα <b>📁</b>. Με τα <b>▲▼</b> αλλάζεις σειρά στις κατηγορίες. Πάτα τον <b>τίτλο</b> μιας κατηγορίας για να την μετονομάσεις ή να τη διαγράψεις.</p>` : "") + (groups.length ? groups.filter(g => !g.skip).map(g => `<div class="card pgrp${g.hdr ? " phdr" : ""}" data-gcat="${g.warn ? "!" : g.cat}" style="padding:${g.hdr ? "8px 14px" : "10px 14px"};${g.hdr ? "background:color-mix(in srgb,var(--accent) 14%,#fff);margin-bottom:6px;" : ""}${g.depth > 1 ? "margin-left:" + Math.min(3, g.depth - 1) * 10 + "px;" : ""}border-left:5px solid ${g.warn ? "#e3a008" : "var(--accent)"}"><div style="display:flex;align-items:center;gap:8px;margin:2px 0 6px">${g.cat ? (() => { const f = K.findNode(st.menu, g.cat), sib = f ? f.list.filter(n => n.t === "c") : [], i = f ? sib.indexOf(f.node) : -1; return `<div class="cmv"><button type="button" data-cmv="${g.cat}" data-dir="-1" aria-label="Κατηγορία πιο πάνω"${i <= 0 ? " disabled" : ""}>▲</button><button type="button" data-cmv="${g.cat}" data-dir="1" aria-label="Κατηγορία πιο κάτω"${i < 0 || i >= sib.length - 1 ? " disabled" : ""}>▼</button></div>`; })() : ""}<h3${g.cat ? ` data-gedit="${g.cat}" role="button" title="Αλλαγή ονόματος ή διαγραφή"` : ""} style="margin:0;flex:1;min-width:0;font-size:${g.depth > 1 ? 15.5 : 17}px;${g.cat ? "cursor:pointer" : ""}">${esc(g.title)} <span class="note gcnt" style="font-weight:400">· ${g.hdr ? nSub(g.cat) + " υποκατ." : g.items.length}</span>${g.cat ? ` <span style="font-size:13px;color:var(--brand)">✏️</span>` : ""}</h3>${g.items.some(p => p.draft) ? `<button type="button" class="btn sm soft" data-pactall="${g.warn ? "!" : g.cat || "~"}" style="padding:7px 10px">✓ Όλα (${g.items.filter(p => p.draft).length})</button>` : ""}${g.warn || g.hdr ? "" : g.loose ? `<button type="button" class="btn sm amber" data-ea="tidy" style="padding:7px 11px">🧹 Τακτοποίηση</button>` : `<button type="button" class="btn sm amber" data-addto="${g.cat}" style="padding:7px 11px">＋ Προϊόν</button>`}</div>${g.loose ? `<p class="note" style="margin:0 0 4px">Αυτά φαίνονται στον πελάτη ανάμεσα στις κατηγορίες. Σύρε τα με το ⠿ μέσα σε κατηγορία ή πάτα «Τακτοποίηση».</p>` : ""}${g.hdr ? "" : `<div class="pitems">`}${(g.warn ? g.items.sort((a, b) => a.name.localeCompare(b.name, "el")) : g.items).map(prow).join("")}${g.hdr ? "" : "</div>"}</div>`).join("") : `<div class="card"><p class="note">Κανένα προϊόν ακόμα.</p></div>`)
+    + (liveProducts().length ? `<button type="button" class="btn soft wide" data-ea="emptyAll" style="margin:14px 0 4px;color:var(--bad);border:1px solid #f1b3ad">🗑 Άδειασμα όλου του καταλόγου</button>` : "")
     + (L.length ? `<p class="note">Πράσινος διακόπτης = <b>διαθέσιμο</b>. Κλείσ' τον όταν τελειώσει ένα προϊόν: ο πελάτης το βλέπει «Εξαντλήθηκε» και δεν μπορεί να το παραγγείλει. Η τιμή αλλάζει μόλις φύγεις από το πλαίσιο.</p>` : "");
 }
 /* ---------- τακτοποίηση: προϊόντα χύμα στην αρχική ---------- */
@@ -436,9 +437,10 @@ function catSheet(node) {
     <label class="f">Εικονίδιο</label>${emojiPicker(node.emoji)}<input class="t" id="emFree" value="${esc(node.emoji || "")}" maxlength="4" placeholder="ή γράψε δικό σου" style="margin-top:6px;width:150px">
     <label class="f">Μέγεθος κουμπιού</label>${sizePicker(node.size)}
     <label class="f">Χρώμα κουμπιού</label>${colorPicker(node.color)}</div>
-   ${!isNew ? (() => { const c = subtreeCount(node); return `<div class="card"><h3 style="margin-top:0">Διαγραφή</h3><p class="note" style="margin-top:0">Μέσα έχει ${c.cats ? c.cats + (c.cats === 1 ? " υποκατηγορία και " : " υποκατηγορίες και ") : ""}${c.prods} ${c.prods === 1 ? "προϊόν" : "προϊόντα"}.</p>
-    <button type="button" class="btn soft wide" data-ea="catDel">Διαγραφή μόνο του φακέλου</button><p class="note">Ό,τι έχει μέσα ανεβαίνει ένα επίπεδο πάνω· δεν χάνεται τίποτα.</p>
-    ${c.prods || c.cats ? `<button type="button" class="btn red wide" data-ea="catDelAll" style="margin-top:6px">🗑 Διαγραφή με όλο το περιεχόμενο</button><p class="note">Σβήνονται ο φάκελος, οι υποκατηγορίες του και τα προϊόντα του από τον κατάλογο. Οι παλιές παραγγελίες δεν αλλάζουν.</p>` : ""}</div>`; })() : ""}`,
+   ${!isNew ? (() => { const c = subtreeCount(node); return `<div class="card"><h3 style="margin-top:0">Διαγραφή</h3>
+    <button type="button" class="btn red wide" data-ea="catDelAll">🗑 Διαγραφή της κατηγορίας${c.prods || c.cats ? " με όλα όσα έχει μέσα" : ""}</button>
+    <p class="note">${c.prods || c.cats ? "Σβήνονται " + (c.cats ? c.cats + (c.cats === 1 ? " υποκατηγορία και " : " υποκατηγορίες και ") : "") + c.prods + (c.prods === 1 ? " προϊόν" : " προϊόντα") + ". " : ""}Πριν τη διαγραφή κρατιέται αντίγραφο και μπορείς να την αναιρέσεις. Οι παλιές παραγγελίες δεν αλλάζουν.</p>
+    ${c.prods || c.cats ? `<details><summary class="note" style="cursor:pointer">Θέλω να κρατήσω τα προϊόντα</summary><button type="button" class="btn soft wide" data-ea="catDel" style="margin-top:6px">Σβήσε μόνο τον φάκελο</button><p class="note">Ό,τι έχει μέσα ανεβαίνει ένα επίπεδο πάνω.</p></details>` : ""}</div>`; })() : ""}`,
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-ea="catSave">Αποθήκευση</button>`,
    el => { pickBind(el); el.dataset.node = isNew ? "" : node.id; });
 }
@@ -624,10 +626,22 @@ function shift(dir) {
 function delMarked() {
   const L = curList(), sel = L.filter(n => ed.marked.has(n.id));
   const cats = sel.filter(n => n.t === "c"), prods = sel.filter(n => n.t === "p");
-  const msg = (cats.length ? cats.length + " κατηγορίες (ό,τι έχουν μέσα ανεβαίνει ένα επίπεδο)" : "") + (cats.length && prods.length ? " και " : "") + (prods.length ? prods.length + " κουμπιά προϊόντων (τα προϊόντα μένουν στη λίστα «Προϊόντα και τιμές»)" : "");
-  if (!confirm("Αφαίρεση από το μενού: " + msg + ";")) return;
-  for (let i = L.length - 1; i >= 0; i--) if (ed.marked.has(L[i].id)) { const n = L[i]; L.splice(i, 1, ...(n.t === "c" ? n.kids || [] : [])); }
-  ed.marked.clear(); A.save({ catalog: true }); A.render();
+  const pids = new Set(prods.map(n => n.pid)); let subc = 0;
+  for (const c of cats) { const x = subtreeCount(c); subc += x.cats; x.pids.forEach(p => pids.add(p)); }
+  const parts = [];
+  if (cats.length) parts.push("• " + cats.length + (cats.length === 1 ? " κατηγορία" : " κατηγορίες") + (subc ? " με " + subc + (subc === 1 ? " υποκατηγορία" : " υποκατηγορίες") : ""));
+  if (pids.size) parts.push("• " + pids.size + (pids.size === 1 ? " προϊόν" : " προϊόντα"));
+  if (!confirm("Είσαι σίγουρος; Θα διαγραφούν οριστικά μαζί με όλα όσα έχουν μέσα:\n" + parts.join("\n") + "\n\nΚρατιέται αντίγραφο για αναίρεση. Οι παλιές παραγγελίες δεν αλλάζουν.")) return;
+  snapshot("Διαγραφή " + sel.length + (sel.length === 1 ? " κουμπιού" : " κουμπιών"));
+  for (let i = L.length - 1; i >= 0; i--) if (ed.marked.has(L[i].id)) L.splice(i, 1);
+  let gone = 0; for (const pid of pids) if (!productInMenu(pid)) { delete S().products[pid]; gone++; }
+  ed.marked.clear(); A.save({ catalog: true }); A.render(); A.toast("🗑 Διαγράφηκαν" + (gone ? " · " + gone + (gone === 1 ? " προϊόν" : " προϊόντα") : "") + ". Αναίρεση: Προϊόντα και τιμές.", 5000);
+}
+/* πριν από κάθε μεγάλη διαγραφή: αντίγραφο για αναίρεση και αντίγραφο ασφαλείας */
+function snapshot(label) {
+  const st = S();
+  st.undoImport = { at: Date.now(), label, menu: JSON.parse(JSON.stringify(st.menu)), products: JSON.parse(JSON.stringify(st.products)) };
+  try { A.backupNow && A.backupNow(); } catch {}
 }
 function sizeSheet() {
   A.sheet("Μέγεθος κουμπιών", `<div class="card">${sizePicker(ed.marked.size === 1 ? (curList().find(n => ed.marked.has(n.id)) || {}).size : "m")}
@@ -668,7 +682,8 @@ const EA = {
   catSave,
   catDel: () => {
     const id = $("#shB").dataset.node, f = K.findNode(S().menu, id); if (!f) return;
-    if (!confirm("Διαγραφή της κατηγορίας «" + f.node.name + "»;")) return;
+    if (!confirm("Να σβηστεί μόνο ο φάκελος «" + f.node.name + "»; Ό,τι έχει μέσα ανεβαίνει ένα επίπεδο πάνω.")) return;
+    snapshot("Διαγραφή φακέλου «" + f.node.name + "»");
     const i = f.list.indexOf(f.node); f.list.splice(i, 1, ...(f.node.kids || []));
     ed.path = ed.path.slice(0, ed.path.indexOf(id) < 0 ? ed.path.length : ed.path.indexOf(id));
     A.save({ catalog: true }); A.closeSheet(); A.render();
@@ -677,11 +692,21 @@ const EA = {
   catDelAll: () => {
     const id = $("#shB").dataset.node, f = K.findNode(S().menu, id); if (!f) return;
     const c = subtreeCount(f.node);
-    if (!confirm("Διαγραφή του «" + f.node.name + "» με όλο το περιεχόμενο;\n" + (c.cats ? c.cats + " υποκατηγορίες, " : "") + c.prods + " προϊόντα.\nΔεν αναιρείται. Οι παλιές παραγγελίες δεν αλλάζουν.")) return;
+    if (!confirm("Είσαι σίγουρος; Θα διαγραφεί η κατηγορία «" + f.node.name + "»" + (c.prods || c.cats ? " και θα χαθούν όλα όσα έχει μέσα:" + (c.cats ? "\n• " + c.cats + (c.cats === 1 ? " υποκατηγορία" : " υποκατηγορίες") : "") + "\n• " + c.prods + (c.prods === 1 ? " προϊόν" : " προϊόντα") : "") + "\n\nΚρατιέται αντίγραφο για αναίρεση. Οι παλιές παραγγελίες δεν αλλάζουν.")) return;
+    snapshot("Διαγραφή «" + f.node.name + "»");
     f.list.splice(f.list.indexOf(f.node), 1);
     let gone = 0; for (const pid of c.pids) if (!productInMenu(pid)) { delete S().products[pid]; gone++; }
     if (ed.path.includes(id)) ed.path = ed.path.slice(0, ed.path.indexOf(id));
-    A.save({ catalog: true }); A.closeSheet(); A.render(); A.toast("Διαγράφηκε: " + f.node.name + (gone ? " και " + gone + " προϊόντα" : ""));
+    A.save({ catalog: true }); A.closeSheet(); A.render(); A.toast("🗑 Διαγράφηκε: " + f.node.name + (gone ? " και " + gone + (gone === 1 ? " προϊόν" : " προϊόντα") : "") + ". Αναίρεση: Προϊόντα και τιμές.", 5000);
+  },
+  emptyAll: () => {
+    const st = S(), np = Object.values(st.products).filter(p => !p.del).length, nc = (function w(L) { let n = 0; for (const x of L) if (x.t === "c") n += 1 + w(x.kids || []); return n; })(st.menu);
+    if (!np && !nc) { A.toast("Ο κατάλογος είναι ήδη άδειος."); return; }
+    if (!confirm("Είσαι σίγουρος; Θα αδειάσει ΟΛΟΣ ο κατάλογος:\n• " + nc + " κατηγορίες\n• " + np + " προϊόντα\n\nΚρατιέται αντίγραφο για αναίρεση και γράφεται αντίγραφο ασφαλείας. Οι παραγγελίες, οι πελάτες και το ταμείο δεν αλλάζουν.")) return;
+    snapshot("Άδειασμα καταλόγου");
+    st.menu.splice(0); for (const k of Object.keys(st.products)) delete st.products[k]; ed.path = []; ed.marked.clear(); ed.view = "menu";
+    A.save({ catalog: true }); A.closeSheet && A.closeSheet(); A.render(); window.scrollTo(0, 0);
+    A.toast("✓ Ο κατάλογος άδειασε. Διάλεξε επάγγελμα ή φτιάξε τον δικό σου. Αναίρεση: Προϊόντα και τιμές.", 6000);
   },
   prodSave,
   toVariants: () => {
@@ -717,7 +742,7 @@ document.addEventListener("click", e => {
   const pg = t.closest("[data-preset-go]"); if (pg) { applyPreset(pg.dataset.presetGo); return; }
   const ps = t.closest("[data-preset-swap]"); if (ps) { const st = S(), P = PRESETS[ps.dataset.presetSwap]; if (!P) return;
     if (!confirm("Να σβηστεί ο τωρινός κατάλογος και να μπει ο «" + P.n + "»; Οι παλιές παραγγελίες δεν αλλάζουν και μπορείς να το αναιρέσεις.")) return;
-    st.undoImport = { at: Date.now(), menu: JSON.parse(JSON.stringify(st.menu)), products: JSON.parse(JSON.stringify(st.products)) };
+    snapshot("Αντικατάσταση με «" + P.n + "»");
     st.menu.splice(0); for (const k of Object.keys(st.products)) delete st.products[k]; ed.path = [];
     applyPreset(ps.dataset.presetSwap); return; }
   const mk = t.closest("#edGrid [data-mk]"); if (mk) { e.stopPropagation(); const id = mk.dataset.mk; ed.marked.has(id) ? ed.marked.delete(id) : ed.marked.add(id); A.render(); return; }
