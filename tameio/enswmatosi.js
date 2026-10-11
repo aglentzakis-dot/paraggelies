@@ -48,7 +48,7 @@ function emInbox() {
   var b = emBook(), B = xbData(b), n = 0, done = new Set();
   q.forEach(function (op) {
     if (!op || typeof op !== "object") return; done.add(JSON.stringify(op));
-    if (typeof op.id !== "string" || !/^pg-[\w-]{1,40}$/.test(op.id)) return;
+    if (typeof op.id !== "string" || !/^pg-[\w.-]{1,60}$/.test(op.id)) return;
     var i = B.ent.findIndex(function (x) { return x && x.id === op.id; });
     if (op.op === "del") { if (i >= 0) { B.ent.splice(i, 1); n++; } return; }
     var e = op.e || {}, a = Math.round(+e.amount * 100) / 100;

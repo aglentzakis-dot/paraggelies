@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.47">
+<meta name="app-version" content="1.48">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.47">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.47">
-<link rel="stylesheet" href="koino.css?v=1.47">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.48">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.48">
+<link rel="stylesheet" href="koino.css?v=1.48">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -91,7 +91,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.47"></script>
+<script src="katalogos.js?v=1.48"></script>
 <script>
 (function(){
 "use strict";
@@ -161,10 +161,10 @@ async function liveUpdate(){
   if(!d||d.ts<=liveTs)return;liveTs=d.ts;
   let gone=0;
   const act=new Set(d.r?Object.keys(d.r):(d.a||[]));
-  for(const p of Object.values(P)){const e=d.s&&d.s[p.id],gone=!act.has(p.id);
-    p.soldout=gone||!!(e&&e[0]);p.oos=!gone&&!!(e&&e[0]===2);p.max=!gone&&e&&e[0]===0&&e[1]!=null?+e[1]:null;
+  for(const p of Object.values(P)){const e=d.s&&d.s[p.id],off=!act.has(p.id);
+    p.soldout=off||!!(e&&e[0]);p.oos=!off&&!!(e&&e[0]===2);p.max=!off&&e&&e[0]===0&&e[1]!=null?+e[1]:null;
     if(d.r&&!C.c&&d.r[p.id]!=null)p.price=+d.r[p.id];
-    const q=qty(p.id);if(q&&(p.soldout||(p.max!=null&&q>p.max))){gone++;setQ(p.id,p.soldout?0:q)}}
+    const q=qty(p.id);if(q&&(p.soldout||(p.max!=null&&q>p.max))){gone++;setQ(p.id,p.soldout?0:p.max)}}
   if(stage==="shop"||stage==="check")keepInputs(render);
   if(gone)toastMsg("Ενημερώθηκε η διαθεσιμότητα· άλλαξαν "+gone+" είδη στο καλάθι σου.");
 }
@@ -353,7 +353,7 @@ async function send(){
   try{await K.ntfySend(C.t,"🛒 Νέα παραγγελία "+code,t.n+(t.n===1?" είδος":" είδη")+" · "+K.dayLabel(ch.d)+" — πάτα για να την ανοίξεις",click);ok=true}catch{}
   if(INFRAME){try{parent.postMessage({t:"paraggelia",ct},location.origin)}catch{}ok=true}
   sending=false;
-  lastSent={code,click,ok,day:ch.d,slot:ch.s,how:ch.h,total:t.t,lines:O.l.map(([id,q])=>({name:P[id].name,unit:P[id].unit,q,price:P[id].price}))};
+  lastSent={form:{n,p,a,note},code,click,ok,day:ch.d,slot:ch.s,how:ch.h,total:t.t,lines:O.l.map(([id,q])=>({name:P[id].name,unit:P[id].unit,q,price:P[id].price}))};
   {const sent=store.get(SK+":sent",[]).filter(x=>x.d>=K.ymd(new Date()));sent.push({d:ch.d,c:code,t:t.t,at:Date.now(),ok});store.set(SK+":sent",sent.slice(-20))}
   if(ok){store.set(SK+":last",Object.assign({},cart));cart={};store.set(SK+":cart",{});const c2=store.get(SK+":ck",{});delete c2.note;store.set(SK+":ck",c2);orderId=null}
   stage="done";view=[];history.replaceState({v:[],s:"done"},"");render();window.scrollTo(0,0);
@@ -402,7 +402,7 @@ document.addEventListener("click",e=>{
   else if(a==="check"){go(view,"check");liveAll()}
   else if(a==="shop"){saveCk();history.back()}
   else if(a==="send")send();
-  else if(a==="retry"){stage="check";render();send()}
+  else if(a==="retry"){const f=lastSent&&lastSent.form;stage="check";render();if(f){const v=(id,x)=>{const e=$("#"+id);if(e&&x!=null)e.value=x};v("cn",f.n);v("cp",f.p);v("ca",f.a);v("cnote",f.note);const cc=$("#ccons");if(cc)cc.checked=true}send()}   /* ξανά με τα ίδια στοιχεία, χωρίς να τα ξαναγράψει */
   else if(a==="new"){stage="shop";view=[];history.replaceState({v:[],s:"shop"},"");render();window.scrollTo(0,0)}
   else if(a==="again"){const last=store.get(SK+":last",{});let miss=0;for(const[id,q]of Object.entries(last)){if(P[id]&&!P[id].soldout)setQ(id,q);else miss++}go(view,"check");if(miss)$("#cerr").textContent="Κάποια είδη της προηγούμενης φοράς δεν είναι διαθέσιμα τώρα."}
   else if(a==="extra"||a==="normal"){saveCk();const ch=store.get(SK+":ck",{});ch.x=a==="extra"?1:0;ch.d="";store.set(SK+":ck",ch);keepInputs(renderCheck)}

@@ -109,6 +109,7 @@ let toastT;
 function toast(m, ms) { const t = $("#toast"); t.textContent = m; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), ms || 2600); }
 let shOnClose = null;
 function sheet(title, body, foot, onOpen, onClose) {
+  { const b = $("#shB"); for (const k of Object.keys(b.dataset)) delete b.dataset[k]; }   /* κάθε παράθυρο ξεκινά καθαρό: όχι σημάδια από το προηγούμενο */
   $("#shT").textContent = title; $("#shB").innerHTML = body; $("#shF").innerHTML = foot || ""; $("#shF").style.display = foot ? "" : "none";
   if (!isSheetOpen()) histPush({ sh: 1 });
   $("#sheetbg").classList.add("open"); $("#shB").scrollTop = 0; shOnClose = onClose || null;
@@ -371,7 +372,7 @@ let ordSeenT = null;
 function ordSeenSoon() {
   clearTimeout(ordSeenT);
   ordSeenT = setTimeout(() => {
-    if (tab !== "orders" || document.hidden) return;
+    if (tab !== "orders" || document.hidden || isSheetOpen() || previewOpen()) { if (tab === "orders" && !document.hidden) ordSeenSoon(); return; }   /* σκεπάζεται από παράθυρο: όχι ακόμα */
     const shown = new Set([...document.querySelectorAll("#main .ord[data-ord]")].map(e => e.dataset.ord));
     let n = 0; for (const o of unread()) if (shown.has(o.id)) { o.seen = Date.now(); n++; }
     if (n) { save(); newBar(); }
@@ -448,8 +449,8 @@ function onboarding() {
 function ordMatch(o, f) {
   if (f.day && o.when.date !== f.day) return false;
   if (f.st === "all") return o.st !== "dup";
-  if (f.st === "paid") return o.paid && o.st === "done";
-  if (f.st === "done") return o.st === "done" && !o.paid;
+  if (f.st === "paid") return o.paid && o.st === "done" && !owes(o);
+  if (f.st === "done") return o.st === "done" && owes(o);
   return o.st === f.st;
 }
 function ordersView() {
@@ -474,7 +475,7 @@ function ordersView() {
 }
 function ordCard(o) {
   const items = o.lines.map(l => qtyTxt(l) + " " + l.name).join(" · ");
-  const next = o.st === "new" ? ["prep", "▶ Ετοιμάζεται"] : o.st === "prep" ? ["done", "✓ Παραδόθηκε"] : o.st === "done" && !o.paid ? ["paid", "€ Πληρώθηκε"] : null;
+  const next = o.st === "new" ? ["prep", "▶ Ετοιμάζεται"] : o.st === "prep" ? ["done", "✓ Παραδόθηκε"] : o.st === "done" && !o.paid ? ["paid", "€ Πληρώθηκε"] : o.st === "done" && owes(o) ? ["paydiff", "€ Υπόλοιπο " + K.money(dueOf(o))] : null;
   return `<div class="ord st-${o.st}${o.paid ? " paid" : ""}" data-ord="${o.id}">
    <div class="h"><b>#${o.no} · ${esc(o.cust.name)}</b><span class="tot">${K.money(o.total)}</span></div>
    <div class="m">${o.when.how === "pick" ? "🏪" : "🚚"} ${esc(fmtWhen(o))}${o.when.how !== "pick" && o.cust.addr ? " · " + esc(o.cust.addr) : ""}</div>
@@ -491,6 +492,9 @@ const STEP_MSG = {
 const paidOf = o => o.paid ? (o.paidAmt != null ? o.paidAmt : o.total) : 0;
 /* διαφορά παραγγελίας που άλλαξε μετά την πληρωμή: θετική = χρωστά, αρνητική = του επιστρέφεις */
 const diffOf = o => o.paid ? K.round2(o.total - paidOf(o)) : 0;
+/* πόσα μένουν να εισπραχθούν: όλο το ποσό αν δεν πληρώθηκε, ή το υπόλοιπο μιας μερικής πληρωμής */
+const dueOf = o => o.paid ? Math.max(0, diffOf(o)) : K.round2(o.total);
+const owes = o => dueOf(o) > 0.004;
 A.diffOf = diffOf;
 /* κάθε είσπραξη κρατιέται χωριστά (ολική ή μερική εξόφληση) και γίνεται χωριστή κίνηση στο Ταμείο */
 function paySeed(o) { if (!o.pays) o.pays = o.paid ? [{ at: o.paidAt || o.rx, amt: K.round2(paidOf(o)), via: o.payVia || "" }] : []; return o.pays; }
@@ -783,7 +787,7 @@ function emDesired() {
         : { dir: "in", kind: "ae73", sub: "Πωλήσεις εμπορευμάτων", amount: amt, date: new Date(py.at).toISOString(), note: "Παραγγελία #" + o.no + (P.length > 1 ? " · " + (i + 1) + "η είσπραξη" : ""), cp: (o.inv && o.inv.t === "i" && o.inv.n) || o.cust.name || "", pay: PAYMAP[py.via] || "cash", doc: o.inv && o.inv.t === "i" ? "inv" : "rcpt" };
       if (!back && o.inv && o.inv.t === "i" && o.inv.f) e.afm = o.inv.f;
       if (!back) { if (v.length === 1) e.vat = v[0].r; else if (v.length > 1) e.vats = v; }
-      W.set("pg-o" + o.id + (P.length > 1 || (o.pays && o.pays.length > 1) ? "-" + i : ""), e);
+      W.set("pg-o" + pgId(o.id) + (P.length > 1 || (o.pays && o.pays.length > 1) ? "-" + i : ""), e);
     });
   }
   return W;
@@ -794,7 +798,11 @@ function qPush(key, ops) {
 }
 let tmT = null, tmBusy = false;
 function tmSoon() { if (tmBusy) return; clearTimeout(tmT); tmT = setTimeout(tmSync, 300); }
+/* αναγνωριστικό για Ταμείο/Ημερολόγιο: μόνο γράμματα, ψηφία, _ και - (οι κωδικοί παραγγελιών μπορεί να έχουν τελεία, που εκείνα απορρίπτουν) */
+const pgId = x => String(x).replace(/[^\w-]/g, "_");
 function tmSync() {
+  /* μία φορά: όσες κινήσεις είχαν σταλεί με τελεία στο αναγνωριστικό δεν μπήκαν ποτέ — ξαναστέλνονται σωστά */
+  if (S && !S.pgFix) { for (const m of [S.emSent, S.tmSent, S.imSent]) if (m) for (const k of Object.keys(m)) if (/[^\w-]/.test(k)) delete m[k]; S.pgFix = Date.now(); }
   if (!S || DEMO) return;
   let changed = false;
   /* 1. πληρωμές παραγγελιών → Ταμείο των Παραγγελιών */
@@ -806,7 +814,7 @@ function tmSync() {
   /* 2. μία φορά: οι παλιές χειροκίνητες κινήσεις, και όσες είχαν πάει στα Ταμεία με την 1.37 */
   if (!S.emMig) {
     const mig = [];
-    for (const c of cashList()) { const m = CK2AE[c.ck] || [c.kind === "in" ? "ae75" : "aeoth", ""]; mig.push({ op: "put", id: "pg-c" + c.id, e: { dir: c.kind === "in" ? "in" : "out", kind: m[0], sub: c.sub || m[1], amount: K.round2(+c.amt || 0), date: new Date(c.d + "T12:00:00").toISOString(), note: c.note || "", vat: c.vat } }); }
+    for (const c of cashList()) { const m = CK2AE[c.ck] || [c.kind === "in" ? "ae75" : "aeoth", ""]; mig.push({ op: "put", id: "pg-c" + pgId(c.id), e: { dir: c.kind === "in" ? "in" : "out", kind: m[0], sub: c.sub || m[1], amount: K.round2(+c.amt || 0), date: new Date(c.d + "T12:00:00").toISOString(), note: c.note || "", vat: c.vat } }); }
     try { const T0 = JSON.parse(localStorage.getItem(TM_KEY) || "null"); for (const e of (T0 && T0.company && T0.company.ent) || []) if (e && /^pg-c/.test(e.id || "")) { const m = CK2AE[e.kind] || [e.dir === "in" ? "ae75" : "aeoth", ""]; mig.push({ op: "put", id: e.id, e: { dir: e.dir, kind: m[0], sub: e.sub || m[1], amount: e.amount, date: e.date, note: e.note || "", vat: e.vat } }); } } catch {}
     if (qPush(EMQ, mig)) { S.emMig = Date.now(); S.cash = []; changed = true; }
   }
@@ -860,7 +868,7 @@ function imSync() {
   const sent = S.imSent || (S.imSent = {}), on = !!(packSt && packSt.full) && S.ui.imSync === true, W = new Map(), ops = [];
   if (on) for (const o of S.orders) if (!o.test && o.when.how !== "pick" && o.when.date && (o.st === "new" || o.st === "prep" || o.st === "done")) {
     const c = S.customers[custKey(o.cust.phone)] || {}, t = slotTimes(o.when.slot);
-    W.set("pg-o" + o.id, { date: o.when.date, s: t.s || "", e: t.e || "", name: o.cust.name, phone: o.cust.phone, addr: o.cust.addr || c.addr || "", note: "🚚 Παράδοση #" + o.no + " · " + o.lines.map(l => K.num(l.q) + " " + l.unit + " " + l.name).join(", ") + (o.cust.addr || c.addr ? " · 📍 " + (o.cust.addr || c.addr) : "") + (o.paid ? " · πληρωμένη" : " · να εισπραχθούν " + K.money(o.total)) });
+    W.set("pg-o" + pgId(o.id), { date: o.when.date, s: t.s || "", e: t.e || "", name: o.cust.name, phone: o.cust.phone, addr: o.cust.addr || c.addr || "", note: "🚚 Παράδοση #" + o.no + " · " + o.lines.map(l => K.num(l.q) + " " + l.unit + " " + l.name).join(", ") + (o.cust.addr || c.addr ? " · 📍 " + (o.cust.addr || c.addr) : "") + (o.paid ? " · πληρωμένη" : " · να εισπραχθούν " + K.money(o.total)) });
   }
   for (const [id, e] of W) { const h = JSON.stringify(e); if (sent[id] !== h) ops.push({ op: "put", id, e, at: Date.now() }); }
   if (on || packSt) for (const id of Object.keys(sent)) if (!W.has(id)) ops.push({ op: "del", id, at: Date.now() });
@@ -1074,7 +1082,7 @@ function prepView() {
   const days = [...new Set([today(), addDays(today(), 1)].concat(act.filter(o => o.when.date && o.when.date >= addDays(today(), -14)).map(o => o.when.date)))].sort();
   if (!totDay || !days.includes(totDay)) totDay = today();
   const L = act.filter(o => o.when.date === totDay);
-  const sum = K.round2(L.reduce((a, o) => a + o.total, 0)), paid = K.round2(L.filter(o => o.paid).reduce((a, o) => a + o.total, 0));
+  const sum = K.round2(L.reduce((a, o) => a + o.total, 0)), paid = K.round2(L.filter(o => o.paid).reduce((a, o) => a + Math.min(o.total, paidOf(o)), 0));
   const per = {};
   L.forEach(o => o.lines.forEach(l => { const x = per[l.pid] || (per[l.pid] = { name: l.name, unit: l.unit, q: 0, sum: 0, n: 0 }); x.q += l.q; x.sum = K.round2(x.sum + l.sum); x.n++; }));
   const prep = Object.values(per).sort((a, b) => a.name.localeCompare(b.name, "el"));
@@ -1238,8 +1246,8 @@ function remindersList() {
   if (tom.length) R.push({ id: "tom", ic: "🚚", t: `Έχεις <b>${tom.length}</b> ${tom.length === 1 ? "παραγγελία" : "παραγγελίες"} για αύριο (${K.money(tom.reduce((a, o) => a + o.total, 0))})`, act: `data-dvday="${t1}"` });
   const tod = act.filter(o => o.when.date === today() && (o.st === "new" || o.st === "prep"));
   if (tod.length) R.push({ id: "tod", ic: "📦", t: `Σήμερα: ${tod.length === 1 ? "<b>1</b> παραγγελία δεν έχει παραδοθεί" : "<b>" + tod.length + "</b> παραγγελίες δεν έχουν παραδοθεί"} ακόμα`, act: `data-dvday="${today()}"` });
-  const unpaid = act.filter(o => o.st === "done" && !o.paid);
-  if (unpaid.length) R.push({ id: "unpaid", ic: "💶", t: `${unpaid.length === 1 ? "Υπάρχει <b>1</b> ανεξόφλητη παράδοση" : "Υπάρχουν <b>" + unpaid.length + "</b> ανεξόφλητες παραδόσεις"} (${K.money(unpaid.reduce((a, o) => a + o.total, 0))})`, act: `data-remgo="unpaid"` });
+  const unpaid = act.filter(o => o.st === "done" && owes(o));
+  if (unpaid.length) R.push({ id: "unpaid", ic: "💶", t: `${unpaid.length === 1 ? "Υπάρχει <b>1</b> ανεξόφλητη παράδοση" : "Υπάρχουν <b>" + unpaid.length + "</b> ανεξόφλητες παραδόσεις"} (${K.money(unpaid.reduce((a, o) => a + dueOf(o), 0))})`, act: `data-remgo="unpaid"` });
   /* τακτικοί πελάτες που αργούν */
   const quiet = [];
   for (const c of Object.values(S.customers)) {
@@ -1289,8 +1297,8 @@ function dvSheet(day) {
   dvDay = day || dvDay || today(); if (!days.includes(dvDay)) days.unshift(dvDay);
   const L = dvOrders(dvDay), G = dvGroups(L);
   const load = {}; for (const o of L) for (const l of o.lines) { const k = l.name + "|" + l.unit; load[k] = (load[k] || 0) + l.q; }
-  const owed = K.round2(L.filter(o => !o.paid).reduce((a, o) => a + o.total, 0));
-  const stop = o => { const c = S.customers[custKey(o.cust.phone)] || {}, ad = o.cust.addr || c.addr || ""; return `<div class="dvs"><div class="dvh"><b>${esc(o.cust.name)}</b><span class="note">${o.when.slot ? esc(o.when.slot) + " · " : ""}#${o.no} · ${K.money(o.total)} ${o.paid ? "✓ πληρώθηκε" : "<b style='color:var(--bad)'>να εισπραχθεί</b>"}</span></div>
+  const owed = K.round2(L.reduce((a, o) => a + dueOf(o), 0));
+  const stop = o => { const c = S.customers[custKey(o.cust.phone)] || {}, ad = o.cust.addr || c.addr || ""; return `<div class="dvs"><div class="dvh"><b>${esc(o.cust.name)}</b><span class="note">${o.when.slot ? esc(o.when.slot) + " · " : ""}#${o.no} · ${K.money(o.total)} ${!owes(o) ? "✓ πληρώθηκε" : "<b style='color:var(--bad)'>να εισπραχθ" + (o.paid ? "ούν " + K.money(dueOf(o)) : "εί") + "</b>"}</span></div>
      ${ad ? `<div class="note">📍 ${esc(ad)}</div>` : `<div class="note" style="color:var(--bad)">Χωρίς διεύθυνση</div>`}
      <div class="note">${esc(o.lines.map(l => K.num(l.q) + " " + l.unit + " " + l.name).join(" · "))}</div>${o.cust.note ? `<div class="note">📝 ${esc(o.cust.note)}</div>` : ""}
      <div class="row" style="margin-top:6px;flex-wrap:wrap"><a class="btn soft sm" href="tel:${esc(o.cust.phone)}">📞</a>${ad ? `<a class="btn soft sm" href="https://www.google.com/maps/search/?api=1&query=${mapsQ(ad)}" target="_blank" rel="noopener">🗺 Χάρτης</a>` : ""}<button type="button" class="btn ghost sm" data-dvo="${o.id}">Άνοιγμα</button></div></div>`; };
@@ -1322,7 +1330,7 @@ function rtCands() {
   const del = S.orders.filter(o => (o.st === "new" || o.st === "prep") && !o.test && o.when.how !== "pick" && dayOk(o))
     .sort((a, b) => (a.when.date || "").localeCompare(b.when.date || "") || slotKey(a).localeCompare(slotKey(b)));
   const C = [];
-  for (const o of del) { const k = custKey(o.cust.phone); C.push({ key: "o:" + o.id, kind: "del", ck: k, name: o.cust.name, addr: custAddr(k, o), o, amt: o.paid ? 0 : o.total, slot: o.when.slot || "", date: o.when.date || "" }); }
+  for (const o of del) { const k = custKey(o.cust.phone); C.push({ key: "o:" + o.id, kind: "del", ck: k, name: o.cust.name, addr: custAddr(k, o), o, amt: dueOf(o), slot: o.when.slot || "", date: o.when.date || "" }); }
   const inDel = new Set(C.map(x => x.ck));
   for (const d of debtors()) if (!inDel.has(d.c.key)) C.push({ key: "c:" + d.c.key, kind: "pay", ck: d.c.key, name: d.c.name, addr: custAddr(d.c.key), amt: d.v });
   if (RT.visit) for (const k of RT.visit) if (S.customers[k] && !C.some(x => x.ck === k)) C.push({ key: "v:" + k, kind: "vis", ck: k, name: S.customers[k].name, addr: custAddr(k), amt: 0 });
@@ -1332,6 +1340,19 @@ function rtOpen(keys) {
   RT.step = "pick"; RT.res = null; RT.off = new Set();
   RT.sel = keys ? new Set(keys) : null;
   tab = "route"; window.scrollTo(0, 0); render();
+}
+const rtFromLbl = P => P.from === "me" ? "📍 Η θέση μου" : P.from === "text" ? "✏️ " + (P.fromText || "Άλλο σημείο") : "🏠 Έδρα";
+const rtEndLbl = P => P.end === "last" ? "🏁 Τελευταία στάση" : P.end === "text" ? "✏️ " + (P.endText || "Άλλο σημείο") : "↩ Επιστροφή";
+/* αφετηρία και τέλος σε αναδυόμενο παράθυρο, για να μένει μαζεμένη η οθόνη του Δρομολογίου */
+function rtSetSheet() {
+  const P = rtPref();
+  const fromChips = [["base", "🏠 Έδρα"], ["me", "📍 Η θέση μου"], ["text", "✏️ Άλλο σημείο"]], endChips = [["back", "↩ Επιστροφή στην αφετηρία"], ["last", "🏁 Τέλος στην τελευταία στάση"], ["text", "✏️ Άλλο σημείο"]];
+  sheet("🧭 Αφετηρία και τέλος", `<div class="card"><h3>Ξεκινάς από</h3><div class="chips" style="flex-wrap:wrap">${fromChips.map(([k, l]) => `<button type="button" class="chip${P.from === k ? " on" : ""}" data-rtfrom="${k}">${l}</button>`).join("")}</div>
+    ${P.from === "base" ? `<p class="note" style="margin:6px 0 0">${S.shop.addr ? "🏠 " + esc(S.shop.addr) : `<span style="color:var(--bad)">Δεν έχεις γράψει διεύθυνση έδρας.</span> <a href="#" data-act="shop">Συμπλήρωσέ τη</a>`}</p>` : ""}
+    ${P.from === "text" ? `<input class="t" id="rtFromT" value="${esc(P.fromText)}" placeholder="π.χ. Λεωφόρος Κηφισίας 10, Μαρούσι" style="margin-top:6px">` : ""}
+    <h3 style="margin-top:12px">Τελειώνεις</h3><div class="chips" style="flex-wrap:wrap">${endChips.map(([k, l]) => `<button type="button" class="chip${P.end === k ? " on" : ""}" data-rtend="${k}">${l}</button>`).join("")}</div>
+    ${P.end === "text" ? `<input class="t" id="rtEndT" value="${esc(P.endText)}" placeholder="π.χ. Αποθήκη, Αχαρνών 200" style="margin-top:6px">` : ""}
+        <label class="ck" style="margin-top:8px"><input type="checkbox" id="rtReal"${P.real ? " checked" : ""}> Πραγματικά χιλιόμετρα και λεπτά από τον δρόμο</label></div>`, `<button type="button" class="btn amber wide" data-act="shClose">✓ Εντάξει</button>`, el => { el.dataset.rtset = "1"; });
 }
 function routeView() {
   const P = rtPref(), C = rtCands();
@@ -1348,15 +1369,12 @@ function routeView() {
   const modes = [["fast", "⚡ Γρηγορότερη"], ["time", "🕘 Κατά ώρα παράδοσης"], ["area", "📍 Κατά περιοχή"]];
   const n = RT.sel.size;
   return `<div class="row" style="margin:2px 2px 10px;align-items:center"><h2 style="margin:0;font-size:20px" class="grow">🚐 Δρομολόγιο</h2><button type="button" class="btn soft sm" data-act="custMap">🗺 Χάρτης πελατών</button></div>
-   <div class="card"><h3>Ξεκινάς από</h3><div class="chips" style="flex-wrap:wrap">${fromChips.map(([k, l]) => `<button type="button" class="chip${P.from === k ? " on" : ""}" data-rtfrom="${k}">${l}</button>`).join("")}</div>
-    ${P.from === "base" ? `<p class="note" style="margin:6px 0 0">${S.shop.addr ? "🏠 " + esc(S.shop.addr) : `<span style="color:var(--bad)">Δεν έχεις γράψει διεύθυνση έδρας.</span> <a href="#" data-act="shop">Συμπλήρωσέ τη</a>`}</p>` : ""}
-    ${P.from === "text" ? `<input class="t" id="rtFromT" value="${esc(P.fromText)}" placeholder="π.χ. Λεωφόρος Κηφισίας 10, Μαρούσι" style="margin-top:6px">` : ""}
-    <h3 style="margin-top:12px">Τελειώνεις</h3><div class="chips" style="flex-wrap:wrap">${endChips.map(([k, l]) => `<button type="button" class="chip${P.end === k ? " on" : ""}" data-rtend="${k}">${l}</button>`).join("")}</div>
-    ${P.end === "text" ? `<input class="t" id="rtEndT" value="${esc(P.endText)}" placeholder="π.χ. Αποθήκη, Αχαρνών 200" style="margin-top:6px">` : ""}
+   <div class="card rtsetc"><button type="button" class="rtsetrow" data-rt="setp" aria-label="Αφετηρία και τέλος">
+     <span class="rtsx"><small>Ξεκινάς</small><b>${esc(rtFromLbl(P))}</b></span><span class="rtsarr">→</span><span class="rtsx"><small>Τελειώνεις</small><b>${esc(rtEndLbl(P))}</b></span><span class="rtsch">Αλλαγή ›</span></button>
     <h3 style="margin-top:12px">Τρόπος διαδρομής</h3><div class="seg rtseg">${modes.map(([k, l]) => `<button type="button" class="${P.mode === k ? "on" : ""}" data-rtmode="${k}">${l}</button>`).join("")}</div>
     <p class="note" style="margin:6px 0 0">${P.mode === "fast" ? "Βάζει μόνη της τη σειρά με τα λιγότερα λεπτά οδήγησης." : P.mode === "time" ? "Πρώτα όσοι έχουν νωρίτερη ώρα παράδοσης, μετά οι υπόλοιποι με τη συντομότερη σειρά." : "Τελειώνεις μία περιοχή και μετά πας στην επόμενη, με τη συντομότερη σειρά."}</p>
     ${TOLLS_ON ? `<h3 style="margin-top:12px">Διόδια</h3><div class="seg rtseg">${[[true, "🛣 Με διόδια"], [false, "🚫 Χωρίς διόδια"]].map(([k, l]) => `<button type="button" class="${(P.tolls !== false) === k ? "on" : ""}" data-rttoll="${k ? 1 : 0}">${l}</button>`).join("")}</div>` : ""}
-    <label class="ck" style="margin-top:8px"><input type="checkbox" id="rtReal"${P.real ? " checked" : ""}> Πραγματικά χιλιόμετρα και λεπτά από τον δρόμο</label></div>
+</div>
    <div class="chips">${[["today", "Σήμερα"], ["tom", "Αύριο"], ["all", "Όλες οι ανοιχτές"]].map(([k, l]) => `<button type="button" class="chip${RT.day === k ? " on" : ""}" data-rtday="${k}">${l}</button>`).join("")}</div>
    <div class="card"><div style="display:flex;align-items:center;gap:8px"><h3 style="margin:0;flex:1">🚚 Παραδόσεις <span class="note" style="font-weight:400">· ${del.length}</span></h3>${del.length ? `<button type="button" class="lnk sm" data-rtall="del">Όλες / καμία</button>` : ""}</div>
     ${del.length ? del.map(row).join("") : `<p class="note">Καμία ανοιχτή παραγγελία για παράδοση ${RT.day === "today" ? "σήμερα" : RT.day === "tom" ? "αύριο" : ""}.</p>`}</div>
@@ -1417,7 +1435,7 @@ async function geoAsk0(q) {
 }
 /* η έδρα: για να ξέρουμε πού «είναι κοντά» */
 let geoBaseP = null;
-function geoBase() { if (S.shop.pin && S.shop.pin.lat != null) return Promise.resolve(S.shop.pin); if (!S.shop.addr) return Promise.resolve(null); if (!geoBaseP) geoBaseP = geoFind(S.shop.addr, { noBase: true }).catch(() => null); return geoBaseP; }
+function geoBase() { if (S.shop.pin && S.shop.pin.lat != null) return Promise.resolve(S.shop.pin); if (!S.shop.addr) return Promise.resolve(null); if (!geoBaseP) geoBaseP = geoFind(S.shop.addr, { noBase: true }).catch(() => null).then(r => { if (!r) geoBaseP = null; return r; }); return geoBaseP; }
 /* δεύτερη γνώμη όταν το OpenStreetMap δεν βρίσκει τη διεύθυνση: Photon (komoot), ψάχνει πιο «χαλαρά» (λάθη, χωρίς αριθμό) */
 let phChain = Promise.resolve(), phLast = 0;
 function geoPhoton(q, ref) {
@@ -1527,6 +1545,7 @@ async function osrm0(path, q) {
 const llq = L => L.map(p => p.lng.toFixed(6) + "," + p.lat.toFixed(6)).join(";");
 async function rtFastOrder(A, pts, B, P) {
   if (pts.length < 3 || pts.length > 60) return null;
+  if (!B && P.end !== "back") return null;   /* «τέλος στην τελευταία στάση»: η υπηρεσία δεν το υποστηρίζει — μένει η δική μας σειρά */
   const all = [A, ...pts.map(p => p.loc)].concat(B && P.end !== "back" ? [B] : []);
   const q = "overview=false&steps=false&source=first" + (P.end === "back" ? "&roundtrip=true" : "&roundtrip=false&destination=" + (B ? "last" : "any"));
   const js = await osrm("trip/v1/driving/" + llq(all), q);
@@ -1576,7 +1595,7 @@ async function rtRefine() {
   const L = rtLine(); if (L.length < 2) { rtMap(); return; }
   RT.tollWarn = false;
   const js = await osrm("route/v1/driving/" + llq(L), "overview=false&geometries=geojson&steps=true");
-  if (RT.res !== R) return;
+  if (RT.res !== R || llq(rtLine()) !== llq(L)) return;   /* άλλαξαν οι στάσεις στο μεταξύ: έρχεται νεότερη απάντηση */
   R.tried = llq(L);
   const rt = js && js.routes && js.routes[0];
   if (rt) {
@@ -1614,8 +1633,8 @@ function rtResHTML() {
     const lines = p.items.map(x => {
       if (x.kind === "del") { const o = S.orders.find(y => y.id === x.o.id) || x.o; const doneNow = o.st === "done";
         return `<div class="rtit"><div><b>#${o.no}</b> ${esc(o.lines.map(l => K.num(l.q) + " " + l.unit + " " + l.name).join(" · "))}${o.when.slot ? ` · 🕘 ${esc(o.when.slot)}` : ""}</div>
-         <div class="rtst">${doneNow ? `<span class="pill done">✓ Παραδόθηκε</span>` : `<span class="pill todo">🚚 Προς παράδοση</span>`}${o.paid ? `<span class="pill paid">✓ Πληρωμένη</span>` : `<span class="pill owe">💶 Να εισπραχθούν ${K.money(o.total)}</span>`}</div>
-         <div class="rtbtns">${doneNow ? "" : `<button type="button" class="btn sm green" data-rtdone="${o.id}">✓ Έγινε η παράδοση</button>`}${!o.paid ? `<button type="button" class="btn sm red" data-rtpaid="${o.id}">💶 Εισπράχθηκαν</button>` : ""}<button type="button" class="btn sm ghost" data-ord="${o.id}">Άνοιγμα</button></div></div>`; }
+         <div class="rtst">${doneNow ? `<span class="pill done">✓ Παραδόθηκε</span>` : `<span class="pill todo">🚚 Προς παράδοση</span>`}${!owes(o) ? `<span class="pill paid">✓ Πληρωμένη</span>` : `<span class="pill owe">💶 Να εισπραχθούν ${K.money(dueOf(o))}</span>`}</div>
+         <div class="rtbtns">${doneNow ? "" : `<button type="button" class="btn sm green" data-rtdone="${o.id}">✓ Έγινε η παράδοση</button>`}${owes(o) ? `<button type="button" class="btn sm red" data-rtpaid="${o.id}">💶 Εισπράχθηκαν</button>` : ""}<button type="button" class="btn sm ghost" data-ord="${o.id}">Άνοιγμα</button></div></div>`; }
       if (x.kind === "vis") return `<div class="rtit">👋 Επίσκεψη <button type="button" class="btn sm ghost" data-rtcard="${esc(x.ck)}" style="margin-left:6px">📇 Καρτέλα</button></div>`;
       const owed = custStats(x.ck).owed;
       return owed > 0 ? `<div class="rtit owe"><div class="rtowe">🔴 ΓΙΑ ΕΙΣΠΡΑΞΗ · χρωστά <b>${K.money(owed)}</b></div><div class="rtbtns"><button type="button" class="btn sm red" data-rtpay="${esc(x.ck)}">💶 Είσπραξη (ολική ή μερική)</button></div></div>` : `<div class="rtit"><span class="pill paid">✓ Εξοφλήθηκε</span></div>`; }).join("");
@@ -1670,6 +1689,7 @@ function rtLegs() { const R = RT.res, ok = R && R.road && R.road.sig === llq(rtL
 function rtAfter() { const R = RT.res; if (!R) return; if (rtPref().real && !(R.road && R.road.sig === llq(rtLine()))) rtRefine(); else { rtLegs(); rtMap(); } }
 async function rtAct(k, el) {
   const P = rtPref();
+  if (k === "setp") return rtSetSheet();
   if (k === "go") { const f = $("#rtFromT"), e2 = $("#rtEndT"); if (f) P.fromText = f.value.trim(); if (e2) P.endText = e2.value.trim(); return rtGo(); }
   if (k === "back") { RT.step = "pick"; render(); window.scrollTo(0, 0); return; }
   if (k === "visClear") { RT.visit = null; render(); return; }
@@ -1931,6 +1951,7 @@ function shopSheet() {
    });
 }
 function shopSave() {
+  geoBaseP = null;   /* νέα διεύθυνση έδρας: ξαναβρίσκεται */
   const s = S.shop, b = $("#shB"), v = id => $("#" + id).value.trim();
   const afm = v("shAfm").replace(/\D/g, "");
   if (afm && !afmOk(afm)) { $("#shErr").innerHTML = `<div class="errbox">Ο ΑΦΜ δεν είναι έγκυρος. Έλεγξε τα 9 ψηφία.</div>`; return; }
@@ -1954,8 +1975,6 @@ function holidaysHTML(d) {
   return `<div class="card"><h3>🎌 Κλειστές ημέρες</h3>
     <label class="ck"><input type="checkbox" id="dvHolOn"${d.holOff ? "" : " checked"}><span><b>Κλειστά τις αργίες</b> (επίσημες αργίες, Καθαρά Δευτέρα, Πάσχα, Αγίου Πνεύματος)</span></label>
     <details class="holx" style="margin:6px 0 8px"><summary class="btn soft wide" style="list-style:none;display:flex;justify-content:space-between"><span>📅 Ποιες αργίες κλείνεις</span><span id="holCnt">${nOn} από ${list.length} ›</span></summary><p class="note" style="margin:8px 2px 4px">Πράσινο = κλειστά εκείνη την ημέρα. Ισχύει κάθε χρόνο.</p><div id="holBox" style="${d.holOff ? "opacity:.5;pointer-events:none" : ""}">${rows}</div></details>
-    <label class="ck"><input type="checkbox" id="dvHolOn"${d.holOff ? "" : " checked"}><span><b>Κλειστά τις αργίες</b> (επίσημες αργίες, Καθαρά Δευτέρα, Πάσχα, Αγίου Πνεύματος)</span></label>
-    <details style="margin:4px 0 8px"><summary class="note" style="cursor:pointer">Διάλεξε ποιες αργίες (μία μία)</summary><div id="holBox" style="${d.holOff ? "opacity:.5;pointer-events:none" : ""}">${rows}</div></details>
     <label class="f">Δικές σου κλειστές ημερομηνίες (άδεια, ασθένεια…)</label>
     <div class="row"><input class="t grow" type="date" id="dvClAdd" min="${t}"><button type="button" class="btn soft" data-act="clAdd">＋ Προσθήκη</button></div>
     <div class="chips" id="clList" style="flex-wrap:wrap;margin-top:8px">${(d.closed || []).filter(x => x >= t).sort().map(x => `<span class="chip on" style="cursor:default">${esc(K.dayLabel(x))} <button type="button" data-cldel="${x}" style="border:0;background:none;color:inherit;font-weight:900;padding:0 0 0 4px">✕</button></span>`).join("") || `<span class="note">Καμία</span>`}</div></div>`;
@@ -2069,8 +2088,9 @@ async function custLinkSheet(k) {
   if (!S.terms) { linkSheet(); return; }
   const r = c.route || {};
   /* στον σύντομο σύνδεσμο δεν μπαίνουν όνομα, τηλέφωνο, διεύθυνση: η υπηρεσία συντόμευσης δεν πρέπει να τα βλέπει */
-  toast("Ετοιμάζεται ο σύντομος σύνδεσμος…", 1500);
+  const W = lkWait("📤 Κατάλογος για " + c.name);
   const SL = await shortLink({ k, d: r.days || [], sl: r.slot || "", nt: r.note || "", ex: r.ex !== false ? 1 : 0 }), long = SL.long, short = SL.short;
+  if (!lkStill(W)) return;
   const url = short || long;
   const msg = "Γεια σας " + c.name.split(" ")[0] + "! 🛒 Παραγγελίες «" + S.shop.name + "»\n" + url;
   sheet("📤 Κατάλογος για " + c.name, `<div class="okbox">Αυτός ο σύνδεσμος είναι μόνο για ${esc(c.name)}: ${r.days && r.days.length ? "βλέπει ότι περνάς " + esc(r.days.map(x => K.WD[x]).join(", ")) + (r.slot ? ", " + esc(r.slot) : "") : "βλέπει τις γενικές σου ημέρες"}${r.ex !== false && r.days && r.days.length ? ", με κουμπί για έκτακτη παραγγελία" : ""}.</div>
@@ -2109,11 +2129,13 @@ async function shortOf(url) {
   if (c[h]) return { url: c[h] };
   let err = null;
   /* τέσσερις προσπάθειες με τη σειρά: is.gd, v.gd, da.gd, TinyURL — αν μία έχει βλάβη, πάει στην επόμενη */
+  /* πρώτα το is.gd (6΄΄)· αν δεν βγει, οι άλλες τρεις μαζί και κρατιέται όποια απαντήσει πρώτη — για να μην περιμένεις */
   let svc = false;
-  for (const [host, kind] of [["is.gd", 1], ["v.gd", 1], ["da.gd", 2], ["tinyurl", 2]]) {
-    try { const u = kind === 1 ? await K.shorten(url, 9000, host) : await K.shorten2(url, host, 9000); c[h] = u; const keys = Object.keys(c); if (keys.length > 30) delete c[keys[0]]; save(); return { url: u }; }
-    catch (e) { err = e; if (e && e.svc) svc = true; }
-  }
+  const keep = u => { c[h] = u; const keys = Object.keys(c); if (keys.length > 30) delete c[keys[0]]; save(); return { url: u }; };
+  try { return keep(await K.shorten(url, 6000, "is.gd")); } catch (e) { err = e; if (e && e.svc) svc = true; }
+  const tries = [K.shorten(url, 8000, "v.gd"), K.shorten2(url, "da.gd", 8000), K.shorten2(url, "tinyurl", 8000)];
+  tries.forEach(p => p.catch(e => { err = e; if (e && e.svc) svc = true; }));
+  try { return keep(await Promise.any(tries)); } catch {}
   return { url: "", err: (err && err.message) || "άγνωστο", svc };
 }
 /* ο καλύτερος σύντομος σύνδεσμος: αν η υπηρεσία δεν δέχεται τόσο μεγάλο κατάλογο, ξαναδοκιμάζει χωρίς φωτογραφίες και μετά χωρίς λογότυπο */
@@ -2150,8 +2172,9 @@ async function linkSheet() {
      `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="termsOk">Συνέχεια</button>`);
     return;
   }
-  toast("Ετοιμάζεται ο σύντομος σύνδεσμος…", 1500);
+  const W = lkWait("📤 Στείλε τον κατάλογο στους πελάτες");
   const SL = await shortLink(), long = SL.long, short = SL.short;
+  if (!lkStill(W)) return;   /* το έκλεισες στο μεταξύ */
   const url = short || long;
   const len = long.length, pct = Math.min(100, Math.round(len / 7000 * 100));
   const msg = "🛒 Παραγγελίες «" + S.shop.name + "»\n" + url;
@@ -2174,6 +2197,12 @@ async function linkSheet() {
    <button type="button" class="btn ghost wide" data-act="lkPreview" style="margin-top:8px">⛶ Προεπισκόπηση σε όλη την οθόνη</button>`, "",
    el => { el.dataset.url = long; el.dataset.msg = msg; });
 }
+/* «λίγη υπομονή»: ανοίγει αμέσως, για να μη νομίζεις ότι δεν δουλεύει */
+function lkWait(title) {
+  sheet(title, `<div class="lkwait"><div class="spin" aria-hidden="true"></div><b>Ετοιμάζεται ο σύνδεσμος…</b><span>Λίγη υπομονή: φτιάχνεται ο σύντομος σύνδεσμος για το Viber. Συνήθως παίρνει 2–5 δευτερόλεπτα, καμιά φορά έως 15.</span></div>`, `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button>`, el => { el.dataset.lkwait = String(Date.now()); });
+  return $("#shB").dataset.lkwait;
+}
+const lkStill = w => isSheetOpen() && $("#shB").dataset.lkwait === w;
 function linkSent() { S.link.sentAt = Date.now(); S.link.dirty = false; if (S.nt.spub) { if (!S.link.gSent) S.link.gSent = Date.now(); } save(); catSoon(1500, true); liveSoon(2500, true); }
 
 /* ---------- ειδοποιήσεις ---------- */
@@ -2283,7 +2312,8 @@ async function checkUpdate(manual) {
     S.ui.updChecked = today(); save();
     if (m && m[1] !== VERSION) {
       updNew = m[1];
-      if (manual || !isSheetOpen()) await applyUpdate();
+      /* όχι μόνη της όταν δουλεύεις: ανοιχτό παράθυρο, προεπισκόπηση, ή διαδρομή σε εξέλιξη (θα χανόταν) — τότε βγαίνει η μπάρα «νέα έκδοση» */
+      if (manual || (!isSheetOpen() && !previewOpen() && tab !== "route" && tab !== "map" && !RT.res)) await applyUpdate();
       else render();
     } else if (manual) toast("✓ Έχεις την τελευταία έκδοση (" + VERSION + ").");
   } catch { if (manual) toast("Δεν υπάρχει σύνδεση στο διαδίκτυο."); }
@@ -2293,7 +2323,7 @@ async function applyUpdate() {
   toast("⬆️ Αναβάθμιση σε " + (updNew || "νέα έκδοση") + "… τα δεδομένα σου μένουν.", 3000);
   clearTimeout(saveT); await write();
   try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) { await reg.update(); if (reg.waiting) reg.waiting.postMessage({ type: "skipWaiting" }); } } catch {}
-  try { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith("paraggelies-")).map(k => caches.delete(k))); } catch {}
+  /* τις παλιές μνήμες τις σβήνει ο νέος διαχειριστής εκτός σύνδεσης όταν ενεργοποιηθεί· έτσι το Ταμείο δουλεύει και χωρίς διαδίκτυο */
   setTimeout(() => location.reload(), 1200);
 }
 function updBanner() { return updNew && updNew !== VERSION ? `<div class="okbox">⬆️ Νέα έκδοση ${esc(updNew)} έτοιμη. <button type="button" class="btn sm amber" data-act="updGo" style="margin-top:6px">Αναβάθμιση τώρα</button></div>` : ""; }
@@ -2415,10 +2445,16 @@ const ACT = {
     const st = $("#cuGeoSt"); if (st) st.innerHTML = `<span class="mid">🔎 Ψάχνω «${esc(c.addr)}${c.area ? ", " + esc(c.area) : ""}»…</span>`;
     const p = await geoFind(c.addr, { area: c.area, force: true }); save();
     render();
-    if ($("#shB") && $("#shB").dataset.cust === k) { const sc = $("#shB").scrollTop; openCust(k); $("#shB").scrollTop = sc; }
+    if (isSheetOpen() && $("#shB").dataset.cust === k) { const sc = $("#shB").scrollTop; openCust(k); $("#shB").scrollTop = sc; }
     toast(p ? (p.approx ? "≈ Βρέθηκε μόνο η περιοχή" : "✓ Βρέθηκε στον χάρτη") : navigator.onLine ? "⚠️ Δεν βρέθηκε η διεύθυνση" : "Χωρίς σύνδεση", 3000);
   },
-  custSave: (keep) => { const c = S.customers[$("#shB").dataset.cust]; if (!c) return; c.name = $("#cuN").value.trim() || c.name; c.phone = $("#cuP").value.trim() || c.phone; const oldAd = (c.addr || "") + "|" + (c.area || ""); c.addr = $("#cuA").value.trim(); c.area = ($("#cuAr").value || "").trim(); const adCh = oldAd !== c.addr + "|" + c.area; if (c.pin && adCh && !c.pin.keep) delete c.pin; if (!c.area) delete c.area; if (adCh && keep !== true && (c.addr || "").trim()) setTimeout(() => custGeo(c).then(() => { save(); if (tab === "custs") render(); }).catch(() => {}), 50); c.notes = $("#cuNo").value.trim(); save(); if (keep === true) return; closeSheet(); render(); },
+  custSave: (keep) => { let c = S.customers[$("#shB").dataset.cust]; if (!c) return; c.name = $("#cuN").value.trim() || c.name;
+    { const np = $("#cuP").value.trim(), ok = custKey(np || ""), ok0 = c.key;
+      if (np && ok && ok !== ok0) {
+        /* νέο κινητό: ο πελάτης μεταφέρεται στο νέο του κλειδί, μαζί με τις παραγγελίες του (αλλιώς η επόμενη παραγγελία θα έφτιαχνε δεύτερο πελάτη) */
+        if (S.customers[ok]) { toast("Υπάρχει ήδη πελάτης με αυτό το κινητό (" + S.customers[ok].name + "). Δεν άλλαξε.", 4500); }
+        else { for (const o of S.orders) if (custKey(o.cust.phone) === ok0) o.cust.phone = np; delete S.customers[ok0]; c.key = ok; S.customers[ok] = c; c.phone = np; $("#shB").dataset.cust = ok; }
+      } else if (np) c.phone = np; } const oldAd = (c.addr || "") + "|" + (c.area || ""); c.addr = $("#cuA").value.trim(); c.area = ($("#cuAr").value || "").trim(); const adCh = oldAd !== c.addr + "|" + c.area; if (c.pin && adCh && !c.pin.keep) delete c.pin; if (!c.area) delete c.area; if (adCh && keep !== true && (c.addr || "").trim()) setTimeout(() => custGeo(c).then(() => { save(); if (tab === "custs") render(); }).catch(() => {}), 50); c.notes = $("#cuNo").value.trim(); save(); if (keep === true) return; closeSheet(); render(); },
   custNew: () => { const c = S.customers[$("#shB").dataset.cust]; if (c) orderForm({ name: c.name, phone: c.phone, addr: c.addr || "" }); },
   custRepeat: () => { const k = $("#shB").dataset.cust, s = custStats(k); const o = s.list.find(x => x.st !== "cancel") || s.list[0]; if (o) repeatOrder(o); },
   custPayAll: () => { const k = $("#shB").dataset.cust; S.orders.filter(o => custKey(o.cust.phone) === k && o.st !== "cancel" && o.st !== "dup").forEach(o => { if (o.st === "done" && !o.paid) setStatus(o, "paid"); else if (diffOf(o)) setStatus(o, "paydiff"); }); save(); openCust(k); render(); toast("✓ Πληρώθηκαν"); },
@@ -2460,7 +2496,7 @@ const ACT = {
     if (!n) { toast("Διάλεξε τουλάχιστον μία παραγγελία."); return; }
     save(); render(); const still = custStats(k).owed;
     toast("✓ Εισπράχθηκαν " + K.money(K.round2(sum)) + " (" + via + ")" + (still > 0 ? " · μένουν " + K.money(still) : " · εξοφλήθηκε"), 4000);
-    if (still > 0) collectCust(k); else collectList(); },
+    if (still > 0) collectCust(k, b.dataset.mode); else collectList(); },   /* μένει στον ίδιο τρόπο: ένα δεύτερο πάτημα δεν εξοφλεί κατά λάθος τα πάντα */
   acctSet: () => { const m = (prompt("Ηλεκτρονικό ταχυδρομείο του λογιστή σου:", S.shop.acct || "") || "").trim(); S.shop.acct = m; save(); toast(m ? "✓ Αποθηκεύτηκε" : "Αφαιρέθηκε"); },
   presetsGo: () => { tab = "menu"; render(); setTimeout(() => { const b = document.createElement("button"); b.dataset.ea = "presets"; b.hidden = true; document.body.appendChild(b); b.click(); b.remove(); }, 50); },
   remHideAll: () => { S.ui.remHide = { d: today(), ids: remindersList().map(r => r.id).concat((S.ui.remHide && S.ui.remHide.d === today() ? S.ui.remHide.ids : [])) }; save(); render(); toast("Θα ξαναεμφανιστούν αύριο."); },
@@ -2484,14 +2520,19 @@ document.addEventListener("click", async e => {
     if ((x = t.closest("[data-cmf]"))) { custMap(x.dataset.cmf); return; }
     if ((x = t.closest("[data-cmmiss]"))) { e.preventDefault(); cmMissSheet(); return; }
     if ((x = t.closest("[data-cmidle]"))) { cm.idle = +x.dataset.cmidle; custMap(); return; } }
+  /* «Αφετηρία και τέλος» μέσα στο αναδυόμενο παράθυρο */
+  { const x = t.closest("#shB [data-rtfrom], #shB [data-rtend]");
+    if (x) { const f = $("#rtFromT"), f2 = $("#rtEndT"); if (f) rtPref().fromText = f.value.trim(); if (f2) rtPref().endText = f2.value.trim();
+      if (x.dataset.rtfrom) rtPref().from = x.dataset.rtfrom; else rtPref().end = x.dataset.rtend;
+      save(); if (tab === "route") render(); rtSetSheet(); return; } }
   if (tab === "route" && !t.closest("#sheetbg") && !t.closest("#cmDlg")) {
     const q = (sel) => t.closest(sel);
     let x;
     if ((x = q("[data-rt]"))) { rtAct(x.dataset.rt, x); return; }
     if ((x = q("[data-rtsel]"))) { const k = x.dataset.rtsel; if (x.checked) RT.sel.add(k); else RT.sel.delete(k); render(); return; }
     if ((x = q("[data-rtall]"))) { const L = rtCands().filter(y => y.kind === x.dataset.rtall && y.addr), all = L.every(y => RT.sel.has(y.key)); L.forEach(y => all ? RT.sel.delete(y.key) : RT.sel.add(y.key)); render(); return; }
-    if ((x = q("[data-rtfrom]"))) { const f = $("#rtFromT"); if (f) rtPref().fromText = f.value.trim(); rtPref().from = x.dataset.rtfrom; save(); render(); return; }
-    if ((x = q("[data-rtend]"))) { const f = $("#rtEndT"); if (f) rtPref().endText = f.value.trim(); rtPref().end = x.dataset.rtend; save(); render(); return; }
+    if ((x = q("[data-rtfrom]"))) { const f = $("#rtFromT"); if (f) rtPref().fromText = f.value.trim(); rtPref().from = x.dataset.rtfrom; save(); render(); if ($("#shB") && $("#shB").dataset.rtset) rtSetSheet(); return; }
+    if ((x = q("[data-rtend]"))) { const f = $("#rtEndT"); if (f) rtPref().endText = f.value.trim(); rtPref().end = x.dataset.rtend; save(); render(); if ($("#shB") && $("#shB").dataset.rtset) rtSetSheet(); return; }
     if ((x = q("[data-rtmode]"))) { rtPref().mode = x.dataset.rtmode; save(); render(); return; }
     if ((x = q("[data-rtday]"))) { RT.day = x.dataset.rtday; RT.sel = null; render(); return; }
     if ((x = q("[data-rttoll]"))) { rtPref().tolls = x.dataset.rttoll === "1"; save(); if (RT.step === "res" && RT.res) { RT.res.road = null; RT.res.tried = null; render(); } else render(); return; }
@@ -2501,7 +2542,7 @@ document.addEventListener("click", async e => {
     if ((x = q("[data-rtoff]"))) { const k = x.dataset.rtoff; RT.off.has(k) ? RT.off.delete(k) : RT.off.add(k); render(); return; }
     if ((x = q("[data-rtdone]"))) { const o = S.orders.find(y => y.id === x.dataset.rtdone); if (o && setStatus(o, "done")) { render(); askNotify(o, "done"); } return; }
     if ((x = q("[data-rtpay]"))) { collectCust(x.dataset.rtpay); return; }
-    if ((x = q("[data-rtpaid]"))) { const o = S.orders.find(y => y.id === x.dataset.rtpaid); if (o && !o.paid && confirm("Πληρώθηκε η παραγγελία #" + o.no + " (" + o.cust.name + ", " + K.money(o.total) + ");")) { setStatus(o, "paid"); render(); toast("✓ Πληρώθηκε · μπήκε στο Ταμείο"); } return; }
+    if ((x = q("[data-rtpaid]"))) { const o = S.orders.find(y => y.id === x.dataset.rtpaid); if (o && owes(o) && confirm("Εισπράχθηκαν " + K.money(dueOf(o)) + " για την παραγγελία #" + o.no + " (" + o.cust.name + ");")) { setStatus(o, o.paid ? "paydiff" : "paid"); render(); toast("✓ Πληρώθηκε · μπήκε στο Ταμείο"); } return; }
   }
   const fm = t.closest("[data-fm]"); if (fm) { formQty(fm.dataset.fm, -1); return; }
   const fp = t.closest("[data-fp]"); if (fp) { formQty(fp.dataset.fp, 1); return; }
