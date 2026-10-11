@@ -8,7 +8,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.44">
+<meta name="app-version" content="1.45">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#17324D">
 <title>Παραγγελίες</title>
@@ -17,9 +17,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Παραγγελίες">
 <meta name="description" content="Οι πελάτες σου παραγγέλνουν από σύνδεσμο στο Viber, χωρίς τηλεφωνήματα.">
-<link rel="icon" href="eikonidia/icon-192.png?v=1.44">
-<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.44">
-<link rel="stylesheet" href="koino.css?v=1.44">
+<link rel="icon" href="eikonidia/icon-192.png?v=1.45">
+<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.45">
+<link rel="stylesheet" href="koino.css?v=1.45">
 <style>
 :root{--brand:#17324D;--onbrand:#fff;--accent:#F2B632;--onaccent:#17324D;--paper:#EDF1F2;--card:#fff;--ink:#16232f;--mute:#5d6873;--line:#d9dfe3;--ok:#1f7a3d;--bad:#b3261e;--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D}
 *{box-sizing:border-box}
@@ -136,6 +136,12 @@ body.editing{padding-bottom:140px}
 .appic{width:40px;height:40px;border-radius:11px;flex:none;box-shadow:0 1px 4px rgba(0,0,0,.25)}.htt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}.htt small{font-size:13px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top .hbtn{border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:12px;height:38px;min-width:40px;padding:0 9px;font:inherit;font-weight:800;font-size:14px;cursor:pointer;flex:none}#gearBtn{font-size:19px}
 .cmdlg.docked .cmh{display:none}.sendcat{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin:0 0 12px;border:0;border-radius:14px;padding:13px;background:var(--accent);color:var(--onaccent);font:inherit;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .cact{display:flex;gap:6px;flex:none;margin-left:6px}.cact a,.cact button{width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;text-decoration:none;cursor:pointer;padding:0}
+.cuacts3{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px;margin:0 0 8px}
+.cuacts3 a,.cuacts3 button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:62px;border-radius:14px;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;font-size:13.5px;font-weight:700;text-decoration:none;cursor:pointer;padding:0}
+.cuacts3 .e{font-size:21px;line-height:1}
+.cuacts2{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.cuacts2 .btn{width:100%;min-height:48px;padding:8px 6px;font-size:15px;line-height:1.15;white-space:normal}
+.cugeost{font-size:13px;margin:6px 2px 0;line-height:1.35}.cugeost .ok{color:#1f6b3a;font-weight:700}.cugeost .mid{color:var(--mute)}.cugeost .bad{color:#B3261E;font-weight:800}
 .culist{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
 .cuit{display:flex;align-items:center;gap:12px;background:var(--card,#fff);border:1px solid var(--line);border-left:6px solid var(--cc);border-radius:16px;padding:10px 10px 10px 12px;box-shadow:0 2px 6px rgba(20,40,60,.07);cursor:pointer}
 .cuit.owe{border-left-color:#C8412B}
@@ -228,14 +234,14 @@ body.hasbg::before{content:"";position:fixed;inset:0;z-index:-1;background:var(-
 </nav>
 <div class="sheetbg" id="sheetbg"><div class="sheet"><div class="sh"><h2 id="shT"></h2><button type="button" class="x" data-act="shClose" aria-label="Κλείσιμο">✕</button></div><div class="sb" id="shB"></div><div class="sf" id="shF"></div></div></div>
 <div id="toast"></div>
-<script src="glossa-en.js?v=1.44"></script>
-<script src="glossa.js?v=1.44"></script>
-<script src="katalogos.js?v=1.44"></script>
-<script src="antigrafa.js?v=1.44"></script>
-<script src="efarmoges-mas.js?v=1.44"></script>
-<script src="protypa.js?v=1.44"></script>
-<script src="efarmogi.js?v=1.44"></script>
-<script src="epexergasia.js?v=1.44"></script>
-<script src="excel.js?v=1.44"></script>
+<script src="glossa-en.js?v=1.45"></script>
+<script src="glossa.js?v=1.45"></script>
+<script src="katalogos.js?v=1.45"></script>
+<script src="antigrafa.js?v=1.45"></script>
+<script src="efarmoges-mas.js?v=1.45"></script>
+<script src="protypa.js?v=1.45"></script>
+<script src="efarmogi.js?v=1.45"></script>
+<script src="epexergasia.js?v=1.45"></script>
+<script src="excel.js?v=1.45"></script>
 </body>
 </html>
