@@ -352,6 +352,7 @@ function render() {
   if (nNew) ob.insertAdjacentHTML("beforeend", `<span class="dot">${nNew}</span>`);
   document.body.classList.remove("editing");
   const m = $("#main");
+  tmShow(tab === "totals");
   if (tab === "orders") m.innerHTML = ordersView();
   else if (tab === "totals") m.innerHTML = totalsView();
   else if (tab === "menu") { A.menuView(m); return; }
@@ -360,6 +361,7 @@ function render() {
   else m.innerHTML = moreView();
   if (tab === "orders" || tab === "more") efmMount();
   newBar();
+  tmPos();
 }
 A.render = render;
 /* μπάρα «νέα παραγγελία» σε κάθε καρτέλα, μέχρι να ανοιχτεί η παραγγελία */
@@ -732,91 +734,158 @@ function perRange() {
   return ["0000", "9999"];
 }
 const cashList = () => S.cash || (S.cash = []);
-/* ---------- ενιαίο ταμείο με την εφαρμογή «Ταμεία» (βιβλίο «Εταιρεία») ----------
-   Οι δύο εφαρμογές ζουν στην ίδια διεύθυνση, άρα μοιράζονται τον ίδιο χώρο αποθήκευσης του κινητού.
-   Οι Παραγγελίες ΔΕΝ γράφουν ποτέ μέσα στα στοιχεία των Ταμείων: αφήνουν τις κινήσεις σε ένα «γραμματοκιβώτιο»
-   και τα Ταμεία τις παίρνουν μόνα τους μόλις ανοίξουν. Διαβάζουμε τα Ταμεία μόνο για να δείξουμε τα ίδια ποσά. */
+/* ---------- Ταμείο: αυτούσιο το βιβλίο «Α.Ε.» των Ταμείων, με δικά του δεδομένα (φάκελος tameio/) ----------
+   Οι Παραγγελίες δουλεύουν αυτόνομα. Οι πληρωμές των παραγγελιών αφήνονται σε «γραμματοκιβώτιο» και το Ταμείο τις παίρνει μόνο του.
+   Συγχρονισμός με την εφαρμογή «Ταμεία» μόνο αν ο χρήστης έχει το πακέτο GlenApps Full ή κλειδί Ταμείων, και αφού το εγκρίνει. */
+const EM_KEY = "paraggelies-tameio-v1", EMQ = "paraggelies-tameio-inbox";
 const TM_KEY = "tameia-v1", TM_INBOX = "glen-tameia-inbox";
-const tmUrl = add => "../tameia/?book=company&from=paraggelies" + (add ? "&add=" + add : "");
-function tmOpen(add) { if (DEMO) { toast("Στην επίδειξη δεν ανοίγει το Ταμείο. Στην κανονική χρήση τα έσοδα και έξοδα γράφονται στο Ταμείο «Εταιρεία» της εφαρμογής «Ταμεία».", 4500); return; } location.href = tmUrl(add); }
-const tmKindDef = id => { const k = ckOf(id); return k ? { id: k.id, emoji: k.emoji, name: k.name, dir: k.dir, subs: k.subs } : null; };
-function tmDesired() {
+const PAYMAP = { "Μετρητά": "cash", "Κάρτα": "card", "Τράπεζα": "bank" };
+const SALES_KIND = { id: "ae73", emoji: "💶", name: "Πωλήσεις και υπηρεσίες", dir: "in", subs: ["Παροχή υπηρεσιών", "Πωλήσεις εμπορευμάτων", "Πωλήσεις προϊόντων"] };
+/* παλιές χειροκίνητες κινήσεις (έως 1.36) → κατηγορίες του βιβλίου Α.Ε. */
+const CK2AE = { sales: ["ae73", ""], cinother: ["ae75", ""], buy: ["ae20", ""], tax: ["ae63", ""], efka: ["ae60", "Εισφορές ΕΦΚΑ"], acct: ["ae61", "Λογιστής"], staff: ["ae60", ""], office: ["ae62", ""], repair: ["aerep", ""], vehicle: ["ae64", "Καύσιμα"], equip: ["ae14", ""], soft: ["ae64", "Συνδρομές"], ads: ["ae64", "Διαφήμιση"], bank: ["ae65", ""], insur: ["ae62", "Ασφάλιστρα"], cother: ["aeoth", ""] };
+function orderVats(o, amt) {
+  const by = {}; let tot = 0; for (const l of o.lines) { const r = +l.vat || 0; by[r] = (by[r] || 0) + (+l.sum || 0); tot += +l.sum || 0; }
+  if (!tot) return null; const f = amt / tot, incl = S.shop.vatIncl !== false;
+  return Object.entries(by).map(([r, g]) => { g = g * f; r = +r; const net = incl ? g / (1 + r / 100) : g; return { r, net: K.round2(net), vat: K.round2(incl ? g - net : g * r / 100) }; });
+}
+function emDesired() {
   const W = new Map();
-  for (const o of S.orders) if (o.paid && !o.test && o.st !== "cancel" && o.st !== "dup" && paidOf(o) > 0)
-    W.set("pg-o" + o.id, { dir: "in", kind: "sales", sub: "Πωλήσεις", amount: K.round2(paidOf(o)), date: new Date(o.paidAt || o.rx).toISOString(), note: "Παραγγελία #" + o.no + " · " + (o.cust.name || "") });
-  for (const c of cashList()) W.set("pg-c" + c.id, { dir: c.kind === "in" ? "in" : "out", kind: c.ck || (c.kind === "in" ? "cinother" : "cother"), sub: c.sub || "", amount: K.round2(+c.amt || 0), date: new Date(c.d + "T12:00:00").toISOString(), note: c.note || "", vat: c.vat });
+  for (const o of S.orders) if (o.paid && !o.test && o.st !== "cancel" && o.st !== "dup" && paidOf(o) > 0) {
+    const amt = K.round2(paidOf(o)), v = orderVats(o, amt) || [];
+    const e = { dir: "in", kind: "ae73", sub: "Πωλήσεις εμπορευμάτων", amount: amt, date: new Date(o.paidAt || o.rx).toISOString(), note: "Παραγγελία #" + o.no, cp: (o.inv && o.inv.t === "i" && o.inv.n) || o.cust.name || "", pay: PAYMAP[o.payVia] || "cash", doc: o.inv && o.inv.t === "i" ? "inv" : "rcpt" };
+    if (o.inv && o.inv.t === "i" && o.inv.f) e.afm = o.inv.f;
+    if (v.length === 1) e.vat = v[0].r; else if (v.length > 1) e.vats = v;
+    W.set("pg-o" + o.id, e);
+  }
   return W;
 }
-function tmInboxPush(ops) {
+function qPush(key, ops) {
   if (!ops.length || DEMO) return true;
-  try { let q = JSON.parse(localStorage.getItem(TM_INBOX) || "[]"); if (!Array.isArray(q)) q = []; q.push(...ops); localStorage.setItem(TM_INBOX, JSON.stringify(q)); return true; } catch { return false; }
+  try { let q = JSON.parse(localStorage.getItem(key) || "[]"); if (!Array.isArray(q)) q = []; q.push(...ops); localStorage.setItem(key, JSON.stringify(q)); return true; } catch { return false; }
 }
 let tmT = null, tmBusy = false;
 function tmSoon() { if (tmBusy) return; clearTimeout(tmT); tmT = setTimeout(tmSync, 300); }
 function tmSync() {
   if (!S || DEMO) return;
-  const sent = S.tmSent || (S.tmSent = {}), W = tmDesired(), ops = [];
-  for (const [id, e] of W) { const h = JSON.stringify(e); if (sent[id] !== h) ops.push({ op: "put", book: "company", id, e, k: tmKindDef(e.kind), at: Date.now() }); }
-  for (const id of Object.keys(sent)) if (!W.has(id)) ops.push({ op: "del", book: "company", id, at: Date.now() });
-  if (!ops.length) return;
-  if (!tmInboxPush(ops)) return;
-  for (const op of ops) if (op.op === "put") sent[op.id] = JSON.stringify(op.e); else delete sent[op.id];
-  /* οι παλιές χειροκίνητες κινήσεις μεταφέρονται μία φορά και από εδώ και πέρα ανήκουν στα Ταμεία */
-  if (cashList().length) { for (const c of cashList()) delete sent["pg-c" + c.id]; S.cash = []; S.tmMoved = Date.now(); }
-  tmBusy = true; try { save(); } finally { tmBusy = false; }
-}
-/* τι υπάρχει στο βιβλίο «Εταιρεία» των Ταμείων, μαζί με όσα περιμένουν στο γραμματοκιβώτιο */
-function tmRead() {
-  let T = null; try { T = JSON.parse(localStorage.getItem(TM_KEY) || "null"); } catch {}
-  const co = T && T.company && typeof T.company === "object" ? T.company : null;
-  const lk = T && T.settings && T.settings.coLock;
-  const locked = !!(lk && lk.on);
-  const kinds = co && Array.isArray(co.kinds) && co.kinds.length ? co.kinds : null;
-  const M = new Map();
-  if (co && !locked) for (const e of co.ent || []) if (e && e.id) M.set(e.id, e);
-  try { const q = JSON.parse(localStorage.getItem(TM_INBOX) || "[]"); if (Array.isArray(q)) for (const op of q) { if (!op || !op.id) continue; if (op.op === "del") M.delete(op.id); else if (op.e) M.set(op.id, Object.assign({ id: op.id }, op.e)); } } catch {}
-  return { has: !!T, locked, kinds, M };
-}
-function tmKindLabel(kinds, id) { const k = (kinds && kinds.find(x => x.id === id)) || ckOf(id); return k ? (k.emoji ? k.emoji + " " : "") + k.name : "📦 Άλλο"; }
-function tmMoves() {
-  const R = tmRead(), W = tmDesired();
-  for (const [id, e] of W) R.M.set(id, Object.assign({ id }, e)); /* τα δικά μας φαίνονται πάντα, ακόμα κι αν τα Ταμεία δεν άνοιξαν ακόμα */
-  const mv = [];
-  for (const e of R.M.values()) {
-    const amt = +e.amount; if (!(amt > 0) || (e.dir !== "in" && e.dir !== "out")) continue;
-    const d = K.ymd(new Date(e.date)), ord = /^pg-o/.test(e.id) ? e.id.slice(4) : null;
-    const top = tmKindLabel(R.kinds, e.kind);
-    mv.push({ id: e.id, d, kind: e.dir, amt: K.round2(amt), ck: e.kind, sub: e.sub || "", vat: e.vat, note: e.note || "", top, cat: ord ? "💶 Πωλήσεις από παραγγελίες" : top + (e.sub ? " › " + e.sub : ""), ord, tm: !ord });
+  let changed = false;
+  /* 1. πληρωμές παραγγελιών → Ταμείο των Παραγγελιών */
+  const sent = S.emSent || (S.emSent = {}), W = emDesired(), ops = [];
+  for (const [id, e] of W) { const h = JSON.stringify(e); if (sent[id] !== h) ops.push({ op: "put", id, e, k: SALES_KIND, at: Date.now() }); }
+  for (const id of Object.keys(sent)) if (!W.has(id)) ops.push({ op: "del", id, at: Date.now() });
+  if (ops.length && qPush(EMQ, ops)) { for (const op of ops) if (op.op === "put") sent[op.id] = JSON.stringify(op.e); else delete sent[op.id]; changed = true; }
+  if (ops.length) try { tmFrameEl && tmFrameEl.contentWindow && tmFrameEl.contentWindow.emPoke && setTimeout(() => tmFrameEl.contentWindow.emPoke(), 50); } catch {}
+  /* 2. μία φορά: οι παλιές χειροκίνητες κινήσεις, και όσες είχαν πάει στα Ταμεία με την 1.37 */
+  if (!S.emMig) {
+    const mig = [];
+    for (const c of cashList()) { const m = CK2AE[c.ck] || [c.kind === "in" ? "ae75" : "aeoth", ""]; mig.push({ op: "put", id: "pg-c" + c.id, e: { dir: c.kind === "in" ? "in" : "out", kind: m[0], sub: c.sub || m[1], amount: K.round2(+c.amt || 0), date: new Date(c.d + "T12:00:00").toISOString(), note: c.note || "", vat: c.vat } }); }
+    try { const T0 = JSON.parse(localStorage.getItem(TM_KEY) || "null"); for (const e of (T0 && T0.company && T0.company.ent) || []) if (e && /^pg-c/.test(e.id || "")) { const m = CK2AE[e.kind] || [e.dir === "in" ? "ae75" : "aeoth", ""]; mig.push({ op: "put", id: e.id, e: { dir: e.dir, kind: m[0], sub: e.sub || m[1], amount: e.amount, date: e.date, note: e.note || "", vat: e.vat } }); } } catch {}
+    if (qPush(EMQ, mig)) { S.emMig = Date.now(); S.cash = []; changed = true; }
   }
-  return { mv, R };
+  /* 3. προαιρετικά: αντίγραφο των κινήσεων στο βιβλίο «Εταιρεία» της εφαρμογής Ταμεία */
+  if (mainSync()) changed = true;
+  /* 4. προαιρετικά: οι παραδόσεις στο Ημερολόγιο */
+  if (imSync()) changed = true;
+  if (changed) { tmBusy = true; try { save(); } finally { tmBusy = false; } }
 }
+/* οι κινήσεις του Ταμείου των Παραγγελιών (με όσες περιμένουν ακόμα στο γραμματοκιβώτιο) */
+function emEntries() {
+  let T = null; try { T = JSON.parse(localStorage.getItem(EM_KEY) || "null"); } catch {}
+  const M = new Map(); let kinds = null;
+  const xb = T && T.xbooks ? Object.values(T.xbooks).find(b => b && b.tpl === "ae") : null;
+  if (xb) { for (const e of xb.ent || []) if (e && e.id) M.set(e.id, e); kinds = xb.kinds || null; }
+  try { const q = JSON.parse(localStorage.getItem(EMQ) || "[]"); if (Array.isArray(q)) for (const op of q) { if (!op || !op.id) continue; if (op.op === "del") M.delete(op.id); else if (op.e) M.set(op.id, Object.assign({ id: op.id }, op.e)); } } catch {}
+  return { M, kinds };
+}
+/* ---------- πακέτο GlenApps Full ή κλειδί Ταμείων ---------- */
+let packSt = null;
+async function packCheck() {
+  const r = { full: false, tameia: false };
+  try { const s = JSON.parse(localStorage.getItem("glenapps-kleidi") || "null"); if (s && s.kleidi && s.email) r.full = !!(await keyOk(s.kleidi, "GA2", "GA|" + await sha256hex(emailNorm(s.email)))); } catch {}
+  try { const T0 = JSON.parse(localStorage.getItem(TM_KEY) || "null"), L = T0 && T0.settings && T0.settings.lic; if (L && L.key) { const eh = L.eh || (L.email ? await sha256hex(emailNorm(L.email)) : L.name ? await sha256hex(emailNorm(L.name)) : ""); if (eh) r.tameia = !!(await keyOk(L.key, "TM2", "T|" + eh)); } } catch {}
+  packSt = r; return r;
+}
+async function keyOk(key, pre, msg) {
+  const e = String(key || "").toUpperCase().replace(/[\s\-–—_.]+/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+  const m = new RegExp("^" + pre + "(\\d{6})([0-9A-Z]{100,110})$").exec(e); if (!m) return "";
+  const until = "20" + m[1].slice(0, 2) + "-" + m[1].slice(2, 4) + "-" + m[1].slice(4, 6); if (until < today()) return "";
+  const sig = b32dec(m[2]); if (!sig || sig.length < 64) return "";
+  try { const k = await crypto.subtle.importKey("jwk", LIC_PUB, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]); return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, k, sig.slice(0, 64), new TextEncoder().encode(msg + "|" + until)) ? until : ""; } catch { return ""; }
+}
+const packOk = () => !!(packSt && (packSt.full || packSt.tameia));
+if (location.hostname === "localhost") A.__packTest = v => { packSt = v; };  /* μόνο για τις δοκιμές στον υπολογιστή */
+/* συγχρονισμός με τα Ταμεία: μόνο με πακέτο και έγκριση· αλλιώς ό,τι είχε σταλεί παλιότερα αποσύρεται */
+function mainSync() {
+  const sent = S.tmSent || (S.tmSent = {}), on = packOk() && S.ui.tmSync === true, ops = [];
+  const W = new Map();
+  if (on) { const { M, kinds } = emEntries(); for (const e of M.values()) { const id = /^pg-/.test(e.id) ? e.id : "pg-t" + String(e.id).replace(/[^\w-]/g, "").slice(0, 30); const kd = (kinds || []).find(k => k.id === e.kind); W.set(id, { e: { dir: e.dir, kind: e.kind, sub: e.sub || "", amount: e.amount, date: e.date, note: [e.note, e.cp].filter(Boolean).join(" · "), vat: e.vat }, k: kd ? { id: kd.id, emoji: kd.emoji, name: kd.name, dir: kd.dir, subs: kd.subs || [] } : null }); } }
+  for (const [id, x] of W) { const h = JSON.stringify(x.e); if (sent[id] !== h) ops.push({ op: "put", book: "company", id, e: x.e, k: x.k, at: Date.now() }); }
+  if (on || packSt) for (const id of Object.keys(sent)) if (!W.has(id)) ops.push({ op: "del", book: "company", id, at: Date.now() });
+  if (!ops.length || !qPush(TM_INBOX, ops)) return false;
+  for (const op of ops) if (op.op === "put") sent[op.id] = JSON.stringify(op.e); else delete sent[op.id];
+  return true;
+}
+/* παραδόσεις → Ημερολόγιο (μόνο με το πακέτο GlenApps Full και έγκριση) */
+const IMQ = "glen-imerologio-inbox";
+function slotTimes(slot) { const m = /(\d{1,2})[:.](\d{2})(?:\s*[-–]\s*(\d{1,2})[:.](\d{2}))?/.exec(slot || ""); if (!m) return {}; const p2 = x => String(x).padStart(2, "0"); return { s: p2(m[1]) + ":" + m[2], e: m[3] ? p2(m[3]) + ":" + m[4] : "" }; }
+function imSync() {
+  const sent = S.imSent || (S.imSent = {}), on = !!(packSt && packSt.full) && S.ui.imSync === true, W = new Map(), ops = [];
+  if (on) for (const o of S.orders) if (!o.test && o.when.how !== "pick" && o.when.date && (o.st === "new" || o.st === "prep" || o.st === "done")) {
+    const c = S.customers[custKey(o.cust.phone)] || {}, t = slotTimes(o.when.slot);
+    W.set("pg-o" + o.id, { date: o.when.date, s: t.s || "", e: t.e || "", name: o.cust.name, phone: o.cust.phone, addr: o.cust.addr || c.addr || "", note: "🚚 Παράδοση #" + o.no + " · " + o.lines.map(l => K.num(l.q) + " " + l.unit + " " + l.name).join(", ") + (o.cust.addr || c.addr ? " · 📍 " + (o.cust.addr || c.addr) : "") + (o.paid ? " · πληρωμένη" : " · να εισπραχθούν " + K.money(o.total)) });
+  }
+  for (const [id, e] of W) { const h = JSON.stringify(e); if (sent[id] !== h) ops.push({ op: "put", id, e, at: Date.now() }); }
+  if (on || packSt) for (const id of Object.keys(sent)) if (!W.has(id)) ops.push({ op: "del", id, at: Date.now() });
+  if (!ops.length || !qPush(IMQ, ops)) return false;
+  for (const op of ops) if (op.op === "put") sent[op.id] = JSON.stringify(op.e); else delete sent[op.id];
+  return true;
+}
+function linkSheet2() {
+  if (!packOk()) { toast("Χρειάζεται το πακέτο GlenApps Full ή κλειδί Ταμείων.", 3500); return; }
+  sheet("🔗 Σύνδεση με άλλες εφαρμογές", `<p class="note" style="margin-top:0">Οι Παραγγελίες δουλεύουν πάντα αυτόνομα. Εδώ διαλέγεις αν θέλεις να βλέπεις κάποια στοιχεία και στις άλλες σου εφαρμογές GlenApps, μέσα στο ίδιο κινητό.</p>
+   <div class="card"><label class="ck"><input type="checkbox" id="lkTm"${S.ui.tmSync ? " checked" : ""}><span><b>💶 Ταμεία</b><br><small class="note">Τα έσοδα και τα έξοδα του Ταμείου των Παραγγελιών φαίνονται και στο βιβλίο «Εταιρεία» των Ταμείων.</small></span></label></div>
+   <div class="card"${packSt.full ? "" : ' style="opacity:.55"'}><label class="ck"><input type="checkbox" id="lkIm"${S.ui.imSync ? " checked" : ""}${packSt.full ? "" : " disabled"}><span><b>📅 Ημερολόγιο</b><br><small class="note">Οι παραδόσεις φαίνονται στο Ημερολόγιο: ποιος, πού, πότε. Όσες δεν έχουν ώρα μπαίνουν στην πρώτη ελεύθερη μισή ώρα μέσα στο ωράριο της επιχείρησής σου.${packSt.full ? "" : " Χρειάζεται το πακέτο GlenApps Full."}</small></span></label></div>
+   <p class="note">Αν κλείσεις κάποιο, ό,τι είχε περάσει εκεί από τις Παραγγελίες αποσύρεται.</p>`,
+   `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="lkSave">Αποθήκευση</button>`);
+}
+/* μία φορά, όταν βρεθεί πακέτο: ερώτηση */
+async function packAsk() {
+  await packCheck();
+  if (!packOk() || S.ui.asked || DEMO) { tmSoon(); return; }
+  S.ui.asked = Date.now(); save();
+  toast("Έχεις " + (packSt.full ? "το πακέτο GlenApps Full" : "και την εφαρμογή Ταμεία") + ". Διάλεξε αν θέλεις σύνδεση.", 4000);
+  linkSheet2();
+}
+/* ---------- η καρτέλα «Ταμείο» ---------- */
+let tmFrameEl = null;
+function tmWrap() {
+  let w = $("#tmWrap"); if (w) return w;
+  w = document.createElement("div"); w.id = "tmWrap"; w.className = "tmwrap"; w.hidden = true;
+  w.innerHTML = `<div class="tmstrip" id="tmStrip"></div><div class="tmfw" id="tmFw"></div>`;
+  document.body.appendChild(w); return w;
+}
+function tmShow(on) {
+  const w = tmWrap();
+  if (!on) { w.hidden = true; document.body.classList.remove("tmon"); return; }
+  if (!tmFrameEl) { tmFrameEl = document.createElement("iframe"); tmFrameEl.id = "tmFrame"; tmFrameEl.title = "Ταμείο"; tmFrameEl.src = "tameio/index.html?v=" + encodeURIComponent($('meta[name="app-version"]').content); $("#tmFw").appendChild(tmFrameEl); }
+  const debt = debtors(), sum = K.round2(debt.reduce((a, x) => a + x.v, 0));
+  $("#tmStrip").innerHTML = `<button type="button" class="btn sm" data-act="owedSheet" style="background:${sum ? "#FBE7E3" : "#E3F1E8"};color:${sum ? "#C8412B" : "#2E7D5B"};border:1px solid ${sum ? "#F1B3AD" : "#A8D8B7"}">${sum ? "🔴 Σου χρωστάνε " + K.money(sum) : "✓ Κανείς δεν χρωστά"}</button>${sum ? `<button type="button" class="btn sm green" data-act="collectList">💶 Είσπραξη</button>` : ""}<button type="button" class="btn sm soft" data-act="prepSheet">📦 Ετοιμασία</button>`;
+  w.hidden = false; document.body.classList.add("tmon"); tmPos();
+  /* ό,τι πληρώθηκε μπαίνει αμέσως */
+  tmSync();
+}
+function tmPos() {
+  const w = $("#tmWrap"); if (!w || w.hidden) return;
+  const h = $("header.top"), tb = $("#tabs"), nb = $("#newBar");
+  let top = h ? h.getBoundingClientRect().bottom : 56;
+  if (nb && nb.offsetParent !== null) top = Math.max(top, nb.getBoundingClientRect().bottom);
+  w.style.top = top + "px"; w.style.bottom = (tb ? tb.getBoundingClientRect().height : 70) + "px";
+}
+window.addEventListener("resize", () => tmPos());
+function totalsView() { return `<div class="tmspace"></div>`; }
 function cashMoves() {
-  const [f, t] = perRange();
-  return tmMoves().mv.filter(x => x.d >= f && x.d <= t).sort((a, b) => b.d.localeCompare(a.d));
-}
-function totalsView() {
-  const [f, t] = perRange();
-  const mv = cashMoves(), R = tmRead();
-  const inc = K.round2(mv.filter(x => x.kind === "in").reduce((a, x) => a + x.amt, 0)), out = K.round2(mv.filter(x => x.kind === "out").reduce((a, x) => a + x.amt, 0));
-  const ords = S.orders.filter(o => o.st !== "cancel" && o.st !== "dup" && (o.when.date || K.ymd(new Date(o.rx))) >= f && (o.when.date || K.ymd(new Date(o.rx))) <= t);
-  const sales = K.round2(ords.reduce((a, o) => a + o.total, 0)), owed = K.round2(ords.filter(o => !o.paid).reduce((a, o) => a + o.total, 0));
-  const kpi = (c, l, v, col) => `<div class="card kpi" data-ana="${l === "Έσοδα" ? "in" : l === "Έξοδα" ? "out" : "all"}" role="button" style="margin:0;padding:10px;cursor:pointer"><div class="note" style="margin:0;display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:5px;background:${c}"></span>${l}</div><div style="font-weight:800;font-size:19px;color:${col}">${K.money(v)}</div><div class="note" style="margin:2px 0 0;font-size:11.5px">Ανάλυση ›</div></div>`;
-  const row = (l, v, col, b) => `<div class="qrow"><div class="qn">${b ? `<b>${l}</b>` : l}</div><b style="color:${col};${b ? "font-size:19px" : ""}">${v < 0 ? "− " : ""}${K.money(Math.abs(v))}</b></div>`;
-  const debt = Object.values(S.customers).map(c => ({ c, v: custStats(c.key).owed })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
-  const debtSum = K.round2(debt.reduce((a, x) => a + x.v, 0));
-  return `<div class="row" style="margin:2px 2px 10px;align-items:center"><h2 style="margin:0;font-size:20px" class="grow">💶 Ταμείο</h2><button type="button" class="btn sm" data-act="owedSheet" style="background:${debtSum ? "#FBE7E3" : "#E3F1E8"};color:${debtSum ? "#C8412B" : "#2E7D5B"};border:1px solid ${debtSum ? "#F1B3AD" : "#A8D8B7"}">${debtSum ? "🔴 Σου χρωστάνε " + K.money(debtSum) : "✓ Κανείς δεν χρωστά"}</button></div>
-   <label style="display:flex;align-items:center;gap:8px;background:var(--brand);color:#fff;border-radius:14px;padding:12px 14px;font-weight:800;margin-bottom:10px">⏳<select id="totPer" style="flex:1;background:transparent;border:0;color:#fff;font:inherit;font-weight:800;appearance:none">${Object.entries(PERIODS).map(([k, v]) => `<option value="${k}" style="color:#000"${k === totPer ? " selected" : ""}>${v}</option>`).join("")}</select><span style="color:var(--accent)">▾</span></label>
-   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">${kpi("#2E7D5B", "Έσοδα", inc, "#2E7D5B")}${kpi("#C8412B", "Έξοδα", out, "#C8412B")}${kpi("#2468B5", "Υπόλοιπο", inc - out, "#2468B5")}</div>
-   <div class="row" style="margin-bottom:12px"><button type="button" class="btn grow" style="background:#E3F1E8;color:#2E7D5B;border:1px solid #A8D8B7" data-cash="in">＋ Έσοδο</button><button type="button" class="btn grow" style="background:#FBE7E3;color:#C8412B;border:1px solid #F1B3AD" data-cash="out">＋ Έξοδο</button></div>
-   <button type="button" class="tmopen" data-act="tmOpen"><span class="e">📒</span><span class="t"><b>Άνοιγμα του Ταμείου «Εταιρεία»</b><small>Ένα ταμείο με την εφαρμογή «Ταμεία»: οι πληρωμές των παραγγελιών μπαίνουν εκεί μόνες τους.</small></span><span class="g">›</span></button>
-   ${R.locked ? `<div class="warnbox" style="margin:0 0 10px">🔒 Το ταμείο «Εταιρεία» έχει κωδικό στα Ταμεία, γι’ αυτό εδώ φαίνονται μόνο οι πληρωμές των παραγγελιών. Τα υπόλοιπα τα βλέπεις μέσα στα Ταμεία.</div>` : ""}
-   <h3 style="margin:4px 2px 6px;font-size:16px">🧮 Καθαρή εικόνα · ${PERIODS[totPer]}</h3>
-   <div class="card">${row("Πωλήσεις από παραγγελίες", sales, "var(--ink)")}${row("Εισπράχθηκαν", inc, "#2E7D5B")}${row("Απλήρωτα (σου χρωστάνε)", owed, owed ? "#C8412B" : "var(--ink)")}${row("Έξοδα", -out, "#C8412B")}${row("Αυτό που μένει", inc - out, inc - out >= 0 ? "#2E7D5B" : "#C8412B", 1)}</div>
-   <h3 style="margin:4px 2px 6px;font-size:16px">📒 Κινήσεις</h3>
-   <div class="card list">${mv.length ? mv.slice(0, 80).map(x => `<div class="it"${x.ord ? ` data-ord="${x.ord}"` : ` data-act="tmOpen"`}><div class="ic">${x.kind === "in" ? "🟢" : "🔴"}</div><div class="t"><b>${esc(x.cat)}</b><span>${esc(K.dayLabel(x.d).replace(/^(Σήμερα|Αύριο), /, ""))}${x.note ? " · " + esc(x.note) : ""}</span></div><b style="color:${x.kind === "in" ? "#2E7D5B" : "#C8412B"}">${x.kind === "in" ? "" : "− "}${K.money(x.amt)}</b></div>`).join("") : `<p class="note">Καμία κίνηση σε αυτή την περίοδο.</p>`}</div>
-   <h3 style="margin:14px 2px 6px;font-size:16px">📦 Ετοιμασία ημέρας</h3>
-   ${prepView()}
-   <p class="note">Έσοδα και έξοδα είναι τα ίδια με το βιβλίο «Εταιρεία» της εφαρμογής «Ταμεία». Ό,τι γράφεις εκεί φαίνεται κι εδώ.</p>`;
+  const [f, t] = perRange(), { M, kinds } = emEntries(), mv = [];
+  for (const e of M.values()) { const amt = +e.amount; if (!(amt > 0)) continue; const d = K.ymd(new Date(e.date)); if (d < f || d > t) continue; const k = (kinds || []).find(x => x.id === e.kind); const top = k ? (k.emoji ? k.emoji + " " : "") + k.name : "📦 Λοιπά"; mv.push({ id: e.id, d, kind: e.dir, amt: K.round2(amt), ck: e.kind, sub: e.sub || "", vat: e.vat, note: e.note || "", top, cat: top + (e.sub ? " › " + e.sub : ""), ord: /^pg-o/.test(e.id) ? e.id.slice(4) : null }); }
+  return mv.sort((a, b) => b.d.localeCompare(a.d));
 }
 function cashSheet(kind, id) {
   const x = id ? cashList().find(c => c.id === id) : { kind, d: today(), amt: "", ck: kind === "in" ? "sales" : "buy", sub: "", vat: "", note: "" };
@@ -1091,7 +1160,6 @@ function remindersHTML() {
    ${R.map(r => `<div class="remi" ${r.act}><span class="ic">${r.ic}</span><span class="tx">${r.t}</span><span class="go">›</span></div>`).join("")}</div>`;
 }
 /* ---------- οργάνωση διανομής: παραγγελίες ημέρας ανά περιοχή, ώρα ή πελάτη ---------- */
-const DROMOLOGIO = "https://aglentzakis-dot.github.io/dromologio/";
 let dvDay = "", dvBy = "area";
 function areaOf(o) { const c = S.customers[custKey(o.cust.phone)] || {}; const a = (c.area || "").trim(); if (a) return a; const ad = (o.cust.addr || c.addr || "").split(",").map(x => x.trim()).filter(Boolean); return ad.length > 1 ? ad[ad.length - 1] : "Χωρίς περιοχή"; }
 const slotKey = o => { const m = /(\d{1,2})[:.](\d{2})/.exec(o.when.slot || ""); return m ? m[1].padStart(2, "0") + ":" + m[2] : "99"; };
@@ -1118,7 +1186,7 @@ function dvSheet(day) {
   const stop = o => { const c = S.customers[custKey(o.cust.phone)] || {}, ad = o.cust.addr || c.addr || ""; return `<div class="dvs"><div class="dvh"><b>${esc(o.cust.name)}</b><span class="note">${o.when.slot ? esc(o.when.slot) + " · " : ""}#${o.no} · ${K.money(o.total)} ${o.paid ? "✓ πληρώθηκε" : "<b style='color:var(--bad)'>να εισπραχθεί</b>"}</span></div>
      ${ad ? `<div class="note">📍 ${esc(ad)}</div>` : `<div class="note" style="color:var(--bad)">Χωρίς διεύθυνση</div>`}
      <div class="note">${esc(o.lines.map(l => K.num(l.q) + " " + l.unit + " " + l.name).join(" · "))}</div>${o.cust.note ? `<div class="note">📝 ${esc(o.cust.note)}</div>` : ""}
-     <div class="row" style="margin-top:6px;flex-wrap:wrap"><a class="btn soft sm" href="tel:${esc(o.cust.phone)}">📞</a>${ad ? `<a class="btn soft sm" href="https://www.google.com/maps/search/?api=1&query=${mapsQ(ad)}" target="_blank" rel="noopener">🗺 Χάρτης</a>` : ""}<button type="button" class="btn soft sm" data-dvdr="${o.id}">📲 Δρομολόγιο</button><button type="button" class="btn ghost sm" data-dvo="${o.id}">Άνοιγμα</button></div></div>`; };
+     <div class="row" style="margin-top:6px;flex-wrap:wrap"><a class="btn soft sm" href="tel:${esc(o.cust.phone)}">📞</a>${ad ? `<a class="btn soft sm" href="https://www.google.com/maps/search/?api=1&query=${mapsQ(ad)}" target="_blank" rel="noopener">🗺 Χάρτης</a>` : ""}<button type="button" class="btn ghost sm" data-dvo="${o.id}">Άνοιγμα</button></div></div>`; };
   sheet("🚚 Διανομή", `
    <div class="chips">${days.map(d => `<button type="button" class="chip${d === dvDay ? " on" : ""}" data-dvday="${d}">${esc(K.dayLabel(d))}<span class="n">${dvOrders(d).length}</span></button>`).join("")}</div>
    <div class="chips">${[["area", "📍 Περιοχή"], ["time", "🕘 Ώρα"], ["cust", "👤 Πελάτης"]].map(([k, l]) => `<button type="button" class="chip${dvBy === k ? " on" : ""}" data-dvby="${k}">${l}</button>`).join("")}</div>
@@ -1126,22 +1194,8 @@ function dvSheet(day) {
    ${L.length ? `<div class="card"><div class="okbox" style="margin-top:0">${L.length === 1 ? "1 παραγγελία" : L.length + " παραγγελίες"} · ${K.money(L.reduce((a, o) => a + o.total, 0))}${owed ? ` · <b>να εισπραχθούν ${K.money(owed)}</b>` : ""}</div>
     <details><summary style="cursor:pointer;font-weight:700">📦 Τι φορτώνω</summary>${Object.entries(load).sort().map(([k, q]) => { const [n, u] = k.split("|"); return `<div class="qrow"><div class="qn"><b>${esc(n)}</b></div><b>${K.num(q)} ${esc(u)}</b></div>`; }).join("")}</details></div>
     ${G.map(g => `<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><h3 style="margin:0;flex:1">${esc(g.k)} <span class="note" style="font-weight:400">· ${g.os.length}</span></h3>${!g.pick && routeUrl(g.os) ? `<a class="btn sm amber" href="${esc(routeUrl(g.os))}" target="_blank" rel="noopener">🗺 Διαδρομή</a>` : ""}</div>${g.os.map(stop).join("")}</div>`).join("")}
-    <p class="note">«🗺 Διαδρομή» ανοίγει τους Χάρτες Google με τις στάσεις της ομάδας στη σειρά (έως 10). «📲 Δρομολόγιο» περνάει την παράδοση στο Δρομολόγιο της GlenApps μαζί με τον πελάτη και τη διεύθυνση, χωρίς να τα γράψεις ξανά.</p>`
+    <p class="note">«🗺 Διαδρομή» ανοίγει τους Χάρτες Google με τις στάσεις της ομάδας στη σειρά (έως 10).</p>`
    : `<div class="card" style="text-align:center;color:var(--mute)">Δεν υπάρχουν παραγγελίες για ${esc(K.dayLabel(dvDay))}.</div>`}`);
-}
-function dromologioLink(o) {
-  const c = S.customers[custKey(o.cust.phone)] || {}, ad = o.cust.addr || c.addr || "";
-  const ar = areaOf(o) === "Χωρίς περιοχή" ? "" : areaOf(o);
-  const parts = ad.split(",").map(x => x.trim()).filter(Boolean);
-  const street = ar && parts.length > 1 && K.norm(parts[parts.length - 1]) === K.norm(ar) ? parts.slice(0, -1).join(", ") : ad;
-  const m = /(\d{1,2})[:.](\d{2})/.exec(o.when.slot || "");
-  const start = o.when.date ? o.when.date + "T" + (m ? m[1].padStart(2, "0") + ":" + m[2] : "09:00") : "";
-  const pk = { v: 1, k: "job", from: S.shop.name || "Παραγγελίες", to: "", pid: "", src: "parag-" + o.id, at: Date.now(), b: null,
-    t: { title: "Παράδοση #" + o.no + " · " + o.cust.name, desc: o.lines.map(l => K.num(l.q) + " " + l.unit + " " + l.name).join(", ") + " · " + K.money(o.total) + (o.paid ? " (πληρώθηκε)" : " (να εισπραχθεί)") + (o.cust.note ? "\n" + o.cust.note : ""), start, end: "", status: "pending", priority: 2, area: areaOf(o) === "Χωρίς περιοχή" ? "" : areaOf(o), address: ad, loc: null, amount: o.paid ? "" : o.total, check: o.lines.map(l => K.num(l.q) + " " + l.unit + " " + l.name) },
-    c: { name: o.cust.name, company: "", mobile: o.cust.phone, phone: "", street, number: "", area: street === ad && ar && K.norm(ad).includes(K.norm(ar)) ? "" : ar, zip: "", floor: "", hours: o.when.slot || "", notes: "", lat: null, lng: null } };
-  const raw = new TextEncoder().encode(JSON.stringify(pk));
-  let x = ""; raw.forEach(n => x += String.fromCharCode(n));
-  return DROMOLOGIO + "#dj=j" + btoa(x).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 A.dvSheet = dvSheet;
 /* ---------- 🚐 Δρομολόγιο: διαλέγεις σε ποιους θα πας και βγαίνει η διαδρομή (ίδιο στήσιμο με την εφαρμογή Δρομολόγιο) ---------- */
@@ -1567,7 +1621,8 @@ function moreView() {
    ${it("💾", "Αντίγραφα ασφαλείας", gd, "backup")}
    ${it("📤", "Εξαγωγή σε Excel", "Παραγγελίες και σύνολα ημερών", "xls")}
    ${it("⭐", "Pro", l.kind === "pro" ? "Ενεργό μέχρι " + S.lic.until.split("-").reverse().join("/") : l.kind === "trial" ? "Δοκιμή: μένουν " + l.left + " ημέρες" : "Δωρεάν έκδοση", "pro")}
-   ${it("🧭", "Σύνδεση με Δρομολόγιο", "Στάσεις, υπενθυμίσεις, «Χρωστάνε» · σε επόμενη έκδοση", "drom")}</div>
+   ${packOk() ? it("🔗", "Σύνδεση με άλλες εφαρμογές GlenApps", "Ταμεία: " + (S.ui.tmSync ? "ναι" : "όχι") + " · Ημερολόγιο: " + (S.ui.imSync ? "ναι" : "όχι"), "tmLink") : ""}
+   ${it("🗺", "Προβολή στο «Κοντά μου»", "Η επιχείρησή σου στον χάρτη της κοινότητας · σε επόμενη έκδοση", "kontamou")}</div>
    <div class="card list">
    ${DEMO ? it("🎬", "Τέλος επίδειξης", "Πίσω στα δικά σου δεδομένα", "demoEnd") : it("🎬", "Επίδειξη", "Δοκίμασε την εφαρμογή με έτοιμα παραδείγματα", "demoStart")}
    ${it("🧩", "Οι εφαρμογές μας", "Κι άλλες εφαρμογές της GlenApps", "efm")}
@@ -1816,7 +1871,10 @@ async function notifSheet() {
 }
 
 /* ---------- αντίγραφα ασφαλείας: Google Drive και φάκελος κινητού ---------- */
-function backupPayload() { return JSON.stringify({ app: "paraggelies", version: VERSION, at: new Date().toISOString(), state: Object.assign({}, S, { gdrive: undefined }) }); }
+function backupPayload() { let tm = null; try { tm = localStorage.getItem(EM_KEY); } catch {} return JSON.stringify({ app: "paraggelies", version: VERSION, at: new Date().toISOString(), state: Object.assign({}, S, { gdrive: undefined }), tameio: tm }); }
+/* όταν αλλάζει κάτι μέσα στο Ταμείο, κρατιέται και στα αντίγραφα των Παραγγελιών */
+let tmChT = null;
+A.tameioChanged = () => { clearTimeout(tmChT); tmChT = setTimeout(() => { if (S) save(); }, 1200); };
 function gdInit() {
   if (DEMO) return;
   try {
@@ -1860,6 +1918,7 @@ function restoreText(txt) {
   download("paraggelies-prin-tin-epanafora-" + today() + ".json", backupPayload(), "application/json");
   const keepGd = S.gdrive;
   S = migrate(st); S.gdrive = keepGd;
+  if (typeof d.tameio === "string") { try { localStorage.setItem(EM_KEY, d.tameio); localStorage.removeItem(EMQ); } catch {} if (tmFrameEl) { tmFrameEl.remove(); tmFrameEl = null; } }
   write().then(() => { closeSheet(); toast("✓ Έγινε επαναφορά"); render(); });
 }
 function download(name, text, type) { const b = new Blob([text], { type }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); }
@@ -1958,8 +2017,12 @@ const ACT = {
   },
   demoStart: () => demoStart(),
   demoEnd: () => demoEnd(),
-  tmOpen: () => tmOpen(),
-  tmIn: () => tmOpen("in"),
+  prepSheet: () => sheet("📦 Ετοιμασία ημέρας", prepView()),
+  lkSave: () => { S.ui.tmSync = !!$("#lkTm").checked; S.ui.imSync = !!($("#lkIm") && $("#lkIm").checked && packSt && packSt.full); save(); closeSheet(); tmSync(); toast("✓ Αποθηκεύτηκε", 2000); render(); },
+  tmYes: () => { S.ui.tmSync = true; save(); closeSheet(); tmSync(); toast("✓ Τα έσοδα και τα έξοδα θα φαίνονται και στα Ταμεία (βιβλίο «Εταιρεία»).", 4000); render(); },
+  tmNo: () => { S.ui.tmSync = false; save(); closeSheet(); tmSync(); toast("Εντάξει, οι Παραγγελίες μένουν χωριστά. Αλλάζει από τις Ρυθμίσεις.", 3500); render(); },
+  tmLink: () => linkSheet2(),
+  kontamou: () => sheet("🗺 Προβολή στο «Κοντά μου»", `<div class="card"><p style="margin-top:0">Το «Κοντά μου» είναι ο χάρτης της κοινότητας GlenApps, όπου ήδη βρίσκουν μάστορες και επαγγελματίες της περιοχής τους.</p><p>Σε επόμενη έκδοση θα μπορείς, αν το θέλεις, να εμφανίζεται και η επιχείρησή σου εκεί, ώστε νέοι πελάτες να βρίσκουν τον κατάλογό σου και να παραγγέλνουν.</p><p class="note" style="margin:0">Τίποτα δεν δημοσιεύεται χωρίς να το ενεργοποιήσεις εσύ.</p></div>`),
   cashSave: () => { const b = $("#shB"), v = K.parseNum($("#cxA").value); if (!isFinite(v) || v <= 0) { toast("Γράψε ποσό."); return; } const id = b.dataset.cid; let x = id && cashList().find(c => c.id === id); if (!x) { x = { id: "c" + K.uid(6).replace(/[.]/g, "x"), kind: b.dataset.ckind, src: "paraggelies", created: Date.now() }; cashList().push(x); } const k = ckOf(b.dataset.xck); Object.assign(x, { d: $("#cxD").value || today(), amt: K.round2(v), ck: b.dataset.xck, sub: b.dataset.xsub || "", cat: b.dataset.xsub || (k ? k.name : ""), vat: $("#cxV").value === "" ? "" : +$("#cxV").value, note: $("#cxN").value.trim() }); save(); closeSheet(); render(); toast("✓ Καταχωρίστηκε"); },
   cashDel: () => { const id = $("#shB").dataset.cid; if (!confirm("Διαγραφή της κίνησης;")) return; S.cash = cashList().filter(c => c.id !== id); save(); closeSheet(); render(); },
   clAdd: () => { const v = $("#dvClAdd").value; if (!/^\d{4}-\d\d-\d\d$/.test(v)) { toast("Διάλεξε ημερομηνία."); return; } const d = S.deliv; d.closed = [...new Set((d.closed || []).concat(v))]; save({ catalog: true }); keepDeliv(); },
@@ -1976,8 +2039,6 @@ const ACT = {
   instLater: () => { S.ui.instHide = today(); save(); render(); },
   legal: () => sheet("⚖️ Όροι και απόρρητο", `<div class="card list"><a class="it" href="oroi.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="ic">📄</div><div class="t"><b>Όροι χρήσης</b><span>Για πωλητές και αγοραστές</span></div></a><a class="it" href="aporrito.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="ic">🔒</div><div class="t"><b>Πολιτική απορρήτου</b><span>Τι δεδομένα υπάρχουν και πού</span></div></a></div>
     <div class="card"><h3>Υπενθυμίσεις για τον πωλητή</h3><ul style="padding-left:20px;margin:0;font-size:14.5px"><li>Η εφαρμογή δεν εκδίδει φορολογικά παραστατικά. Έκδωσε απόδειξη ή τιμολόγιο όπως ορίζει ο νόμος (myDATA).</li><li>Για τρόφιμα χρειάζεται καταχώριση ή άδεια της δραστηριότητάς σου (π.χ. ΕΦΕΤ, ΔΑΟΚ, κανόνες σήμανσης για αυγά και μέλι).</li><li>Τα στοιχεία των πελατών σου χρησιμοποίησέ τα μόνο για τις παραγγελίες τους.</li></ul></div>`),
-  drom: () => sheet("🧭 Σύνδεση με Δρομολόγιο", `<div class="card"><p style="margin-top:0">Σε επόμενη έκδοση, με έναν διακόπτη:</p><ul style="padding-left:20px;margin:0"><li>οι παραδόσεις μπαίνουν ως στάσεις στη διαδρομή σου·</li><li>υπενθυμίσεις για κάθε παράδοση·</li><li>οι απλήρωτες παραγγελίες εμφανίζονται στο «Χρωστάνε»·</li><li>κοινοί πελάτες.</li></ul><p class="note">Δουλεύει μόνο αν έχεις και το Δρομολόγιο στο ίδιο κινητό. Τα δεδομένα δεν φεύγουν από το κινητό σου.</p></div>
-    <label class="ck"><input type="checkbox" disabled><span>Σύνδεση με το Δρομολόγιο (σύντομα)</span></label>`),
   termsOk: () => { if (!$("#trmOk").checked) { toast("Χρειάζεται η αποδοχή των όρων."); return; } S.terms = { v: 1, at: Date.now() }; save(); closeSheet(); linkSheet(); },
   lkShare: async () => { const b = $("#shB"); if (navigator.share) { try { await navigator.share({ text: b.dataset.msg }); linkSent(); return; } catch (e) { if (e && e.name === "AbortError") return; } } await ACT.lkCopy(); setTimeout(() => { location.href = "viber://forward?text=" + encodeURIComponent("Επικόλλησε εδώ τον σύνδεσμο"); }, 400); },
   lkCopy: async () => { try { await navigator.clipboard.writeText($("#shB").dataset.msg); linkSent(); toast("✓ Αντιγράφηκε. Επικόλλησέ το στο Viber."); } catch { toast("Δεν έγινε αντιγραφή."); } },
@@ -2098,11 +2159,10 @@ document.addEventListener("click", async e => {
   const dvd = t.closest("[data-dvday]"); if (dvd) { dvSheet(dvd.dataset.dvday); return; }
   const dvb = t.closest("[data-dvby]"); if (dvb) { dvBy = dvb.dataset.dvby; dvSheet(dvDay); return; }
   const dvo = t.closest("[data-dvo]"); if (dvo) { openOrder(dvo.dataset.dvo); return; }
-  const dvr = t.closest("[data-dvdr]"); if (dvr) { const o = S.orders.find(x => x.id === dvr.dataset.dvdr); if (o) { const u = dromologioLink(o); o.log.push([Date.now(), "Στάλθηκε στο Δρομολόγιο"]); o.toDr = Date.now(); save(); window.open(u, "_blank"); dvr.textContent = "✓ Στάλθηκε"; } return; }
   const cpl = t.closest("[data-cpl]"); if (cpl) { const k = $("#shB").dataset.cust, c = S.customers[k]; if (c) { ACT.custSave(true); if (cpl.dataset.cpl === "w") c.pl = "w"; else delete c.pl; save(); openCust(k); toast(c.pl === "w" ? "Χονδρική: παίρνει τις τιμές χονδρικής όπου υπάρχουν." : "Λιανική."); } return; }
   const ckb = t.closest("[data-ck]"); if (ckb) { const b = $("#shB"); b.dataset.xck = ckb.dataset.ck; b.dataset.xsub = ""; $$("[data-ck]").forEach(x => x.classList.toggle("on", x === ckb)); $("#cxSubs").innerHTML = subsHTML(ckOf(ckb.dataset.ck), ""); return; }
   const csb = t.closest("[data-csub]"); if (csb) { const b = $("#shB"); b.dataset.xsub = b.dataset.xsub === csb.dataset.csub ? "" : csb.dataset.csub; $$("[data-csub]").forEach(x => x.classList.toggle("on", x.dataset.csub === b.dataset.xsub)); return; }
-  const cs = t.closest("[data-cash]"); if (cs) { if (cs.dataset.cash === "in") incomeChooser(); else tmOpen("out"); return; }
+  const cs = t.closest("[data-cash]"); if (cs) { collectList(); return; }
   const cn = t.closest("[data-cashnew]"); if (cn) { cashSheet(cn.dataset.cashnew); return; }
   const co = t.closest("[data-coll]"); if (co) { collectCust(co.dataset.coll); return; }
   const pv = t.closest("[data-pv]"); if (pv) { S.ui.payVia = pv.dataset.pv; $$("[data-pv]").forEach(x => x.classList.toggle("on", x === pv)); return; }
@@ -2130,9 +2190,8 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { pollOnce(); liveStart(); if (S && Date.now() - updLast > 30 * 6e4) checkUpdate(false); } else liveStop(); });
 /* όταν γυρνάς από τα Ταμεία, το Ταμείο εδώ δείχνει αμέσως τα νέα ποσά */
-const tmRefresh = () => { try { if (S && tab === "totals" && !isSheetOpen()) render(); } catch {} };
-window.addEventListener("storage", e => { if (e.key === TM_KEY || e.key === TM_INBOX) tmRefresh(); });
-window.addEventListener("pageshow", e => { if (e.persisted) tmRefresh(); });
+/* όταν αλλάξει κάτι στο Ταμείο, ο συγχρονισμός (αν είναι ανοιχτός) το παίρνει */
+window.addEventListener("storage", e => { if (e.key === EM_KEY && S && S.ui.tmSync) tmSoon(); });
 window.addEventListener("hashchange", () => handleHash().then(render));
 /* ---------- κουμπί «πίσω» του κινητού: πάντα ένα βήμα πίσω ----------
    φύλλο → κλείνει · προεπισκόπηση → κλείνει · κατηγορία μενού → μία πάνω ·
@@ -2203,7 +2262,7 @@ async function boot() {
   render();
   await handleHash();
   render();
-  startPoll(); gdInit(); efmInit(); render(); setTimeout(() => { try { liveKeep(); } catch {} }, 3000); setTimeout(() => { try { tmSync(); } catch {} }, 1200);
+  startPoll(); gdInit(); efmInit(); render(); setTimeout(() => { try { liveKeep(); } catch {} }, 3000); setTimeout(() => { try { packAsk(); } catch {} }, 1500);
   setTimeout(() => checkUpdate(false), 3000);
 }
 A.boot = boot;
