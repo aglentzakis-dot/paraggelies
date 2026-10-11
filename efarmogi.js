@@ -364,10 +364,30 @@ function render() {
 A.render = render;
 /* μπάρα «νέα παραγγελία» σε κάθε καρτέλα, μέχρι να ανοιχτεί η παραγγελία */
 function unread() { return S ? S.orders.filter(o => (o.st === "new" || o.st === "dup") && !o.seen) : []; }
+/* όσες νέες έχει σύρει ο χρήστης να φύγει το μήνυμα (ξαναεμφανίζεται μόνο σε νέα παραγγελία) */
+function nbDismissed() { return (S && S.ui && S.ui.nbDismiss) || []; }
+function unreadBar() { const d = nbDismissed(); return unread().filter(o => !d.includes(o.id)); }
 function newBar() {
-  const U = unread(); let b = $("#newBar");
+  const U = unreadBar(); let b = $("#newBar");
   if (!U.length) { b && b.remove(); return; }
-  if (!b) { $(".top").insertAdjacentHTML("afterend", `<button type="button" id="newBar" data-act="seeNew"></button>`); b = $("#newBar"); }
+  if (!b) {
+    $(".top").insertAdjacentHTML("afterend", `<button type="button" id="newBar" data-act="seeNew"></button>`); b = $("#newBar");
+    let sx = 0, sw = false, kin = false;
+    b.addEventListener("pointerdown", e => { sx = e.clientX; sw = true; kin = false; b.style.transition = "none"; });
+    b.addEventListener("pointermove", e => { if (!sw) return; const dx = e.clientX - sx; if (Math.abs(dx) > 6) kin = true; b.style.transform = `translateX(${dx}px)`; b.style.opacity = String(Math.max(0, 1 - Math.abs(dx) / 220)); });
+    const fin = e => {
+      if (!sw) return; sw = false; b.style.transition = ""; const dx = (e.clientX || sx) - sx;
+      if (Math.abs(dx) > 90) {
+        const ids = unread().map(o => o.id);
+        if (S.ui) { S.ui.nbDismiss = ids; save(); }
+        b.style.transform = `translateX(${dx > 0 ? 500 : -500}px)`; b.style.opacity = "0";
+        setTimeout(() => { const n = $("#newBar"); n && n.remove(); }, 180);
+      } else { b.style.transform = ""; b.style.opacity = ""; }
+    };
+    b.addEventListener("pointerup", fin);
+    b.addEventListener("pointercancel", fin);
+    b.addEventListener("click", e => { if (kin) { e.preventDefault(); e.stopImmediatePropagation(); kin = false; } }, true);
+  }
   document.documentElement.style.setProperty("--toph", $(".top").offsetHeight + "px");
   const who = [...new Set(U.map(o => o.cust.name).filter(Boolean))].slice(0, 2).join(", ");
   b.innerHTML = `<span class="nbi">🔔</span><span class="nbt"><b>${U.length === 1 ? "Έχεις νέα παραγγελία" : "Έχεις " + U.length + " νέες παραγγελίες"}</b>${who ? `<small>${esc(who)}${U.length > 2 ? " και άλλοι" : ""}</small>` : ""}</span><span class="nbg">Δες ›</span>`;
