@@ -1,5 +1,12 @@
 /* Ταμείο μέσα στις Παραγγελίες: χωρίς κουμπί γλώσσας και χωρίς επιλογή άλλου βιβλίου */
 #langBtn{display:none!important}
 header.zm{padding-top:8px!important}
-.emdebt{display:flex;align-items:center;gap:12px;width:100%;margin:0 0 12px;border:1.5px solid #A8D8B7;background:#E3F1E8;color:#1f5c3c;border-radius:16px;padding:12px 14px;font:inherit;text-align:left;cursor:pointer}
-.emdebt.owe{border-color:#F1B3AD;background:#FBE7E3;color:#8a2a1c}.emdebt .e{font-size:22px}.emdebt .t{flex:1;display:flex;flex-direction:column}.emdebt .t b{font-size:17px}.emdebt .t small{font-size:13px;opacity:.85}.emdebt .g{font-size:22px}
+.sum3.has4{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.sum3.has4 .sumcard{padding:10px 4px;text-align:center}
+.sum3.has4 .sumcard span{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px}
+.sum3.has4 .sumcard b{font-size:15.5px;letter-spacing:-.4px;white-space:nowrap}
+.emdebt{font:inherit;cursor:pointer;color:inherit}
+.emdebt b{color:#5E7185}.emdebt.owe{border-color:#F1B3AD!important;background:#FBE7E3!important}.emdebt.owe b{color:#C8412B}
+.emdebt small{display:block;font-size:11px;font-weight:700;color:#8a2a1c;margin-top:1px}
+.emlocknote{border:1.5px solid #F1B3AD;background:#FBE7E3;color:#8a2a1c;border-radius:14px;padding:10px 12px;margin:0 0 10px;display:flex;flex-direction:column;gap:3px}
+.emlocknote small{font-size:12.5px}.emlnb{display:flex;gap:8px;margin-top:6px}

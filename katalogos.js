@@ -324,17 +324,29 @@
   /* ---------- σύντομος σύνδεσμος (is.gd, χωρίς λογαριασμό) ----------
      Το Viber δείχνει ολόκληρο το κείμενο του συνδέσμου· με σύντομο σύνδεσμο το μήνυμα
      μένει μικρό και φαίνεται η κάρτα με το εικονίδιο. Αν αποτύχει, μένει ο κανονικός. */
-  K.shorten = (url, ms) => new Promise((res, rej) => {
+  K.shorten = (url, ms, host) => new Promise((res, rej) => {
+    host = host === "v.gd" ? "v.gd" : "is.gd";
     const cb = "glenSh" + Math.random().toString(36).slice(2);
     const sc = document.createElement("script");
     const done = (f, v) => { clearTimeout(tm); try { delete window[cb]; } catch { window[cb] = undefined; } sc.remove(); f(v); };
     const tm = setTimeout(() => done(rej, new Error("χρόνος")), ms || 7000);
-    window[cb] = d => d && d.shorturl && /^https:\/\/is\.gd\/\w+$/.test(d.shorturl) ? done(res, d.shorturl) : done(rej, new Error((d && d.errormessage) || "άγνωστο"));
+    window[cb] = d => { if (d && d.shorturl && /^https:\/\/(is|v)\.gd\/\w+$/.test(d.shorturl)) return done(res, d.shorturl); const e = new Error((d && d.errormessage) || "άγνωστο"); e.svc = 1; e.code = d && d.errorcode; done(rej, e); };
     sc.onerror = () => done(rej, new Error("δίκτυο"));
-    sc.src = "https://is.gd/create.php?format=json&callback=" + cb + "&url=" + encodeURIComponent(url);
+    sc.src = "https://" + host + "/create.php?format=json&callback=" + cb + "&url=" + encodeURIComponent(url);
     document.head.appendChild(sc);
   });
 
+  /* εφεδρικές υπηρεσίες συντόμευσης (απλό κείμενο): da.gd και TinyURL */
+  K.shorten2 = async (url, host, ms) => {
+    const ctrl = new AbortController(), tm = setTimeout(() => ctrl.abort(), ms || 9000);
+    try {
+      const api = host === "tinyurl" ? "https://tinyurl.com/api-create.php?url=" : "https://da.gd/s?url=";
+      const r = await fetch(api + encodeURIComponent(url), { signal: ctrl.signal });
+      const t = (await r.text()).trim();
+      if (r.ok && /^https:\/\/(da\.gd|tinyurl\.com)\/[\w-]{3,40}$/.test(t)) return t;
+      const e = new Error(t.slice(0, 80) || ("HTTP " + r.status)); e.svc = 1; throw e;
+    } finally { clearTimeout(tm); }
+  };
   /* ---------- ειδοποιήσεις (ntfy, όπως στο Δρομολόγιο) ---------- */
   /* ---------- ζωντανή διαθεσιμότητα: υπογεγραμμένη ενημέρωση του πωλητή που διαβάζει ο πελάτης ---------- */
   K.LIVE_SUFFIX = "_z";

@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.45">
+<meta name="app-version" content="1.47">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.45">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.45">
-<link rel="stylesheet" href="koino.css?v=1.45">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.47">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.47">
+<link rel="stylesheet" href="koino.css?v=1.47">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -36,6 +36,8 @@ main{max-width:640px;margin:0 auto;padding:12px 16px}
 .back{border:0;background:var(--card);border-radius:20px;padding:8px 14px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.1);cursor:pointer}
 .crumb .path{font-weight:800;font-size:17px}
 .again{width:100%;border:2px dashed var(--c1);background:transparent;color:var(--c1);border-radius:14px;padding:12px;font-weight:800;margin:0 0 12px;cursor:pointer}
+.okline{text-align:center;font-weight:800;color:#1f6b3a;background:#E3F1E8;border-radius:12px;padding:10px 12px;margin:0 0 12px}
+.again b{display:block;font-size:16px}.again small{display:block;font-weight:600;font-size:13px;opacity:.8;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--card);box-shadow:0 -4px 20px rgba(0,0,0,.12);display:flex;gap:10px;align-items:center;z-index:20}
 .bar .sum{flex:1;min-width:0}
 .bar .sum b{font-size:18px;display:block}
@@ -89,7 +91,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.45"></script>
+<script src="katalogos.js?v=1.47"></script>
 <script>
 (function(){
 "use strict";
@@ -246,7 +248,7 @@ function render(){
   $("#app").innerHTML=header()+`<main>
    ${path.length?`<div class="crumb"><button type="button" class="back" data-act="back">← Πίσω</button>${path.length>1?`<span class="note" style="margin:0">${esc(path.slice(0,-1).map(n=>n.name).join(" › "))}</span>`:""}</div>
    <h1 class="cattl">${path[path.length-1].emoji?esc(path[path.length-1].emoji)+" ":""}${esc(path[path.length-1].name)}</h1>`:""}
-   ${!path.length&&last&&!t.n?`<button type="button" class="again" data-act="again">🔁 Ξανά τα ίδια με την προηγούμενη φορά</button>`:""}
+   ${!path.length&&last&&!t.n?(()=>{const L=Object.entries(last).filter(([id])=>P[id]).map(([id,q])=>K.num(q)+" "+P[id].n);return L.length?`<button type="button" class="again" data-act="again"><b>🔁 Επανάληψη παραγγελίας</b><small>ίδια με την προηγούμενη: ${esc(L.slice(0,3).join(", "))}${L.length>3?"…":""}</small></button>`:""})():""}
    ${!path.length?routeBox():""}
    ${!path.length?(()=>{const L=store.get(SK+":sent",[]).filter(x=>x.ok&&x.d>=K.ymd(new Date()));return L.length?`<div class="how" style="border-left-color:#1f7a3d">✅ Έχεις στείλει παραγγελία για ${esc([...new Set(L.map(x=>K.dayLabel(x.d)))].join(" και "))}. Ό,τι στείλεις ακόμα για την ίδια ημέρα θα προστεθεί σε αυτή.</div>`:""})():""}
    ${!path.length&&!t.n&&M.length?`<div class="how">🛒 <b>Πώς παραγγέλνεις:</b> πάτα μια κατηγορία, βάλε ποσότητες με <b>+</b> και στο τέλος πάτα <b>«Συνέχεια»</b>.</div>`:""}
@@ -366,8 +368,8 @@ function renderDone(){
    <p>${esc(K.dayLabel(L.day))}${L.slot?" · "+esc(L.slot):""} · ${L.how==="pick"?"Παραλαβή":"Παράδοση"}</p></div>
    <div class="sec">${L.lines.map(l=>`<div class="line"><div class="ln"><b>${esc(l.name)}</b><span>${K.num(l.q)} × ${K.money(l.price)} / ${esc(l.unit)}</span></div><div class="lt">${K.money(l.q*l.price)}</div></div>`).join("")}<div class="total"><span>Σύνολο</span><span>${K.money(L.total)}</span></div>
    <p class="note">Τελικές είναι οι τιμές του πωλητή. Η επιβεβαίωση αυτή δεν αποτελεί φορολογικό παραστατικό.</p></div>
-   ${L.ok?`<p class="note" style="text-align:center">Αν θέλεις σιγουριά, στείλ' την και στο Viber του πωλητή. Ο σύνδεσμος ανοίγει μόνο στη δική του εφαρμογή.</p>`:`<p class="err" style="text-align:center">Δεν υπήρξε σύνδεση στο διαδίκτυο. Δοκίμασε ξανά ή στείλ' την στο Viber του πωλητή.</p><button type="button" class="btn wide" data-act="retry" style="margin-bottom:10px">Δοκίμασε ξανά</button>`}
-   <button type="button" class="btn ${L.ok?"ghost":"alt"} wide" style="margin-bottom:10px" data-act="vshare">💬 Στείλ' την και στο Viber</button>
+   ${L.ok?`<p class="okline">✓ Έφτασε στον πωλητή. Δεν χρειάζεται να κάνεις τίποτα άλλο.</p>`:`<p class="err" style="text-align:center">Δεν υπήρξε σύνδεση στο διαδίκτυο. Δοκίμασε ξανά ή στείλ' την στο Viber του πωλητή.</p><button type="button" class="btn wide" data-act="retry" style="margin-bottom:10px">Δοκίμασε ξανά</button>
+   <button type="button" class="btn alt wide" style="margin-bottom:10px" data-act="vshare">💬 Στείλ' την στο Viber</button>`}
    ${s.t?`<a class="btn ghost wide" style="display:block;text-align:center;text-decoration:none;margin-bottom:10px" href="tel:${esc(s.t)}">📞 Κάλεσε τον πωλητή</a>`:""}
    <button type="button" class="btn wide" data-act="new">Νέα παραγγελία</button></main>`+footer();
 }
