@@ -1087,6 +1087,16 @@ function custStats(k) {
 }
 /* 📞 κλήση · 💬 μήνυμα · 📍 στον χάρτη, δίπλα σε κάθε πελάτη */
 const custActs = c => `<span class="cact">${c.phone ? `<a href="tel:${esc(c.phone)}" data-noprop="1" aria-label="Κλήση">📞</a><button type="button" data-cmsg="${esc(c.key)}" aria-label="Μήνυμα">💬</button>` : ""}<button type="button" data-cpin="${esc(c.key)}" aria-label="Στον χάρτη">📍</button></span>`;
+/* πού είναι ο πελάτης στον χάρτη: pin (σημείο που κράτησες) · ok · approx (μόνο η περιοχή) · miss (δεν βρέθηκε) · noad (χωρίς διεύθυνση) · "" (δεν έχει ψαχτεί ακόμα) */
+function custGeoState(c) {
+  if (c.pin && c.pin.lat != null) return "pin";
+  if (!(c.addr || "").trim()) return "noad";
+  const g = geoMem()[K.norm(String(c.addr || "").trim() + "|" + String(c.area || "").trim())];
+  return !g ? "" : g.lat != null ? (g.approx ? "approx" : "ok") : g.miss ? "miss" : "";
+}
+const CU_COLS = ["#0B6E4F", "#17324D", "#8E3B46", "#B45309", "#5B3F8C", "#0E7490", "#4D7C0F", "#9D174D"];
+const custColor = k => { let h = 0; for (const ch of String(k)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CU_COLS[h % CU_COLS.length]; };
+const custInit = n => String(n || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase() || "?";
 const intlPhone = p => { let d = String(p || "").replace(/\D/g, ""); if (d.startsWith("00")) d = d.slice(2); if (d.length === 10) d = "30" + d; return d; };
 function custMsg(k) {
   const c = S.customers[k]; if (!c || !c.phone) return;
@@ -1109,7 +1119,13 @@ function custsView() {
   return `<div class="row" style="margin-bottom:10px"><input class="t grow" id="custQ" placeholder="🔍 Αναζήτηση πελάτη" value="${esc(custQ)}"><button type="button" class="btn amber" data-act="custNewBtn">＋ Νέος</button></div>
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn green grow" data-act="custMap">🗺 Χάρτης πελατών</button><button type="button" class="btn soft grow" data-act="rtOpen">🚐 Δρομολόγιο</button></div>
    ${owedAll > 0 ? `<div class="warnbox">Σου χρωστάνε συνολικά <b>${K.money(owedAll)}</b> από παραδομένες παραγγελίες.</div>` : ""}
-   <div class="card list">${L.length ? L.map(c => { const s = custStats(c.key); return `<div class="it" data-cust="${c.key}"><div class="ic">👤</div><div class="t" style="min-width:0"><b>${esc(c.name)}${rateAvg(c.ratings) ? ` <span style="color:#F2B632;font-size:13px">★${rateAvg(c.ratings)}</span>` : ""}</b><span>${esc(c.phone)} · ${s.n} ${s.n === 1 ? "παραγγελία" : "παραγγελίες"} · τζίρος ${K.money(s.sum)}</span></div>${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : s.owed < 0 ? `<span class="pill warn">επιστροφή ${K.money(-s.owed)}</span>` : ""}${custActs(c)}</div>`; }).join("") : `<p class="note">Οι πελάτες προστίθενται μόνοι τους με την πρώτη τους παραγγελία, ή με «＋ Νέος».</p>`}</div>`;
+   ${L.length ? `<div class="culist">${L.map(c => { const s = custStats(c.key), g = custGeoState(c); return `<div class="it cuit${s.owed > 0 ? " owe" : ""}${g === "miss" ? " nogeo" : ""}" data-cust="${c.key}" style="--cc:${custColor(c.key)}">
+     <div class="cav" aria-hidden="true">${esc(custInit(c.name))}</div>
+     <div class="cut"><b class="cun">${esc(c.name)}${rateAvg(c.ratings) ? ` <span class="cur">★${rateAvg(c.ratings)}</span>` : ""}</b>
+      <span class="cup">${esc(c.phone || "")}</span>
+      <span class="cus">${s.n} ${s.n === 1 ? "παραγγελία" : "παραγγελίες"} · τζίρος ${K.money(s.sum)}</span>
+      ${s.owed > 0 || s.owed < 0 || g === "miss" || g === "noad" || g === "approx" ? `<div class="cupl">${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : s.owed < 0 ? `<span class="pill warn">επιστροφή ${K.money(-s.owed)}</span>` : ""}${g === "miss" ? `<span class="cugeo bad">⚠️ Δεν βρέθηκε η διεύθυνση</span>` : g === "noad" ? `<span class="cugeo">Χωρίς διεύθυνση</span>` : g === "approx" ? `<span class="cugeo">≈ κατά προσέγγιση</span>` : ""}</div>` : ""}</div>
+     ${custActs(c)}</div>`; }).join("")}</div>` : `<div class="card"><p class="note">Οι πελάτες προστίθενται μόνοι τους με την πρώτη τους παραγγελία, ή με «＋ Νέος».</p></div>`}`;
 }
 /* ---------- αξιολόγηση πελάτη (όπως στο Δρομολόγιο, για πωλητή) ---------- */
 const RATE_CATS = [
@@ -1179,7 +1195,9 @@ function custInfoHTML(k) {
 function openCust(k) {
   const c = S.customers[k]; if (!c) return;
   const s = custStats(k);
+  const gs = custGeoState(c);
   sheet(c.name, `${custInfoHTML(k)}
+   ${gs === "miss" ? `<div class="errbox cugeobox"><b>⚠️ ΔΕΝ ΒΡΕΘΗΚΕ Η ΔΙΕΥΘΥΝΣΗ ΣΤΟΝ ΧΑΡΤΗ</b><br>Ο πελάτης δεν φαίνεται στον χάρτη και στο δρομολόγιο. Διόρθωσε τη διεύθυνση ή την περιοχή παρακάτω (π.χ. ολόκληρο το όνομα του δρόμου), ή πάτα «📍 Είμαι εδώ» όταν βρίσκεσαι στο σημείο.</div>` : gs === "approx" ? `<div class="warnbox">≈ Στον χάρτη μπήκε <b>κατά προσέγγιση</b>, στο κέντρο της περιοχής. Σύρε την πινέζα στο σωστό σημείο ή πάτα «📍 Είμαι εδώ» όταν βρίσκεσαι εκεί.</div>` : ""}
    <div class="card"><label class="f" for="cuN">Όνομα</label><input class="t" id="cuN" value="${esc(c.name)}"><label class="f" for="cuP">Τηλέφωνο</label><input class="t" id="cuP" value="${esc(c.phone)}"><label class="f" for="cuA">Διεύθυνση</label><input class="t" id="cuA" value="${esc(c.addr || "")}"><div class="row" style="margin-top:6px;align-items:center"><button type="button" class="btn soft sm" data-act="custPinHere">📍 Είμαι εδώ</button><span class="note" style="margin:0;flex:1">${c.pin ? "✓ Έχει κρατηθεί ακριβής θέση για το Δρομολόγιο." : "Πάτα το όταν είσαι στον πελάτη, για ακριβή θέση στο Δρομολόγιο."}</span></div><label class="f" for="cuAr">Περιοχή (για την οργάνωση της διανομής)</label><input class="t" id="cuAr" value="${esc(c.area || "")}" placeholder="π.χ. Κορωπί" list="areaL"><datalist id="areaL">${[...new Set(Object.values(S.customers).map(x => x.area).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join("")}</datalist><label class="f" for="cuNo">Σημειώσεις (μόνο για σένα)</label><input class="t" id="cuNo" value="${esc(c.notes || "")}"></div>
    ${custPriceCard(c)}
    <div class="card"><h3>🚚 Πότε περνάς</h3><p style="margin:0 0 8px">${c.route && c.route.days && c.route.days.length ? esc(c.route.days.map(x => K.WD[x]).join(", ")) + (c.route.slot ? " · " + esc(c.route.slot) : "") + (c.route.note ? " · " + esc(c.route.note) : "") + (c.route.ex !== false ? " · ⚡ δέχεται έκτακτη" : "") : `<span class="note">Δεν έχεις δηλώσει ημέρες· βλέπει τις γενικές.</span>`}</p>
