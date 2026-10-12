@@ -1391,7 +1391,9 @@ function routeView() {
 const geoMem = () => {
   const G = S.geo2 || (S.geo2 = {});
   /* μία φορά (1.50): οι παλιές θέσεις ξαναψάχνονται για να φανεί αν υπάρχουν ίδιες διευθύνσεις σε άλλες περιοχές — όσες διάλεξες εσύ μένουν */
-  if (S.geoV !== 2) { for (const k of Object.keys(G)) if (!G[k].picked && !k.startsWith("πόλη|")) delete G[k]; S.geoQ = {}; S.geoV = 2; }
+  if (!S.geoV || S.geoV < 2) { for (const k of Object.keys(G)) if (!G[k].picked && !k.startsWith("πόλη|")) delete G[k]; S.geoQ = {}; S.geoV = 2; }
+  /* 1.54: όσες ήρθαν από HERE/TomTom ξαναψάχνονται (πριν μπορούσε να κρατηθεί σκέτη πόλη, π.χ. Σύνταγμα αντί για τον δρόμο) */
+  if (S.geoV < 3) { for (const k of Object.keys(G)) if (G[k].src) delete G[k]; S.geoV = 3; }
   return G;
 };
 let geoLast = 0;
@@ -1489,8 +1491,8 @@ async function geoPaidAsk(svc, q, base) {
     if (r.status === 401 || r.status === 403 || r.status === 429) { paidOff[svc] = r.status; return null; }   /* τέλος ορίου ή λάθος κλειδί */
     if (!r.ok) return null;
     const js = await r.json();
-    if (svc === "here") return (js.items || []).filter(x => x.position).map(x => { const a = x.address || {}; return { lat: +x.position.lat, lng: +x.position.lng, type: x.resultType === "houseNumber" ? "house" : x.resultType === "street" ? "road" : x.resultType || "", num: x.resultType === "houseNumber", label: a.label ? a.label.replace(/,\s*Ελλάδα$/, "") : "", town: a.district || a.city || "" }; });
-    return (js.results || []).filter(x => x.position).map(x => { const a = x.address || {}; return { lat: +x.position.lat, lng: +x.position.lon, type: x.type === "Point Address" ? "house" : x.type === "Street" ? "road" : (x.type || "").toLowerCase(), num: x.type === "Point Address", label: a.freeformAddress || "", town: a.municipalitySubdivision || a.municipality || "" }; });
+    if (svc === "here") return (js.items || []).filter(x => x.position).map(x => { const a = x.address || {}; return { lat: +x.position.lat, lng: +x.position.lng, type: x.resultType === "houseNumber" ? "house" : x.resultType === "street" ? "road" : x.resultType === "intersection" ? "cross" : "area", num: x.resultType === "houseNumber", label: a.label ? a.label.replace(/,\s*Ελλάδα$/, "") : "", town: a.district || a.city || "" }; });
+    return (js.results || []).filter(x => x.position).map(x => { const a = x.address || {}; return { lat: +x.position.lat, lng: +x.position.lon, type: x.type === "Point Address" ? "house" : x.type === "Address Range" ? "range" : x.type === "Street" ? "road" : x.type === "Cross Street" ? "cross" : "area", num: x.type === "Point Address", label: a.freeformAddress || "", town: a.municipalitySubdivision || a.municipality || "" }; });
   } catch { return null; } finally { clearTimeout(tm); }
 }
 async function geoFind(q, ctx) {
@@ -1521,7 +1523,8 @@ async function geoFindPaid(q, ctx, area0, k0, r) {
     const L = await geoPaidAsk(svc, qq, base);
     if (L) answered = true;
     if (!L || !L.length) { if (L) break; continue; }   /* απάντησε «τίποτα»: δεν ρωτάμε και τη δεύτερη */
-    const near = base ? L.filter(x => geoKm(base, x) <= 150) : L; if (!near.length) break;
+    /* μόνο δρόμος ή πόρτα — ποτέ σκέτη πόλη/περιοχή (το «κέντρο της Αθήνας» είναι το Σύνταγμα) */
+    const near = (base ? L.filter(x => geoKm(base, x) <= 150) : L).filter(x => x.type !== "area"); if (!near.length) break;
     const best = near.find(x => x.num) || near[0];
     const out = { lat: best.lat, lng: best.lng, src: svc, at: Date.now() };
     if (!best.num && /\d/.test(q)) out.nonum = 1;
@@ -1640,6 +1643,15 @@ async function pickOnMap(k) {
   };
   if (cm.map.on) cm.map.on("click", cm.pickH);
 }
+/* στάση που βρέθηκε μόνο ως περιοχή: δεν σε στέλνει στο κέντρο της πόλης χωρίς να ρωτήσει */
+function rtApproxSheet(x) {
+  sheet("❓ Δεν βρέθηκε ο δρόμος", `<div class="warnbox" style="margin-top:0">Για τον/την <b>${esc(x.name)}</b> («${esc(x.addr)}») βρέθηκε μόνο η περιοχή, όχι ο δρόμος. Αν συνεχίσεις έτσι, η διαδρομή θα σε πάει στο κέντρο της περιοχής.</div>
+   <div class="ambl">
+    <button type="button" class="ambo" data-rtap="pick"><span class="ambn">🗺</span><span class="t"><b>Βάλ' το στον χάρτη</b><small>πατάς το σωστό σημείο· το θυμάται για πάντα</small></span><span class="g">›</span></button>
+    <button type="button" class="ambo" data-rtap="gm"><span class="ambn">🔗</span><span class="t"><b>Από Google Maps</b><small>αντιγράφεις τη θέση από εκεί</small></span><span class="g">›</span></button>
+    <button type="button" class="ambo" data-rtap="skip"><span class="ambn">⏭</span><span class="t"><b>Χωρίς αυτή τη στάση</b><small>βγαίνει από τη σημερινή διαδρομή</small></span><span class="g">›</span></button>
+    <button type="button" class="ambo" data-rtap="go"><span class="ambn">→</span><span class="t"><b>Συνέχεια έτσι</b><small>στο κέντρο της περιοχής (≈)</small></span><span class="g">›</span></button></div>`, "", el => { el.dataset.rtapk = x.key; el.dataset.rtapc = x.ck || ""; });
+}
 function ambFor(k) {
   const c = S.customers[k]; if (!c) return;
   try { cm.map && cm.map.closePopup(); } catch {}
@@ -1726,6 +1738,7 @@ async function rtGo() {
       i++; say("📍 Βρίσκω τις διευθύνσεις… " + i + "/" + C.length);
       const loc = custPin(x.ck) || await geoFind(x.addr, { area: (S.customers[x.ck] || {}).area });
       if (!loc) { miss.push(x); continue; }
+      if (loc.approx && !custPin(x.ck) && !(RT.okApprox && RT.okApprox.has(x.key))) { RT.busy = false; say("🧭 Δείξε διαδρομή"); rtApproxSheet(x); return; }
       if (loc.amb && loc.amb.length > 1) { RT.busy = false; say("🧭 Δείξε διαδρομή"); toast("Η διεύθυνση του/της " + x.name + " υπάρχει σε πολλές περιοχές· διάλεξε ποια.", 4000); geoAmbSheet(x.addr, (S.customers[x.ck] || {}).area, x.ck, () => rtGo()); return; }
       const key = loc.lat.toFixed(4) + "," + loc.lng.toFixed(4);
       if (!map.has(key)) map.set(key, { key, loc, addr: x.addr, items: [], area: x.o ? areaOf(x.o) : ((S.customers[x.ck] || {}).area || x.addr.split(",").pop().trim()), slot: "", date: "" });
@@ -2734,6 +2747,11 @@ document.addEventListener("click", async e => {
   const csb = t.closest("[data-csub]"); if (csb) { const b = $("#shB"); b.dataset.xsub = b.dataset.xsub === csb.dataset.csub ? "" : csb.dataset.csub; $$("[data-csub]").forEach(x => x.classList.toggle("on", x.dataset.csub === b.dataset.xsub)); return; }
   const cs = t.closest("[data-cash]"); if (cs) { collectList(); return; }
   const cn = t.closest("[data-cashnew]"); if (cn) { cashSheet(cn.dataset.cashnew); return; }
+  { const x = t.closest("[data-rtap]"); if (x) { const b = $("#shB"), key = b.dataset.rtapk, ck = b.dataset.rtapc, a = x.dataset.rtap;
+      if (a === "pick") { if (ck) pickOnMap(ck); return; }
+      if (a === "gm") { if (ck) { closeSheet(); setTimeout(() => gmSheet(ck), 60); } return; }
+      if (a === "skip") { RT.sel && RT.sel.delete(key); closeSheet(); render(); if (RT.sel && RT.sel.size) setTimeout(() => rtGo(), 80); else toast("Δεν έμεινε άλλη στάση.", 2500); return; }
+      if (a === "go") { (RT.okApprox || (RT.okApprox = new Set())).add(key); closeSheet(); setTimeout(() => rtGo(), 80); return; } } }
   { const x = t.closest("[data-ambpick]"); if (x) { geoAmbPick(+x.dataset.ambpick); return; } }
   { const x = t.closest("[data-ambfor]"); if (x) { e.preventDefault(); ambFor(x.dataset.ambfor); return; } }
   { const x = t.closest("[data-ambmap]"); if (x) { e.preventDefault(); A._ambAfter = null; pickOnMap(x.dataset.ambmap); return; } }
