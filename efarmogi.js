@@ -1113,7 +1113,16 @@ function custGeoState(c) {
   const g = geoMem()[K.norm(String(c.addr || "").trim() + "|" + String(c.area || "").trim())];
   return !g ? "" : g.lat != null ? (g.amb && g.amb.length > 1 ? "amb" : g.approx ? "approx" : "ok") : g.miss ? "miss" : "";
 }
+const GEO_VIA = { osm: "OpenStreetMap", photon: "Photon", here: "HERE", tomtom: "TomTom" };
+function custGeoSrc(c) {
+  const p = custPin(c.key), g = geoMem()[geoKey(c.addr, c.area)], loc = p || (g && g.lat != null ? g : null); if (!loc) return "";
+  const from = p ? "δική σου θέση" : (GEO_VIA[g.via] || "OpenStreetMap") + (g.approx ? " · μόνο περιοχή" : "") + (g.lbl ? " · «" + esc(g.lbl) + "»" : "");
+  return `<div class="geosrc">🔬 Από: ${from} · <a href="https://www.google.com/maps/search/?api=1&query=${loc.lat.toFixed(6)},${loc.lng.toFixed(6)}" target="_blank" rel="noopener">δες τη θέση στο Google Maps</a></div>`;
+}
 function custGeoLine(c) {
+  return custGeoLine0(c) + custGeoSrc(c);
+}
+function custGeoLine0(c) {
   const g = custGeoState(c);
   return g === "pin" ? `<span class="ok">✓ Ακριβής θέση κρατημένη (από «Είμαι εδώ» ή σύροντας την πινέζα).</span>`
     : g === "ok" ? `<span class="ok">✓ Η διεύθυνση βρέθηκε στον χάρτη.</span>`
@@ -1526,7 +1535,7 @@ async function geoFindPaid(q, ctx, area0, k0, r) {
     /* μόνο δρόμος ή πόρτα — ποτέ σκέτη πόλη/περιοχή (το «κέντρο της Αθήνας» είναι το Σύνταγμα) */
     const near = (base ? L.filter(x => geoKm(base, x) <= 150) : L).filter(x => x.type !== "area"); if (!near.length) break;
     const best = near.find(x => x.num) || near[0];
-    const out = { lat: best.lat, lng: best.lng, src: svc, at: Date.now() };
+    const out = { lat: best.lat, lng: best.lng, src: svc, at: Date.now(), via: svc, lbl: String(best.label || "").slice(0, 90) };
     if (!best.num && /\d/.test(q)) out.nonum = 1;
     if (!area0) { const A = geoClusters(near.filter(x => x.type === best.type), base, best); if (A.length > 1) out.amb = A; }
     G0[k0] = out; return out;
@@ -1566,7 +1575,7 @@ async function geoFindFree(q, ctx) {
   };
   const paidFresh = () => G[k] && G[k].src && G[k].lat != null && G[k].at && Date.now() - G[k].at < PAID_TTL;
   /* η δωρεάν απάντηση δεν πατά ποτέ φρέσκια απάντηση της HERE/TomTom (π.χ. που ήρθε στο μεταξύ από το παρασκήνιο) */
-  const keep = (best, approx) => { if (paidFresh()) return G[k]; G[k] = { lat: best.lat, lng: best.lng }; if (approx) G[k].approx = 1; return G[k]; };
+  const keep = (best, approx, via) => { if (paidFresh()) return G[k]; G[k] = { lat: best.lat, lng: best.lng, via: via || "osm", lbl: String(best.label || "").slice(0, 90) }; if (approx) G[k].approx = 1; return G[k]; };
   /* για δρόμο: όχι πόλεις και χωριά με παρόμοιο όνομα (π.χ. «Υπάτης» → η πόλη Υπάτη) */
   const PLACE = /^(city|town|village|hamlet|municipality|county|state|region|country|administrative|postcode|island|locality|district)$/;
   const streetOnly = L => L.filter(x => !PLACE.test(x.type || ""));
@@ -1581,9 +1590,11 @@ async function geoFindFree(q, ctx) {
   /* δεύτερη γνώμη */
   let PL = await geoPhoton(area && !hasArea ? full + ", " + area : full, base);
   if (PL) PL = streetOnly(PL);
-  if (PL && !PL.length && base && noNum) { const P2 = await geoPhoton(noOdos(noNum), base); if (P2) PL = streetOnly(P2); }   /* μόνο ο δρόμος, κοντά στην έδρα */
+  if (PL && !PL.length && base && noNum) { const P2 = await geoPhoton(noOdos(noNum) + (town ? ", " + town : ""), base); if (P2) PL = streetOnly(P2); }   /* μόνο ο δρόμος, κοντά στην έδρα */
   if (PL === null) failedNet = true;
-  else if (PL.length) { const best = pick(PL, false); if (best) { const r = keep(best, false); if (r.src) return r; if (/\d/.test(street) && !best.num) r.nonum = 1; if (!area) { const A = geoClusters(PL, base, best); if (A.length > 1) r.amb = A; } return r; } }
+  else if (PL.length) { const best = pick(PL, false); if (best) { const r = keep(best, false, "photon"); if (r.src) return r; if (/\d/.test(street) && !best.num) r.nonum = 1;
+      /* βρέθηκε έξω από την περιοχή του πελάτη: αβέβαιο → ρωτιέται και η TomTom */
+      if (area && !K.norm((best.label || "") + " " + (best.town || "")).includes(K.norm(area))) r.nonum = 1; if (!area) { const A = geoClusters(PL, base, best); if (A.length > 1) r.amb = A; } return r; } }
   /* τελευταία λύση: το κέντρο της περιοχής, «κατά προσέγγιση» */
   if (town) { const L = await geoAsk(town, force); if (L === null) failedNet = true; else if (L.length) { const best = pick(L, true); if (best) return keep(best, true); } }
   if (paidFresh()) return G[k];
