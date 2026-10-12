@@ -1422,9 +1422,10 @@ async function geoPrefetch() {
   if (geoPreOn || !S || !navigator.onLine) return; geoPreOn = true;
   try {
     await geoBase();
-    const L = Object.values(S.customers).filter(c => (c.addr || "").trim() && !custPin(c.key) && !custGeoCached(c));
+    const unsure = g => (GEO_KEYS.here || GEO_KEYS.tomtom) && g && !g.src && !g.paidTried && (g.approx || g.nonum || (g.amb && g.amb.length > 1));
+    const L = Object.values(S.customers).filter(c => (c.addr || "").trim() && !custPin(c.key) && (!custGeoCached(c) || unsure(custGeoCached(c))));
     let n = 0;
-    for (const c of L) { const k = K.norm(String(c.addr || "").trim() + "|" + String(c.area || "").trim()), g = geoMem()[k]; if (g && g.miss && Date.now() - g.miss < GEO_MISS) continue; await custGeo(c); n++; if (n % 5 === 0) save(); if (tab === "map") break; }
+    for (const c of L) { const k = K.norm(String(c.addr || "").trim() + "|" + String(c.area || "").trim()), g = geoMem()[k]; if (g && g.miss && Date.now() - g.miss < GEO_MISS && !((GEO_KEYS.here || GEO_KEYS.tomtom) && !g.paidTried)) continue; await custGeo(c); n++; if (n % 5 === 0) save(); if (tab === "map") break; }
     if (n) save();
   } finally { geoPreOn = false; }
 }
@@ -1438,7 +1439,7 @@ async function geoAsk0(q) {
     const js = await r.json();
     if (!r.ok || !Array.isArray(js)) return null;
     return js.map(x => { const a = x.address || {}, town = a.suburb || a.neighbourhood || a.quarter || a.village || a.town || a.city || a.municipality || "", city = a.city || a.town || a.village || a.municipality || "";
-      return { lat: +x.lat, lng: +x.lon, type: x.addresstype || x.type || "", label: [[a.road, a.house_number].filter(Boolean).join(" "), town, city !== town ? city : ""].filter(Boolean).join(", ") || String(x.display_name || "").split(",").slice(0, 3).join(","), town: town || city }; }).filter(x => isFinite(x.lat) && isFinite(x.lng));
+      return { lat: +x.lat, lng: +x.lon, type: x.addresstype || x.type || "", num: !!a.house_number, label: [[a.road, a.house_number].filter(Boolean).join(" "), town, city !== town ? city : ""].filter(Boolean).join(", ") || String(x.display_name || "").split(",").slice(0, 3).join(","), town: town || city }; }).filter(x => isFinite(x.lat) && isFinite(x.lng));
   } catch { return null; } finally { clearTimeout(tm); }
 }
 /* η έδρα: για να ξέρουμε πού «είναι κοντά» */
@@ -1455,7 +1456,7 @@ function geoPhoton(q, ref) {
       const r = await fetch("https://photon.komoot.io/api/?limit=6&q=" + encodeURIComponent(q) + (ref ? "&lat=" + ref.lat + "&lon=" + ref.lng : ""), { signal: ctrl.signal });
       const js = await r.json(); if (!r.ok || !js || !Array.isArray(js.features)) return null;
       return js.features.filter(f => f && f.properties && (f.properties.countrycode || "").toUpperCase() === "GR" && f.geometry && Array.isArray(f.geometry.coordinates))
-        .map(f => { const q = f.properties, town = q.district || q.locality || q.city || ""; return { lat: +f.geometry.coordinates[1], lng: +f.geometry.coordinates[0], type: q.type || "", label: [[q.street || q.name, q.housenumber].filter(Boolean).join(" "), town, q.city && q.city !== town ? q.city : ""].filter(Boolean).join(", "), town: town || q.city || "" }; }).filter(x => isFinite(x.lat) && isFinite(x.lng));
+        .map(f => { const q = f.properties, town = q.district || q.locality || q.city || ""; return { lat: +f.geometry.coordinates[1], lng: +f.geometry.coordinates[0], type: q.type || "", num: !!q.housenumber, label: [[q.street || q.name, q.housenumber].filter(Boolean).join(" "), town, q.city && q.city !== town ? q.city : ""].filter(Boolean).join(", "), town: town || q.city || "" }; }).filter(x => isFinite(x.lat) && isFinite(x.lng));
     } catch { return null; } finally { clearTimeout(tm); }
   });
   phChain = p.catch(() => null); return p;
@@ -1467,7 +1468,70 @@ function geoClusters(L, base, best) {
   for (const c of far) if (!G.some(g => geoKm(g, c) < 1.5)) G.push(c);
   return G.slice(0, 6).map(c => ({ lat: c.lat, lng: c.lng, label: c.label || "", town: c.town || "", km: base ? Math.round(geoKm(base, c)) : null }));
 }
+/* ---- επί πληρωμή υπηρεσίες με δωρεάν μηνιαίο όριο: HERE (30.000) και TomTom (20.000) ----
+   Μπαίνουν ΜΟΝΟ όταν οι δωρεάν δεν βρουν ή βρουν αβέβαια (μόνο περιοχή, χωρίς αριθμό, ίδιες σε πολλές περιοχές).
+   Λογαριασμοί χωρίς κάρτα: όταν τελειώσει το όριο του μήνα αρνούνται (όχι χρέωση) και πάμε στην επόμενη.
+   Όροι: τα αποτελέσματά τους κρατιούνται έως 30 ημέρες και μετά ξαναψάχνονται. */
+const GEO_KEYS = { here: "", tomtom: "" };   /* συμπληρώνονται τα κλειδιά (περιορισμένα στο aglentzakis-dot.github.io) */
+const PAID_TTL = 30 * 864e5;
+A._geoKeys = GEO_KEYS;   /* για τις δοκιμές */
+let paidOff = {};   /* υπηρεσία που αρνήθηκε (όριο/κλειδί): δεν ξαναρωτιέται σε αυτό το άνοιγμα */
+function paidCount(svc) { const m = K.ymd(new Date()).slice(0, 7), u = S.ui.geoPaid || (S.ui.geoPaid = {}); if (u.m !== m) { u.m = m; u.here = 0; u.tomtom = 0; } u[svc] = (u[svc] || 0) + 1; }
+async function geoPaidAsk(svc, q, base) {
+  if (!GEO_KEYS[svc] || paidOff[svc] || !navigator.onLine) return null;
+  const ctrl = new AbortController(), tm = setTimeout(() => ctrl.abort(), 9000);
+  try {
+    const at = base ? base.lat.toFixed(5) + "," + base.lng.toFixed(5) : "";
+    const url = svc === "here"
+      ? "https://geocode.search.hereapi.com/v1/geocode?lang=el&limit=6&in=countryCode:GRC&q=" + encodeURIComponent(q) + (at ? "&at=" + at : "") + "&apiKey=" + encodeURIComponent(GEO_KEYS.here)
+      : "https://api.tomtom.com/search/2/geocode/" + encodeURIComponent(q) + ".json?countrySet=GR&language=el-GR&limit=6" + (base ? "&lat=" + base.lat + "&lon=" + base.lng : "") + "&key=" + encodeURIComponent(GEO_KEYS.tomtom);
+    const r = await fetch(url, { signal: ctrl.signal }); paidCount(svc);
+    if (r.status === 401 || r.status === 403 || r.status === 429) { paidOff[svc] = r.status; return null; }   /* τέλος ορίου ή λάθος κλειδί */
+    if (!r.ok) return null;
+    const js = await r.json();
+    if (svc === "here") return (js.items || []).filter(x => x.position).map(x => { const a = x.address || {}; return { lat: +x.position.lat, lng: +x.position.lng, type: x.resultType === "houseNumber" ? "house" : x.resultType === "street" ? "road" : x.resultType || "", num: x.resultType === "houseNumber", label: a.label ? a.label.replace(/,\s*Ελλάδα$/, "") : "", town: a.district || a.city || "" }; });
+    return (js.results || []).filter(x => x.position).map(x => { const a = x.address || {}; return { lat: +x.position.lat, lng: +x.position.lon, type: x.type === "Point Address" ? "house" : x.type === "Street" ? "road" : (x.type || "").toLowerCase(), num: x.type === "Point Address", label: a.freeformAddress || "", town: a.municipalitySubdivision || a.municipality || "" }; });
+  } catch { return null; } finally { clearTimeout(tm); }
+}
 async function geoFind(q, ctx) {
+  ctx = ctx || {};
+  const area0 = String(ctx.area || "").trim(), k0 = K.norm(String(q || "").trim() + "|" + area0), G0 = geoMem();
+  const old = G0[k0];
+  /* θέση από επί πληρωμή υπηρεσία: ισχύει 30 ημέρες (όροι χρήσης), μετά ξαναψάχνεται */
+  const stale = old && old.src && old.at && Date.now() - old.at > PAID_TTL;
+  if (old && old.src && old.lat != null && !stale) return old;   /* φρέσκια θέση από HERE/TomTom: δεν ξαναρωτάμε (ούτε με «Έλεγχο») */
+  const r = await geoFindFree(q, stale ? Object.assign({}, ctx, { force: true }) : ctx);
+  if (!GEO_KEYS.here && !GEO_KEYS.tomtom) return r;
+  const g = G0[k0];
+  const unsure = !r || (g && (g.approx || (g.amb && g.amb.length > 1) || g.nonum));
+  if (!unsure || (g && g.src && !stale && !ctx.force)) return r;
+  if (!ctx.force && !stale && g && g.paidTried && Date.now() - g.paidTried < PAID_TTL) return r;   /* ψάχτηκε ήδη στις επί πληρωμή: όχι ξανά */
+  /* οι δωρεάν δεν βρήκαν σίγουρα: HERE και, αν αρνηθεί, TomTom — μία αναζήτηση ανά διεύθυνση, ακόμα κι αν ζητηθεί ταυτόχρονα */
+  if (paidFly[k0]) return paidFly[k0];
+  const p = geoFindPaid(q, ctx, area0, k0, r); paidFly[k0] = p;
+  try { return await p; } finally { delete paidFly[k0]; }
+}
+const paidFly = {};
+async function geoFindPaid(q, ctx, area0, k0, r) {
+  const G0 = geoMem();
+  const base = ctx.noBase ? null : await geoBase();
+  const qq = geoClean(String(q).trim()) + (area0 && !K.norm(String(q)).includes(K.norm(area0)) ? ", " + area0 : "");
+  let answered = false;
+  for (const svc of ["here", "tomtom"]) {
+    const L = await geoPaidAsk(svc, qq, base);
+    if (L) answered = true;
+    if (!L || !L.length) { if (L) break; continue; }   /* απάντησε «τίποτα»: δεν ρωτάμε και τη δεύτερη */
+    const near = base ? L.filter(x => geoKm(base, x) <= 150) : L; if (!near.length) break;
+    const best = near.find(x => x.num) || near[0];
+    const out = { lat: best.lat, lng: best.lng, src: svc, at: Date.now() };
+    if (!best.num && /\d/.test(q)) out.nonum = 1;
+    if (!area0) { const A = geoClusters(near.filter(x => x.type === best.type), base, best); if (A.length > 1) out.amb = A; }
+    G0[k0] = out; return out;
+  }
+  if (answered && G0[k0]) G0[k0].paidTried = Date.now();   /* αν όλες αρνήθηκαν (όριο), ξαναδοκιμάζει αργότερα */
+  return r;
+}
+async function geoFindFree(q, ctx) {
   ctx = ctx || {};
   q = String(q || "").trim(); if (!q) return null;
   const ll = /^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/.exec(q); if (ll) return { lat: +ll[1], lng: +ll[2] };
@@ -1497,7 +1561,9 @@ async function geoFind(q, ctx) {
     if (base && geoKm(base, best) > FAR && !approx) return null;   /* πολύ μακριά: μάλλον λάθος ομώνυμος δρόμος */
     return best;
   };
-  const keep = (best, approx) => { G[k] = { lat: best.lat, lng: best.lng }; if (approx) G[k].approx = 1; return G[k]; };
+  const paidFresh = () => G[k] && G[k].src && G[k].lat != null && G[k].at && Date.now() - G[k].at < PAID_TTL;
+  /* η δωρεάν απάντηση δεν πατά ποτέ φρέσκια απάντηση της HERE/TomTom (π.χ. που ήρθε στο μεταξύ από το παρασκήνιο) */
+  const keep = (best, approx) => { if (paidFresh()) return G[k]; G[k] = { lat: best.lat, lng: best.lng }; if (approx) G[k].approx = 1; return G[k]; };
   /* για δρόμο: όχι πόλεις και χωριά με παρόμοιο όνομα (π.χ. «Υπάτης» → η πόλη Υπάτη) */
   const PLACE = /^(city|town|village|hamlet|municipality|county|state|region|country|administrative|postcode|island|locality|district)$/;
   const streetOnly = L => L.filter(x => !PLACE.test(x.type || ""));
@@ -1507,16 +1573,17 @@ async function geoFind(q, ctx) {
     if (!L.length) continue;
     /* χωρίς έδρα: άγκυρα η πόλη, για να μη διαλέξει ομώνυμο δρόμο σε άλλη περιοχή */
     if (!base && L.length > 1 && town) { const tk = "πόλη|" + K.norm(town); if (!G[tk]) { const T = await geoAsk(town); G[tk] = T && T[0] ? { lat: T[0].lat, lng: T[0].lng } : { miss: Date.now() }; } }
-    const best = pick(L, false); if (best) { const r = keep(best, false); if (!area) { const A = geoClusters(L, base, best); if (A.length > 1) r.amb = A; } return r; }
+    const best = pick(L, false); if (best) { const r = keep(best, false); if (r.src) return r; if (/\d/.test(street) && !best.num) r.nonum = 1; if (!area) { const A = geoClusters(L, base, best); if (A.length > 1) r.amb = A; } return r; }
   }
   /* δεύτερη γνώμη */
   let PL = await geoPhoton(area && !hasArea ? full + ", " + area : full, base);
   if (PL) PL = streetOnly(PL);
   if (PL && !PL.length && base && noNum) { const P2 = await geoPhoton(noOdos(noNum), base); if (P2) PL = streetOnly(P2); }   /* μόνο ο δρόμος, κοντά στην έδρα */
   if (PL === null) failedNet = true;
-  else if (PL.length) { const best = pick(PL, false); if (best) { const r = keep(best, false); if (!area) { const A = geoClusters(PL, base, best); if (A.length > 1) r.amb = A; } return r; } }
+  else if (PL.length) { const best = pick(PL, false); if (best) { const r = keep(best, false); if (r.src) return r; if (/\d/.test(street) && !best.num) r.nonum = 1; if (!area) { const A = geoClusters(PL, base, best); if (A.length > 1) r.amb = A; } return r; } }
   /* τελευταία λύση: το κέντρο της περιοχής, «κατά προσέγγιση» */
   if (town) { const L = await geoAsk(town, force); if (L === null) failedNet = true; else if (L.length) { const best = pick(L, true); if (best) return keep(best, true); } }
+  if (paidFresh()) return G[k];
   if (!failedNet) G[k] = { miss: Date.now() };
   return null;
 }
