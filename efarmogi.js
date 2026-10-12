@@ -1226,7 +1226,7 @@ function openCust(k) {
   const gs = custGeoState(c);
   sheet(c.name, `${custInfoHTML(k)}
    ${gs === "amb" ? `<div class="errbox cugeobox"><b>❓ ΠΟΙΑ «${esc(c.addr)}»;</b><br>Υπάρχουν ίδιες διευθύνσεις σε ${(geoMem()[geoKey(c.addr, c.area)].amb || []).length} περιοχές. Διάλεξε τη σωστή, αλλιώς η διαδρομή μπορεί να σε πάει αλλού. <button type="button" class="btn sm amber" data-ambfor="${esc(k)}" style="margin-top:6px">Διάλεξε περιοχή ›</button></div>` : gs === "miss" ? `<div class="errbox cugeobox"><b>⚠️ ΔΕΝ ΒΡΕΘΗΚΕ Η ΔΙΕΥΘΥΝΣΗ ΣΤΟΝ ΧΑΡΤΗ</b><br>Ο πελάτης δεν φαίνεται στον χάρτη και στο δρομολόγιο. Διόρθωσε τη διεύθυνση ή την περιοχή παρακάτω (π.χ. ολόκληρο το όνομα του δρόμου), ή πάτα «📍 Είμαι εδώ» όταν βρίσκεσαι στο σημείο.</div>` : gs === "approx" ? `<div class="warnbox">≈ Στον χάρτη μπήκε <b>κατά προσέγγιση</b>, στο κέντρο της περιοχής. Σύρε την πινέζα στο σωστό σημείο ή πάτα «📍 Είμαι εδώ» όταν βρίσκεσαι εκεί.</div>` : ""}
-   <div class="card"><label class="f" for="cuN">Όνομα</label><input class="t" id="cuN" value="${esc(c.name)}"><label class="f" for="cuP">Τηλέφωνο</label><input class="t" id="cuP" value="${esc(c.phone)}"><label class="f" for="cuA">Διεύθυνση</label><input class="t" id="cuA" value="${esc(c.addr || "")}"><div class="row" style="margin-top:6px"><button type="button" class="btn soft sm grow" data-act="custGeoCheck" style="flex:1 1 0">🔎 Έλεγχος</button><button type="button" class="btn soft sm grow" data-act="custPinHere" style="flex:1 1 0">📍 Είμαι εδώ</button></div><div id="cuGeoSt" class="cugeost">${custGeoLine(c)}</div><label class="f" for="cuAr">Περιοχή (για την οργάνωση της διανομής)</label><input class="t" id="cuAr" value="${esc(c.area || "")}" placeholder="π.χ. Κορωπί" list="areaL"><datalist id="areaL">${[...new Set(Object.values(S.customers).map(x => x.area).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join("")}</datalist><label class="f" for="cuNo">Σημειώσεις (μόνο για σένα)</label><input class="t" id="cuNo" value="${esc(c.notes || "")}"></div>
+   <div class="card"><label class="f" for="cuN">Όνομα</label><input class="t" id="cuN" value="${esc(c.name)}"><label class="f" for="cuP">Τηλέφωνο</label><input class="t" id="cuP" value="${esc(c.phone)}"><label class="f" for="cuA">Διεύθυνση</label><input class="t" id="cuA" value="${esc(c.addr || "")}"><div class="row" style="margin-top:6px"><button type="button" class="btn soft sm grow" data-act="custGeoCheck" style="flex:1 1 0">🔎 Έλεγχος</button><button type="button" class="btn soft sm grow" data-act="custPinHere" style="flex:1 1 0">📍 Είμαι εδώ</button></div><div id="cuGeoSt" class="cugeost">${custGeoLine(c)}</div><div class="row" style="margin-top:6px"><button type="button" class="btn ghost sm grow" data-act="custPick" style="flex:1 1 0">🗺 Βάλ' το στον χάρτη</button><button type="button" class="btn ghost sm grow" data-act="custGm" style="flex:1 1 0">🔗 Από Google Maps</button></div><label class="f" for="cuAr">Περιοχή (για την οργάνωση της διανομής)</label><input class="t" id="cuAr" value="${esc(c.area || "")}" placeholder="π.χ. Κορωπί" list="areaL"><datalist id="areaL">${[...new Set(Object.values(S.customers).map(x => x.area).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join("")}</datalist><label class="f" for="cuNo">Σημειώσεις (μόνο για σένα)</label><input class="t" id="cuNo" value="${esc(c.notes || "")}"></div>
    ${custPriceCard(c)}
    <div class="card"><h3>🚚 Πότε περνάς</h3><p style="margin:0 0 8px">${c.route && c.route.days && c.route.days.length ? esc(c.route.days.map(x => K.WD[x]).join(", ")) + (c.route.slot ? " · " + esc(c.route.slot) : "") + (c.route.note ? " · " + esc(c.route.note) : "") + (c.route.ex !== false ? " · ⚡ δέχεται έκτακτη" : "") : `<span class="note">Δεν έχεις δηλώσει ημέρες· βλέπει τις γενικές.</span>`}</p>
     <div class="row"><button type="button" class="btn soft sm grow" data-act="custRoute">📅 Ημέρες</button><button type="button" class="btn amber sm grow" data-act="custLink">📤 Στείλε του τον κατάλογο</button></div></div>
@@ -1498,15 +1498,21 @@ async function geoFind(q, ctx) {
     return best;
   };
   const keep = (best, approx) => { G[k] = { lat: best.lat, lng: best.lng }; if (approx) G[k].approx = 1; return G[k]; };
+  /* για δρόμο: όχι πόλεις και χωριά με παρόμοιο όνομα (π.χ. «Υπάτης» → η πόλη Υπάτη) */
+  const PLACE = /^(city|town|village|hamlet|municipality|county|state|region|country|administrative|postcode|island|locality|district)$/;
+  const streetOnly = L => L.filter(x => !PLACE.test(x.type || ""));
   for (const tr of tries) {
-    const L = await geoAsk(tr.t, force); if (L === null) { failedNet = true; continue; }
+    let L = await geoAsk(tr.t, force); if (L === null) { failedNet = true; continue; }
+    L = streetOnly(L);
     if (!L.length) continue;
     /* χωρίς έδρα: άγκυρα η πόλη, για να μη διαλέξει ομώνυμο δρόμο σε άλλη περιοχή */
     if (!base && L.length > 1 && town) { const tk = "πόλη|" + K.norm(town); if (!G[tk]) { const T = await geoAsk(town); G[tk] = T && T[0] ? { lat: T[0].lat, lng: T[0].lng } : { miss: Date.now() }; } }
     const best = pick(L, false); if (best) { const r = keep(best, false); if (!area) { const A = geoClusters(L, base, best); if (A.length > 1) r.amb = A; } return r; }
   }
   /* δεύτερη γνώμη */
-  const PL = await geoPhoton(area && !hasArea ? full + ", " + area : full, base);
+  let PL = await geoPhoton(area && !hasArea ? full + ", " + area : full, base);
+  if (PL) PL = streetOnly(PL);
+  if (PL && !PL.length && base && noNum) { const P2 = await geoPhoton(noOdos(noNum), base); if (P2) PL = streetOnly(P2); }   /* μόνο ο δρόμος, κοντά στην έδρα */
   if (PL === null) failedNet = true;
   else if (PL.length) { const best = pick(PL, false); if (best) { const r = keep(best, false); if (!area) { const A = geoClusters(PL, base, best); if (A.length > 1) r.amb = A; } return r; } }
   /* τελευταία λύση: το κέντρο της περιοχής, «κατά προσέγγιση» */
@@ -1522,9 +1528,50 @@ function geoAmbSheet(addr, area, ck, after) {
   const c = ck && S.customers[ck];
   sheet("❓ Ποια διεύθυνση;", `<div class="warnbox" style="margin-top:0">Βρέθηκαν <b>${g.amb.length}</b> δρόμοι «${esc(addr)}» σε διαφορετικές περιοχές${c ? " για τον/την <b>" + esc(c.name) + "</b>" : ""}. Διάλεξε τη σωστή· θα τη θυμάται.</div>
    <div class="ambl">${g.amb.map((a, i) => `<button type="button" class="ambo" data-ambpick="${i}"><span class="ambn">${i + 1}</span><span class="t"><b>${esc(a.label || addr)}</b><small>${a.town ? "📍 " + esc(a.town) : ""}${a.km != null ? (a.town ? " · " : "") + a.km + " χλμ. από την έδρα" : ""}</small></span><span class="g">›</span></button>`).join("")}</div>
-   <p class="note">Δεν είναι καμία; ${c ? `<a href="#" data-ambcust="${esc(ck)}">Γράψε την περιοχή στην καρτέλα του πελάτη</a>` : "Γράψε τη διεύθυνση μαζί με την περιοχή"} (π.χ. «${esc(addr)}, Μαρούσι»).</p>`, "",
+   <p class="note">Δεν είναι καμία; ${c ? `<a href="#" data-ambcust="${esc(ck)}">Γράψε την περιοχή στην καρτέλα του πελάτη</a>` : "Γράψε τη διεύθυνση μαζί με την περιοχή"} (π.χ. «${esc(addr)}, Μαρούσι»)${c ? `, ή <a href="#" data-ambmap="${esc(ck)}">βάλ' το μόνος σου στον χάρτη</a>` : ""}.</p>`, "",
    el => { el.dataset.ambk = k; el.dataset.ambck = ck || ""; });
   A._ambAfter = after || null;
+}
+/* συντεταγμένες από ό,τι επικολλήσεις: «37.98, 23.72», σύνδεσμο Google Maps με @…, q=…, !3d…!4d… */
+function parseLL(t) {
+  t = String(t || "");
+  let m = /!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(t) || /(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/.exec(t);
+  if (!m) return null; const lat = +m[1], lng = +m[2];
+  return isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+/* «Από Google Maps»: το βρίσκεις εκεί και φέρνεις μόνο τη θέση (αριθμούς) — χωρίς κλειδί και χωρίς κάρτα */
+function gmSheet(k) {
+  const c = S.customers[k]; if (!c) return;
+  const q = [c.addr, c.area].filter(Boolean).join(", ");
+  sheet("🔗 Θέση από Google Maps", `<div class="card" style="margin-top:0"><ol class="gmsteps">
+    <li><a class="btn soft wide" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}" target="_blank" rel="noopener">🗺 Άνοιξε «${esc(q || c.name)}» στο Google Maps</a></li>
+    <li>Κράτα πατημένο το δάχτυλο <b>πάνω στο σωστό σημείο</b> (την πόρτα). Πάνω εμφανίζονται αριθμοί, π.χ. <b>37.98380, 23.72750</b>· πάτησέ τους για αντιγραφή.</li>
+    <li>Γύρνα εδώ και επικόλλησέ τους:</li></ol>
+    <input class="t" id="gmLL" placeholder="37.98380, 23.72750" inputmode="decimal" autocomplete="off">
+    <p class="note" style="margin:6px 0 0">Δέχεται και σύνδεσμο Google Maps που έχει μέσα τους αριθμούς.</p></div>`,
+    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="gmSave">✓ Κράτα τη θέση</button>`, el => { el.dataset.gmk = k; });
+}
+/* «Βάλ' το στον χάρτη»: πατάς το σωστό σημείο */
+async function pickOnMap(k) {
+  const c = S.customers[k]; if (!c) return;
+  closeSheet();
+  const Lf = await cmShow(); if (!Lf) return;
+  cm.mode = "pick"; cm.stamp = Date.now();
+  $("#cmT").textContent = "📍 " + c.name; $("#cmF").innerHTML = "";
+  const bar = $("#cmBar"); bar.innerHTML = `<div class="grow"><b>Πάτα πάνω στον χάρτη</b> το σημείο του πελάτη${c.addr ? " (" + esc(c.addr) + ")" : ""}. Μεγέθυνε με δύο δάχτυλα.</div>`;
+  if (cm.layer) cm.layer.remove(); cm.layer = Lf.layerGroup().addTo(cm.map);
+  const g = custPin(k) || custGeoCached(c), st = g || await geoBase() || { lat: 37.9755, lng: 23.7348 };
+  try { cm.map.setView([st.lat, st.lng], g ? 16 : 13); } catch {}
+  if (cm.pickH && cm.map.off) cm.map.off("click", cm.pickH);
+  let mk = null;
+  cm.pickH = e => {
+    if (cm.mode !== "pick") return;
+    const p = e.latlng;
+    if (mk) mk.setLatLng(p); else mk = Lf.marker([p.lat, p.lng], { icon: Lf.divIcon({ className: "jpin", iconSize: [34, 42], iconAnchor: [17, 41], html: pinSvg("#0B6E4F", "✓") }) }).addTo(cm.layer);
+    bar.innerHTML = `<div class="grow">Εδώ είναι; Αν όχι, πάτα σε άλλο σημείο.</div><button type="button" class="btn sm green" id="pickOk">✓ Κράτα το</button>`;
+    $("#pickOk").onclick = () => { c.pin = { lat: p.lat, lng: p.lng, at: Date.now() }; save(); if (cm.map.off) cm.map.off("click", cm.pickH); cm.mode = ""; cmClose(); toast("✓ Κρατήθηκε η θέση του πελάτη", 3000); setTimeout(() => openCust(k), 150); };
+  };
+  if (cm.map.on) cm.map.on("click", cm.pickH);
 }
 function ambFor(k) {
   const c = S.customers[k]; if (!c) return;
@@ -2480,6 +2527,13 @@ const ACT = {
   custPricesSave: () => { const b = $("#shB"), c = S.customers[b.dataset.cust]; if (!c) return; const pr = {};
     b.querySelectorAll("[data-cpp]").forEach(i => { const v = K.parseNum(i.value); if (i.value.trim() && isFinite(v) && v >= 0) pr[i.dataset.cpp] = K.round2(v); });
     if (Object.keys(pr).length) c.prices = pr; else delete c.prices; save(); closeSheet(); toast("✓ Αποθηκεύτηκαν " + Object.keys(pr).length + " προσωπικές τιμές. Στείλε του ξανά τον κατάλογο."); setTimeout(() => openCust(c.key), 300); },
+  custPick: () => { const k = $("#shB").dataset.cust; ACT.custSave(true); pickOnMap(k); },
+  custGm: () => { const k = $("#shB").dataset.cust; ACT.custSave(true); gmSheet(k); },
+  gmSave: () => { const k = $("#shB").dataset.gmk, c = S.customers[k]; if (!c) return; const t = ($("#gmLL").value || "").trim();
+    if (/goo\.gl|maps\.app/i.test(t) && !parseLL(t)) { toast("Αυτός είναι σύντομος σύνδεσμος χωρίς αριθμούς. Αντέγραψε τις συντεταγμένες (π.χ. 37.98380, 23.72750).", 6000); return; }
+    const p = parseLL(t); if (!p) { toast("Δεν βρήκα συντεταγμένες. Επικόλλησε κάτι σαν 37.98380, 23.72750", 5000); return; }
+    if (!(p.lat > 34 && p.lat < 42 && p.lng > 19 && p.lng < 30.5) && !confirm("Αυτό το σημείο είναι έξω από την Ελλάδα. Να κρατηθεί;")) return;
+    c.pin = { lat: p.lat, lng: p.lng, at: Date.now() }; save(); toast("✓ Κρατήθηκε η θέση από το Google Maps", 3000); openCust(k); },
   custGeoCheck: async () => {
     const k = $("#shB").dataset.cust, c = S.customers[k]; if (!c) return;
     ACT.custSave(true);
@@ -2615,6 +2669,7 @@ document.addEventListener("click", async e => {
   const cn = t.closest("[data-cashnew]"); if (cn) { cashSheet(cn.dataset.cashnew); return; }
   { const x = t.closest("[data-ambpick]"); if (x) { geoAmbPick(+x.dataset.ambpick); return; } }
   { const x = t.closest("[data-ambfor]"); if (x) { e.preventDefault(); ambFor(x.dataset.ambfor); return; } }
+  { const x = t.closest("[data-ambmap]"); if (x) { e.preventDefault(); A._ambAfter = null; pickOnMap(x.dataset.ambmap); return; } }
   { const x = t.closest("[data-ambcust]"); if (x) { e.preventDefault(); closeSheet(); setTimeout(() => openCust(x.dataset.ambcust), 60); return; } }
   const co = t.closest("[data-coll]"); if (co) { collectCust(co.dataset.coll); return; }
   const cm2 = t.closest("[data-colmode]"); if (cm2) { collectCust($("#shB").dataset.cust, cm2.dataset.colmode); return; }
