@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.48">
+<meta name="app-version" content="1.49">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.48">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.48">
-<link rel="stylesheet" href="koino.css?v=1.48">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.49">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.49">
+<link rel="stylesheet" href="koino.css?v=1.49">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -91,7 +91,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.48"></script>
+<script src="katalogos.js?v=1.49"></script>
 <script>
 (function(){
 "use strict";
@@ -106,7 +106,8 @@ window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPro
 function bad(msg){$("#app").innerHTML=`<div class="bad"><div style="font-size:48px">🔗</div><h2>Ο σύνδεσμος δεν άνοιξε</h2><p>${esc(msg)}</p><p class="note">Ζήτησε από τον πωλητή να σου στείλει ξανά τον σύνδεσμο παραγγελίας.</p></div>`}
 
 async function load(){
-  const h=new URLSearchParams(location.hash.slice(1));
+  /* ο κατάλογος έρχεται μετά το # (κανονικός σύνδεσμος) ή μετά το ? (σύντομος σύνδεσμος, που δεν τον κόβει κανείς συντομευτής) */
+  const h0=new URLSearchParams(location.hash.slice(1)),h=h0.get("k")||h0.get("t")?h0:new URLSearchParams(location.search.slice(1));
   if(h.get("t")){const x=(h.get("x")||""),n=+h.get("n")||0,ok=x.length===n;
     $("#app").innerHTML=`<div class="bad"><div style="font-size:48px">${ok?"✅":"✂️"}</div><h2>Δοκιμή ${esc(h.get("t"))}: ${ok?"έφτασε ολόκληρος":"κόπηκε"}</h2><p style="font-size:20px"><b>${x.length}</b> από <b>${n}</b> χαρακτήρες</p><p class="note">Συνολικό μήκος διεύθυνσης: ${location.href.length}<br>Περιηγητής: ${esc(navigator.userAgent.slice(0,140))}</p><p class="note" style="word-break:break-all">Τέλος: …${esc(x.slice(-24))}</p></div>`;return}
   const k=h.get("k");

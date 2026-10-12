@@ -2126,16 +2126,17 @@ A.makeLink = makeLink;
 async function shortOf(url) {
   let h = 2166136261; for (let i = 0; i < url.length; i++) { h ^= url.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } h = url.length + ":" + h;
   const c = (S.link.shorts || (S.link.shorts = {}));
-  if (c[h]) return { url: c[h] };
+  if (c[h] && !/\/\/(da|v)\.gd\//.test(c[h])) return { url: c[h] };   /* όχι παλιούς από da.gd/v.gd: δείχνουν σελίδα προειδοποίησης */
+  /* ο σύντομος δείχνει στη μορφή με «?»: κάποιοι συντομευτές πετούν ό,τι είναι μετά το «#» */
+  const target = url.length < 7000 ? url.replace("p.html#", "p.html?") : url;
   let err = null;
   /* τέσσερις προσπάθειες με τη σειρά: is.gd, v.gd, da.gd, TinyURL — αν μία έχει βλάβη, πάει στην επόμενη */
-  /* πρώτα το is.gd (6΄΄)· αν δεν βγει, οι άλλες τρεις μαζί και κρατιέται όποια απαντήσει πρώτη — για να μην περιμένεις */
+  /* πρώτα το is.gd (6΄΄), μετά το TinyURL */
   let svc = false;
   const keep = u => { c[h] = u; const keys = Object.keys(c); if (keys.length > 30) delete c[keys[0]]; save(); return { url: u }; };
-  try { return keep(await K.shorten(url, 6000, "is.gd")); } catch (e) { err = e; if (e && e.svc) svc = true; }
-  const tries = [K.shorten(url, 8000, "v.gd"), K.shorten2(url, "da.gd", 8000), K.shorten2(url, "tinyurl", 8000)];
-  tries.forEach(p => p.catch(e => { err = e; if (e && e.svc) svc = true; }));
-  try { return keep(await Promise.any(tries)); } catch {}
+  /* μόνο υπηρεσίες που ανοίγουν κατευθείαν τη σελίδα (όχι da.gd/v.gd, που βάζουν ενδιάμεση σελίδα «προσοχή») */
+  try { return keep(await K.shorten(target, 6000, "is.gd")); } catch (e) { err = e; if (e && e.svc) svc = true; }
+  try { return keep(await K.shorten2(target, "tinyurl", 9000)); } catch (e) { err = e; if (e && e.svc) svc = true; }
   return { url: "", err: (err && err.message) || "άγνωστο", svc };
 }
 /* ο καλύτερος σύντομος σύνδεσμος: αν η υπηρεσία δεν δέχεται τόσο μεγάλο κατάλογο, ξαναδοκιμάζει χωρίς φωτογραφίες και μετά χωρίς λογότυπο */
