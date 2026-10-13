@@ -28,7 +28,10 @@ function emStart() {
   emInbox();
   try { document.getElementById("appTitle").textContent = "Ταμείο"; } catch (e) {}
   emSettings();
-  if (!window.__emR) { window.__emR = 1; var r0 = render; render = function () { var x = r0.apply(this, arguments); emDebtCard(); return x; }; setTimeout(emDebtCard, 0); }
+  if (!window.__emR) { window.__emR = 1; var r0 = render; render = function () { var x = r0.apply(this, arguments); emDebtCard(); emLayout(); return x; }; setTimeout(function () { emDebtCard(); emLayout(); }, 0); }
+  if (!window.__emSup && typeof supForm === "function") { window.__emSup = 1;
+    var sf0 = supForm; supForm = function (id) { var x = sf0.apply(this, arguments); try { emSupHist(id); } catch (e) {} return x; };
+    var ss0 = supSheet; supSheet = function () { var x = ss0.apply(this, arguments); try { emSupRows(); } catch (e) {} return x; }; }
   if (!window.__emW) { window.__emW = 1; var w0 = write; write = function () { var r = w0.apply(this, arguments); try { var A = emParent(); if (A && A.tameioChanged) A.tameioChanged(); } catch (e) {} return r; }; }
 }
 function emEnsureKind(k, b) {
@@ -156,3 +159,52 @@ function emLockExtras() {
 }
 /* οι Παραγγελίες το ξανακλειδώνουν όταν φεύγεις από την καρτέλα «Ταμείο» */
 window.emRelock = function () { try { if (typeof S !== "undefined" && S && emLockOn() && pUnlocked) { pUnlocked = false; render(); } } catch (e) {} };
+
+/* ---------- Προμηθευτές και Τράπεζα: κάτω από τα σύνολα, η Τράπεζα ακριβώς από κάτω· και τα δύο κρύβονται αν δεν τα χρησιμοποιείς ---------- */
+function emHid() { try { var h = S.settings.emHide; if (!h || typeof h !== "object") h = S.settings.emHide = {}; return h; } catch (e) { return {}; } }
+function emLayout() {
+  try {
+    var main = document.getElementById("main"); if (!main) return;
+    var row = main.querySelector(".sum3.psum"), sup = main.querySelector(".supbtn"), tb = main.querySelector(".tbstrip");
+    var old = document.getElementById("emHidLine"); if (old) old.remove();
+    main.querySelectorAll(".emx").forEach(function (x) { x.remove(); });
+    if (!row) return;
+    var H = emHid(), anchor = row;
+    [[sup, "sup", emL("Προμηθευτές", "Suppliers")], [tb, "tb", emL("Τράπεζα", "Bank")]].forEach(function (z) {
+      var el = z[0]; if (!el) return;
+      var w = el.parentElement && el.parentElement.classList.contains("emcw") ? el.parentElement : null;
+      if (!w) { w = document.createElement("div"); w.className = "emcw"; el.parentNode.insertBefore(w, el); w.appendChild(el); }
+      anchor.after(w); anchor = w;
+      w.hidden = !!H[z[1]];
+      if (!H[z[1]]) { w.insertAdjacentHTML("beforeend", '<button type="button" class="emx" data-emhide="' + z[1] + '" aria-label="' + emL("Απόκρυψη: ", "Hide: ") + z[2] + '" title="' + emL("Κρύψ' το αν δεν το χρησιμοποιείς", "Hide it if you don't use it") + '">✕</button>'); }
+    });
+    var hidden = [["sup", "🏭 " + emL("Προμηθευτές", "Suppliers")], ["tb", "🏦 " + emL("Τράπεζα", "Bank")]].filter(function (z) { return H[z[0]] && (z[0] === "sup" ? sup : tb); });
+    if (hidden.length) anchor.insertAdjacentHTML("afterend", '<div id="emHidLine" class="emhid">' + emL("Κρυμμένα:", "Hidden:") + " " + hidden.map(function (z) { return '<button type="button" data-emshow="' + z[0] + '">' + z[1] + " · " + emL("εμφάνιση", "show") + "</button>"; }).join("") + "</div>");
+    main.querySelectorAll("[data-emhide]").forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var k = b.dataset.emhide; if (!confirm(emL("Να κρυφτεί; Το ξαναβρίσκεις με «εμφάνιση» κάτω από τα σύνολα. Δεν σβήνεται τίποτα.", "Hide it? You can bring it back with «show» under the totals. Nothing is deleted."))) return; emHid()[k] = 1; write(); render(); }; });
+    main.querySelectorAll("[data-emshow]").forEach(function (b) { b.onclick = function () { delete emHid()[b.dataset.emshow]; write(); render(); }; });
+  } catch (e) {}
+}
+window.emLayout = emLayout;
+/* πληρωμές σε προμηθευτή: όλα τα έξοδα με αυτόν ως «Προμηθευτής», από όλα τα βιβλία */
+function emSupPays(sup) {
+  var out = []; if (!sup) return out;
+  try { allBookIds().forEach(function (b) { withBook(b, function () { var P = PB(); (P.ent || []).forEach(function (r) {
+    if (r.dir === "out" && r.cp && norm(r.cp) === norm(sup.name)) { var k = (P.kinds || []).find(function (x) { return x.id === r.kind; });
+      out.push({ d: new Date(r.date), a: +r.amount || 0, k: k ? ((k.emoji ? k.emoji + " " : "") + k.name) : "", sub: r.sub || "", note: r.note || "", book: P.name || "" }); } }); }); }); } catch (e) {}
+  return out.filter(function (x) { return !isNaN(x.d); }).sort(function (a, b) { return b.d - a.d; });
+}
+var emDay = function (d) { return d.toLocaleDateString(emEN() ? "en-GB" : "el-GR", { day: "numeric", month: "short", year: "numeric" }); };
+function emSupHist(id) {
+  var sup = id && supGet(id), body = document.getElementById("shBody"); if (!sup || !body || body.querySelector(".suphist")) return;
+  var L = emSupPays(sup), tot = L.reduce(function (a, x) { return a + x.a; }, 0), multi = new Set(L.map(function (x) { return x.book; })).size > 1;
+  var html = '<details class="suphist"' + (L.length ? " open" : "") + '><summary>📜 ' + emL("Ιστορικό πληρωμών", "Payment history") + ' <span>' + (L.length ? L.length + " · " + emMoney(tot) : emL("καμία ακόμα", "none yet")) + "</span></summary>" +
+    (L.length ? L.slice(0, 60).map(function (x) { return '<div class="sphr"><div class="spd">' + esc(emDay(x.d)) + '</div><div class="spt">' + esc([x.k + (x.sub ? " › " + x.sub : ""), x.note].filter(Boolean).join(" · ") || emL("Πληρωμή", "Payment")) + (multi && x.book ? '<small>' + esc(x.book) + "</small>" : "") + '</div><b>' + emMoney(x.a) + "</b></div>"; }).join("") + (L.length > 60 ? '<p class="note">' + emL("και άλλες ", "and ") + (L.length - 60) + emL(" παλαιότερες", " older") + "</p>" : "")
+      : '<p class="note" style="margin:6px 0 0">' + emL("Όταν περνάς ένα έξοδο και διαλέγεις αυτόν τον προμηθευτή, η πληρωμή φαίνεται εδώ με την ημερομηνία της.", "When you add an expense and pick this supplier, the payment shows here with its date.") + "</p>") + "</details>";
+  var f = body.querySelector(".supfs"); if (f) f.insertAdjacentHTML("beforebegin", html); else body.insertAdjacentHTML("afterbegin", html);
+}
+function emSupRows() {
+  document.querySelectorAll("#shBody .suprow[data-sup]").forEach(function (r) {
+    var sup = supGet(r.dataset.sup), L = emSupPays(sup); if (!L.length) return; var m = r.querySelector(".meta"); if (!m || m.querySelector(".splast")) return;
+    m.insertAdjacentHTML("beforeend", '<span class="splast">' + emL("τελευταία πληρωμή ", "last paid ") + esc(emDay(L[0].d)) + " · " + emMoney(L[0].a) + "</span>");
+  });
+}

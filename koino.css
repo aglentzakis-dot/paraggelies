@@ -68,3 +68,9 @@
 .tile.prod.has{box-shadow:0 0 0 1px var(--c2,#F2B632),0 12px 24px -14px var(--c2,#F2B632)}
 .qb.plus{background:linear-gradient(180deg,color-mix(in srgb,var(--c1,#17324D) 82%,#fff),var(--c1,#17324D));box-shadow:0 6px 12px -6px var(--c1,#17324D)}
 .qb{transition:transform .08s}.qb:active{transform:scale(.9)}
+/* 1.63 · βασικές κατηγορίες: άλλο χρώμα, από κάτω οι υποκατηγορίες τους */
+.tile.cat.top:not([style]){background:linear-gradient(155deg,var(--c2,#F2B632),color-mix(in srgb,var(--c2,#F2B632) 62%,var(--c1,#17324D)))}
+.tile.cat.top:not([style]) .nm,.tile.cat.top:not([style]) .subs,.tile.cat.top:not([style]) .sub{color:var(--on2,#17324D)}
+.tile.cat.top .nm{font-size:1.12em;letter-spacing:.2px}
+.tile.cat .subs{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;font-weight:700;line-height:1.25;opacity:.88;margin-top:-2px}
+.tile.cat.top::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:var(--c1,#17324D);opacity:.75}

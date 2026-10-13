@@ -115,7 +115,7 @@ function sheet(title, body, foot, onOpen, onClose) {
   $("#sheetbg").classList.remove("peek"); $("#sheetbg").classList.add("open"); $("#shB").scrollTop = 0; shOnClose = onClose || null;
   if (onOpen) onOpen($("#shB"));
 }
-function hideSheet() { $("#sheetbg").classList.remove("open", "peek"); const f = shOnClose; shOnClose = null; if (f) f(); }
+function hideSheet() { if (typeof PEEK !== "undefined" && PEEK.prev != null) PEEK.off(); $("#sheetbg").classList.remove("open", "peek"); const f = shOnClose; shOnClose = null; if (f) f(); }
 function closeSheet() { if (!isSheetOpen()) return; hideSheet(); if (history.state && history.state.sh) { skipPop++; history.back(); } }
 const isSheetOpen = () => $("#sheetbg").classList.contains("open");
 A.toast = toast; A.sheet = sheet; A.closeSheet = closeSheet;
@@ -235,10 +235,11 @@ async function receive(ct, src) {
   else {
     /* ίδιος πελάτης, ίδια ημέρα και τρόπος παράδοσης: γίνεται μία παραγγελία, αν η προηγούμενη είναι ακόμα «Νέα» */
     const host = o.when.date && S.orders.find(x => x.st === "new" && x.id !== o.id && custKey(x.cust.phone) === custKey(o.cust.phone) && x.when.date === o.when.date && x.when.how === o.when.how);
-    if (host) { mergeInto(host, o); seenAdd(o.id); upsertCustomer(o.cust, o.rx); save(); stockAlert(host); return { ok: true, order: host, merged: true }; }
+    if (host) { mergeInto(host, o); applyPend(host); seenAdd(o.id); upsertCustomer(o.cust, o.rx); save(); stockAlert(host); return { ok: true, order: host, merged: true }; }
     const sib = o.when.date && S.orders.find(x => (x.st === "prep" || x.st === "done") && custKey(x.cust.phone) === custKey(o.cust.phone) && x.when.date === o.when.date);
     if (sib) { o.sib = sib.id; o.warn.push("Ο πελάτης έχει και την παραγγελία #" + sib.no + " για την ίδια ημέρα, που ήδη ετοιμάζεται. Πήγαινέ τις μαζί."); }
   }
+  applyPend(o);
   S.orders.push(o); seenAdd(o.id);
   upsertCustomer(o.cust, o.rx);
   save();
@@ -447,7 +448,8 @@ function onboarding() {
 
 /* ---------- παραγγελίες ---------- */
 function ordMatch(o, f) {
-  if (f.day && o.when.date !== f.day) return false;
+  if (f.day === "fut") { if (!(o.when.date > today()) || o.st === "cancel" || o.st === "dup") return false; }
+  else if (f.day && o.when.date !== f.day) return false;
   if (f.st === "all") return o.st !== "dup";
   if (f.st === "paid") return o.paid && o.st === "done" && !owes(o);
   if (f.st === "done") return o.st === "done" && owes(o);
@@ -468,7 +470,7 @@ function ordersView() {
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-act="newOrder">＋ Παραγγελία</button><button type="button" class="btn soft" data-act="poll" aria-label="Έλεγχος για νέες">⟳</button></div>
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn green grow" data-act="rtOpen">🚐 Δρομολόγιο</button><button type="button" class="btn soft grow" data-act="dvOpen">🚚 Διανομή</button><button type="button" class="btn soft grow" data-act="prepSheet">📦 Ετοιμασία</button></div>
    <div class="chips">${tabsDef.map(([k, l]) => `<button type="button" class="chip${ordFilter.st === k ? " on" : ""}" data-ost="${k}">${l}<span class="n">${cnt(k)}</span></button>`).join("")}</div>
-   ${days.length ? `<div class="chips"><button type="button" class="chip${!ordFilter.day ? " on" : ""}" data-oday="">Όλες οι ημέρες</button>${days.map(d => `<button type="button" class="chip${ordFilter.day === d ? " on" : ""}" data-oday="${d}">${esc(K.dayLabel(d))}</button>`).join("")}</div>` : ""}
+   ${days.length || ordFilter.day === "fut" ? `<div class="chips"><button type="button" class="chip${!ordFilter.day ? " on" : ""}" data-oday="">Όλες οι ημέρες</button><button type="button" class="chip${ordFilter.day === "fut" ? " on" : ""}" data-oday="fut">📅 Επόμενες μέρες</button>${days.map(d => `<button type="button" class="chip${ordFilter.day === d ? " on" : ""}" data-oday="${d}">${esc(K.dayLabel(d))}</button>`).join("")}</div>` : ""}
    ${ordFilter.st === "dup" ? `<div class="warnbox">Αυτές ήρθαν δεύτερη φορά με ίδια είδη από τον ίδιο πελάτη μέσα σε 15 λεπτά. Κράτησέ τες μόνο αν είναι πράγματι νέες παραγγελίες.</div>` : ""}
    ${list.length ? list.map(ordCard).join("") : ordEmpty()}
    <div class="efm-host" id="efmHost"></div>`;
@@ -477,10 +479,10 @@ function ordersView() {
 function heroHTML() {
   const h = new Date().getHours(), gr = h < 5 ? "Καλό βράδυ" : h < 13 ? "Καλημέρα" : h < 21 ? "Καλησπέρα" : "Καλό βράδυ";
   const td = today(), act = S.orders.filter(o => o.st !== "cancel" && o.st !== "dup");
-  const nT = act.filter(o => o.when && o.when.date === td).length, nN = S.orders.filter(o => o.st === "new").length;
+  const nT = act.filter(o => o.when && o.when.date === td).length, nN = S.orders.filter(o => o.st === "new").length, nF = act.filter(o => o.when && o.when.date > td).length;
   const zt = (S.deliv.zones || []).filter(z => (z.d || []).includes(new Date().getDay())).flatMap(z => z.a);
   return `<div class="hero"><div class="hh"><span class="hg">${gr} 👋</span><b>${esc(S.shop.name || "Καλώς ήρθες")}</b>${zt.length ? `<span class="hz">🚚 Σήμερα: ${esc(zt.join(", "))}</span>` : ""}</div>
-   <div class="hs two2"><button type="button" data-ost="new"><b>${nN}</b><small>${nN === 1 ? "νέα" : "νέες"}</small></button><button type="button" data-oday="${td}"><b>${nT}</b><small>για σήμερα</small></button></div></div>`;
+   <div class="hs"><button type="button" data-ost="new"><b>${nN}</b><small>${nN === 1 ? "νέα" : "νέες"}</small></button><button type="button" data-oday="${td}"><b>${nT}</b><small>για σήμερα</small></button><button type="button" data-act="heroFut"><b>${nF}</b><small>για τις επόμενες μέρες</small></button></div></div>`;
 }
 function ordEmpty() {
   const st = ordFilter.st;
@@ -538,6 +540,74 @@ function setStatus(o, st) {
   save(); toast("✓ " + ST[st]);
   return true;
 }
+/* ---------- σε αναμονή: προϊόν που δεν υπάρχει τώρα πηγαίνει σε άλλη ημέρα ή στην επόμενη παραγγελία, και η υπόλοιπη φεύγει κανονικά ---------- */
+function custNextDays(k, after) {
+  const c = S.customers[k] || {}, d = S.deliv, cl = K.closedDates(d);
+  const z = !(c.route && c.route.days && c.route.days.length) && c.area ? K.zoneFor(d.zones, c.area) : null;
+  const days = c.route && c.route.days && c.route.days.length ? c.route.days : z ? z.d : d.days;
+  return K.availDays({ days, closed: cl, min: 1, max: 28 }).filter(x => !after || x > after);
+}
+function heldHTML(o) {
+  const H = (o.held || []).filter(h => !h.undone); if (!H.length) return "";
+  return `<div class="heldbox"><b>⏳ Σε αναμονή</b>${H.map(h => `<div class="heldr"><span>${esc(h.name)} · ${K.num(h.q)} ${esc(h.unit)} · <b>${h.to ? esc(K.dayLabel(h.to)) : "με την επόμενη παραγγελία"}</b>${h.doneNo ? ` <span class="pill paid">μπήκε στην #${h.doneNo}</span>` : ""}</span>${h.doneNo && !h.oid ? "" : `<button type="button" class="btn ghost sm" data-unhold="${esc(h.id)}">↩ Επαναφορά</button>`}</div>`).join("")}
+   <p class="note" style="margin:6px 0 0">Ο πελάτης το μαθαίνει με το μήνυμα ενημέρωσης πιο κάτω.</p></div>`;
+}
+function holdSheet(o, i) {
+  const l = o.lines[i]; if (!l) return;
+  const k = custKey(o.cust.phone), nx = custNextDays(k, o.when.date || today());
+  sheet("⏳ Δεν το έχω τώρα", `<div class="card" style="margin-top:0"><b>${esc(l.name)}</b><div class="note" style="margin:2px 0 8px">Στην παραγγελία #${o.no}: ${K.num(l.q)} ${esc(l.unit)} × ${K.money(l.price)}</div>
+     <label class="f" for="hdQ">Πόσο μπαίνει σε αναμονή</label><input class="t" id="hdQ" inputmode="decimal" value="${K.num(l.q)}">
+     <p class="note">Βγαίνει από αυτή την παραγγελία και η υπόλοιπη στέλνεται κανονικά. Κρατά την ίδια τιμή.</p></div>
+   <div class="ambl">
+    <div class="ambo" style="cursor:default;flex-wrap:wrap"><span class="ambn">📅</span><span class="t"><b>Σε άλλη ημέρα</b><small>φτιάχνεται νέα παραγγελία για εκείνη την ημέρα</small></span>
+      <div class="row" style="flex-basis:100%;margin-top:8px"><select class="t grow" id="hdD">${nx.slice(0, 12).map(x => `<option value="${x}">${esc(K.dayLabel(x))}</option>`).join("")}<option value="">Άλλη ημερομηνία…</option></select><input class="t" type="date" id="hdD2" min="${today()}" style="display:none;flex:1"><button type="button" class="btn amber" data-act="holdDay">✓</button></div></div>
+    <button type="button" class="ambo" data-act="holdNext"><span class="ambn">🔁</span><span class="t"><b>Με την επόμενη παραγγελία του</b><small>μπαίνει μόνο του στην επόμενη παραγγελία του πελάτη</small></span><span class="g">›</span></button></div>`,
+   `<button type="button" class="btn soft" data-act="holdBack">Άκυρο</button>`,
+   el => { el.dataset.hdo = o.id; el.dataset.hdi = i; const s1 = el.querySelector("#hdD"), s2 = el.querySelector("#hdD2"); s1.addEventListener("change", () => { s2.style.display = s1.value ? "none" : ""; if (!s1.value) s2.focus(); }); if (!nx.length) { s1.value = ""; s2.style.display = ""; } });
+}
+function holdDo(to) {
+  const b = $("#shB"), o = S.orders.find(x => x.id === b.dataset.hdo), i = +b.dataset.hdi, l = o && o.lines[i]; if (!l) return;
+  let q = K.parseNum($("#hdQ").value); if (!isFinite(q) || q <= 0) { toast("Γράψε ποσότητα."); return; } q = Math.min(q, l.q);
+  if (to === "day") { to = $("#hdD").value || $("#hdD2").value; if (!/^\d{4}-\d\d-\d\d$/.test(to || "")) { toast("Διάλεξε ημέρα."); return; } } else to = "";
+  if (o.paid && o.paidAmt == null) o.paidAmt = o.total;
+  const was = o.total, h = { id: K.uid(8), pid: l.pid, name: l.name, unit: l.unit, q, price: l.price, vat: l.vat, to, at: Date.now() };
+  if (q >= l.q - 1e-9) o.lines.splice(i, 1); else { l.q = K.round2(l.q - q); l.sum = K.round2(l.q * l.price); }
+  o.total = K.round2(o.lines.reduce((a, x) => a + x.sum, 0));
+  if (to) {
+    const n = { id: K.uid(12), no: ++S.seq, at: Date.now(), rx: Date.now(), cust: Object.assign({}, o.cust, { note: "" }), when: { date: to, slot: o.when.slot || "", how: o.when.how }, lines: [{ pid: h.pid, name: h.name, unit: h.unit, q, price: h.price, vat: h.vat, sum: K.round2(q * h.price), pend: o.no }], st: "new", seen: Date.now(), paid: false, src: "manual", warn: [], log: [[Date.now(), "Από την αναμονή της #" + o.no]] };
+    n.total = n.lines[0].sum; S.orders.push(n); seenAdd(n.id); h.oid = n.id; h.doneNo = n.no;
+  } else (S.pend || (S.pend = [])).push({ k: custKey(o.cust.phone), from: o.id, no: o.no, hid: h.id, pid: h.pid, name: h.name, unit: h.unit, q, price: h.price, vat: h.vat, at: Date.now() });
+  (o.held || (o.held = [])).push(h);
+  o.log.push([Date.now(), "Σε αναμονή: " + K.num(q) + " " + h.unit + " " + h.name + " → " + (to ? K.dayLabel(to) : "επόμενη παραγγελία") + " (" + K.money(was) + " → " + K.money(o.total) + ")"]);
+  save(); render(); openOrder(o.id);
+  toast("⏳ " + h.name + ": " + (to ? K.dayLabel(to) : "με την επόμενη παραγγελία") + ". Η υπόλοιπη παραγγελία συνεχίζει κανονικά.", 4500);
+  if (diffOf(o) < 0) setTimeout(() => toast("⚠️ Ήταν πληρωμένη: του επιστρέφεις " + K.money(-diffOf(o)) + " ή το κρατάς για την επόμενη.", 5000), 4600);
+}
+function unhold(o, hid) {
+  const h = (o.held || []).find(x => x.id === hid); if (!h || h.undone) return;
+  if (h.oid) { const n = S.orders.find(x => x.id === h.oid);
+    if (n) { const j = n.lines.findIndex(x => x.pend === o.no && x.pid === h.pid); if (j >= 0) n.lines.splice(j, 1); n.total = K.round2(n.lines.reduce((a, x) => a + x.sum, 0)); if (!n.lines.length && (n.st === "new" || n.st === "dup")) S.orders = S.orders.filter(x => x !== n); else n.log.push([Date.now(), "Αφαιρέθηκε το «" + h.name + "» (επέστρεψε στην #" + o.no + ")"]); } }
+  else if (h.doneNo) { toast("Έχει ήδη μπει στην παραγγελία #" + h.doneNo + ". Άλλαξέ το από εκεί.", 4000); return; }
+  S.pend = (S.pend || []).filter(x => x.hid !== hid);
+  const same = o.lines.find(x => x.pid === h.pid && Math.abs(x.price - h.price) < .004);
+  if (same) { same.q = K.round2(same.q + h.q); same.sum = K.round2(same.q * same.price); } else o.lines.push({ pid: h.pid, name: h.name, unit: h.unit, q: h.q, price: h.price, vat: h.vat, sum: K.round2(h.q * h.price) });
+  o.total = K.round2(o.lines.reduce((a, x) => a + x.sum, 0)); h.undone = Date.now();
+  o.log.push([Date.now(), "Επαναφορά από αναμονή: " + h.name]); save(); render(); openOrder(o.id);
+}
+/* η επόμενη παραγγελία του πελάτη παίρνει μόνη της ό,τι περίμενε */
+function applyPend(o) {
+  const k = custKey(o.cust.phone), P = (S.pend || []).filter(x => x.k === k); if (!P.length || o.st === "dup" || o.st === "cancel") return;
+  for (const x of P) {
+    const same = o.lines.find(l => l.pid === x.pid && Math.abs(l.price - x.price) < .004 && l.pend === x.no);
+    if (same) { same.q = K.round2(same.q + x.q); same.sum = K.round2(same.q * same.price); } else o.lines.push({ pid: x.pid, name: x.name, unit: x.unit, q: x.q, price: x.price, vat: x.vat, sum: K.round2(x.q * x.price), pend: x.no });
+    (o.warn || (o.warn = [])).push("⏳ Προστέθηκε από την αναμονή της #" + x.no + ": " + K.num(x.q) + " " + x.unit + " " + x.name + ".");
+    o.log.push([Date.now(), "Προστέθηκε από την αναμονή της #" + x.no + ": " + x.name]);
+    const src = S.orders.find(y => y.id === x.from), h = src && (src.held || []).find(y => y.id === x.hid); if (h) h.doneNo = o.no;
+  }
+  o.total = K.round2(o.lines.reduce((a, l) => a + l.sum, 0));
+  S.pend = (S.pend || []).filter(x => x.k !== k);
+}
+const pendOf = k => (S.pend || []).filter(x => x.k === k);
 function openOrder(id) {
   const o = S.orders.find(x => x.id === id); if (!o) return;
   if (!o.seen) { o.seen = Date.now(); save(); newBar(); }
@@ -557,7 +627,8 @@ function openOrder(id) {
     ${o.merged && o.merged.length ? `<div class="okbox">🔗 Ο πελάτης έστειλε ${o.merged.length + 1} παραγγελίες για την ίδια ημέρα· ενώθηκαν σε αυτή. Τα είδη που προστέθηκαν έχουν σημάδι «＋».</div>` : ""}
     ${o.inv && o.inv.t === "i" ? `<div class="okbox"><b>📄 Θέλει τιμολόγιο</b><br>${esc(o.inv.n)}<br>ΑΦΜ ${esc(o.inv.f)}${o.inv.d ? " · ΔΟΥ " + esc(o.inv.d) : ""}${o.inv.j ? "<br>" + esc(o.inv.j) : ""}<br>${esc(o.inv.a)}</div>` : o.inv && o.inv.t === "r" ? `<p class="note">🧾 Θέλει απόδειξη</p>` : ""}
     ${c && c.notes ? `<p class="note">Σημείωση πελάτη: ${esc(c.notes)}</p>` : ""}</div>
-   <div class="card">${o.lines.map(l => `<div class="qrow"><div class="qn"><b>${esc(l.name)}${l.added ? ` <span class="pill done">＋${K.num(l.added)}</span>` : ""}</b><span>${K.num(l.q)} ${esc(l.unit)} × ${K.money(l.price)}${l.vat != null ? " · ΦΠΑ " + l.vat + "%" : ""}</span></div><b>${K.money(l.sum)}</b></div>`).join("")}
+   <div class="card">${o.lines.map((l, i) => `<div class="qrow"><div class="qn"><b>${esc(l.name)}${l.added ? ` <span class="pill done">＋${K.num(l.added)}</span>` : ""}${l.pend ? ` <span class="pill warn">⏳ από #${esc(String(l.pend))}</span>` : ""}</b><span>${K.num(l.q)} ${esc(l.unit)} × ${K.money(l.price)}${l.vat != null ? " · ΦΠΑ " + l.vat + "%" : ""}</span></div><b>${K.money(l.sum)}</b>${o.st === "new" || o.st === "prep" || o.st === "dup" ? `<button type="button" class="holdb" data-hold="${i}" aria-label="Δεν το έχω: σε αναμονή" title="Δεν το έχω τώρα: σε αναμονή">⏳</button>` : ""}</div>`).join("")}
+    ${heldHTML(o)}
     <div class="row" style="margin-top:8px"><b class="grow">Σύνολο</b><b class="big-num" style="font-size:20px">${K.money(o.total)}</b></div>
     <p class="note">Οι τιμές γράφτηκαν από τον δικό σου κατάλογο, όπως ίσχυαν ${fmtTime(o.at)}.${o.src === "link" ? " Ο πελάτης αποδέχθηκε τους όρους και την ενημέρωση απορρήτου πριν την αποστολή." : ""}</p></div>
    <h3 style="margin:4px 2px 6px;font-size:15px">Κατάσταση</h3>
@@ -579,7 +650,9 @@ function statusText(o) {
   const n = S.shop.name || "";
   const base = { new: "λάβαμε την παραγγελία σας", prep: "ετοιμάζουμε την παραγγελία σας", done: "η παραγγελία σας παραδόθηκε. Ευχαριστούμε", cancel: "η παραγγελία σας ακυρώθηκε" }[o.st] || "";
   const when = o.st === "new" || o.st === "prep" ? " για " + (o.when.how === "pick" ? "παραλαβή " : "παράδοση ") + fmtWhen(o).replace(/^Αύριο, /, "αύριο ").replace(/^Σήμερα, /, "σήμερα ") : "";
-  return "Γεια σας " + (o.cust.name.split(" ")[0] || "") + "! " + (n ? n + ": " : "") + base + when + ". Κωδικός " + code(o) + ", σύνολο " + K.money(o.total) + (o.st === "done" && !o.paid ? " (εκκρεμεί η πληρωμή)" : "") + ".";
+  const hl = (o.held || []).filter(h => !h.undone);
+  const held = hl.length && o.st !== "cancel" ? " " + hl.map(h => "Το «" + h.name + "» (" + K.num(h.q) + " " + h.unit + ") δεν το έχουμε αυτή τη στιγμή· " + (h.to ? "θα σας έρθει " + K.dayLabel(h.to).replace(/^Αύριο, /, "αύριο ").replace(/^Σήμερα, /, "σήμερα ") : "θα σας έρθει με την επόμενη παραγγελία σας") + ", χωρίς να το ξαναζητήσετε.").join(" ") : "";
+  return "Γεια σας " + (o.cust.name.split(" ")[0] || "") + "! " + (n ? n + ": " : "") + base + when + ". Κωδικός " + code(o) + ", σύνολο " + K.money(o.total) + (o.st === "done" && !o.paid ? " (εκκρεμεί η πληρωμή)" : "") + "." + held;
 }
 /* μετά από αλλαγή κατάστασης: πρόταση να ενημερωθεί ο πελάτης */
 function askNotify(o, st) {
@@ -732,7 +805,7 @@ function formSave() {
     upsertCustomer(cust, Date.now()); save(); closeSheet(); toast("✓ Αποθηκεύτηκε"); render(); openOrder(o.id); return;
   }
   const o = { id: K.uid(12), no: ++S.seq, at: Date.now(), rx: Date.now(), cust, when, lines, total, st: "new", seen: Date.now(), paid: false, src: F.src === "viber" ? "viber" : "manual", warn: [], log: [[Date.now(), F.src === "viber" ? "Από μήνυμα Viber" : "Καταχώριση από εσένα"]] };
-  S.orders.push(o); seenAdd(o.id); upsertCustomer(cust, o.rx); save(); closeSheet(); toast("✓ Η παραγγελία καταχωρίστηκε");
+  applyPend(o); S.orders.push(o); seenAdd(o.id); upsertCustomer(cust, o.rx); save(); closeSheet(); toast("✓ Η παραγγελία καταχωρίστηκε");
   tab = "orders"; ordFilter = { st: "new", day: "" }; render();
 }
 function formQty(id, d) { readForm(); const p = S.products[id]; if (!p) return; const q = Math.max(0, Math.round(((F.q[id] || 0) + d * (+p.step || 1)) * 1000) / 1000); if (q > 0) F.q[id] = q; else delete F.q[id]; const y = $("#shB").scrollTop; drawForm(); $("#shB").scrollTop = y; }
@@ -864,7 +937,7 @@ async function keyOk(key, pre, msg) {
   try { const k = await crypto.subtle.importKey("jwk", LIC_PUB, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]); return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, k, sig.slice(0, 64), new TextEncoder().encode(msg + "|" + until)) ? until : ""; } catch { return ""; }
 }
 const packOk = () => !!(packSt && (packSt.full || packSt.tameia));
-if (location.hostname === "localhost") A.__packTest = v => { packSt = v; };  /* μόνο για τις δοκιμές στον υπολογιστή */
+if (location.hostname === "localhost") { A.__packTest = v => { packSt = v; }; A.__applyPend = o => applyPend(o); }  /* μόνο για τις δοκιμές στον υπολογιστή */
 /* συγχρονισμός με τα Ταμεία: μόνο με πακέτο και έγκριση· αλλιώς ό,τι είχε σταλεί παλιότερα αποσύρεται */
 function mainSync() {
   const sent = S.tmSent || (S.tmSent = {}), on = packOk() && S.ui.tmSync === true, ops = [];
@@ -953,7 +1026,10 @@ function applyLook() {
   document.body.classList.remove("hasbg");
 }
 A.applyLook = applyLook;
-const PEEK = { t0: 0, tm: null, on() { clearTimeout(PEEK.tm); $("#sheetbg").classList.add("peek"); }, off() { $("#sheetbg").classList.remove("peek"); },
+/* ματιά: δείχνει πάντα τις Παραγγελίες (την πιο γεμάτη σελίδα) και μετά γυρνά εκεί που ήσουν */
+const PEEK = { t0: 0, tm: null, prev: null, y: 0,
+  on() { clearTimeout(PEEK.tm); if (tab !== "orders" && PEEK.prev == null) { PEEK.prev = tab; PEEK.y = window.scrollY; tab = "orders"; render(); window.scrollTo(0, 0); } $("#sheetbg").classList.add("peek"); },
+  off() { $("#sheetbg").classList.remove("peek"); if (PEEK.prev != null) { tab = PEEK.prev; PEEK.prev = null; render(); window.scrollTo(0, PEEK.y); } },
   up() { if (!PEEK.t0) return; const held = Date.now() - PEEK.t0; PEEK.t0 = 0; if (held < 350) PEEK.tm = setTimeout(PEEK.off, 2000); else PEEK.off(); } };
 window.addEventListener("pointerup", PEEK.up); window.addEventListener("pointercancel", PEEK.up);
 const lookLabel = () => { const L = lookOf(); return themeOf(L).name + " · " + BGS[L.bg][1].toLowerCase(); };
@@ -1221,13 +1297,25 @@ function custPinGo(k) {
   if (!(c.addr || "").trim() && !(c.pin && c.pin.lat != null)) { toast("Ο πελάτης δεν έχει διεύθυνση. Πρόσθεσέ τη στην καρτέλα του, ή πάτα «📍 Είμαι εδώ» όταν είσαι εκεί.", 4500); openCust(k); return; }
   closeSheet(); cm.focus = k; cm.f = "all"; cm.area = ""; tab = "map"; render();
 }
+const CU_SORT = { rec: "🕒 Πρόσφατοι", freq: "🔁 Συχνότεροι", sum: "💶 Τζίρος", name: "🔤 Όνομα", owe: "🔴 Χρωστάνε", area: "📍 Περιοχή", idle: "💤 Καιρό χωρίς παραγγελία" };
 function custsView() {
   const q = K.norm(custQ);
   const owe = {}; for (const k of Object.keys(S.customers)) owe[k] = custStats(k).owed;
-  const L = Object.values(S.customers).filter(c => !q || K.norm(c.name + " " + c.phone + " " + (c.addr || "")).includes(q)).sort((a, b) => ((owe[b.key] > 0) - (owe[a.key] > 0)) || (owe[a.key] > 0 ? owe[b.key] - owe[a.key] : 0) || (b.last || 0) - (a.last || 0));
+  const so = CU_SORT[S.ui.cuSort] ? S.ui.cuSort : "rec", st = {}; for (const k of Object.keys(S.customers)) st[k] = custStats(k);
+  const byName = (a, b) => String(a.name || "").localeCompare(String(b.name || ""), "el");
+  const cmp = { rec: (a, b) => ((owe[b.key] > 0) - (owe[a.key] > 0)) || (owe[a.key] > 0 ? owe[b.key] - owe[a.key] : 0) || (b.last || 0) - (a.last || 0),
+    freq: (a, b) => st[b.key].n - st[a.key].n || st[b.key].sum - st[a.key].sum || byName(a, b),
+    sum: (a, b) => st[b.key].sum - st[a.key].sum || byName(a, b),
+    name: byName,
+    owe: (a, b) => (owe[b.key] || 0) - (owe[a.key] || 0) || byName(a, b),
+    area: (a, b) => (!a.area - !b.area) || String(a.area || "").localeCompare(String(b.area || ""), "el") || byName(a, b),
+    idle: (a, b) => ((!a.last) - (!b.last)) || (a.last || 0) - (b.last || 0) || byName(a, b) }[so];
+  const L = Object.values(S.customers).filter(c => !q || K.norm(c.name + " " + c.phone + " " + (c.addr || "") + " " + (c.area || "")).includes(q)).filter(c => so !== "owe" || owe[c.key] > 0).sort(cmp);
+  const nAll = Object.keys(S.customers).length;
   const owedAll = K.round2(Object.keys(S.customers).reduce((a, k) => a + custStats(k).owed, 0));
   return `<div class="row" style="margin-bottom:10px"><input class="t grow" id="custQ" placeholder="🔍 Αναζήτηση πελάτη" value="${esc(custQ)}"><button type="button" class="btn amber" data-act="custNewBtn">＋ Νέος</button><button type="button" class="btn soft" data-act="custContacts" aria-label="Από τις επαφές" title="Πελάτες από τις επαφές του κινητού">📇</button></div>
-   <div class="row" style="margin-bottom:10px"><button type="button" class="btn green grow" data-act="custMap">🗺 Χάρτης πελατών</button><button type="button" class="btn soft grow" data-act="rtOpen">🚐 Δρομολόγιο</button></div>
+   <button type="button" class="btn green wide cumapb" data-act="custMap">🗺 Χάρτης πελατών</button>
+   ${nAll > 1 ? `<div class="cusort"><span>Ταξινόμηση</span><div class="chips">${Object.entries(CU_SORT).map(([k, l]) => `<button type="button" class="chip sm${so === k ? " on" : ""}" data-cusort="${k}">${l}</button>`).join("")}</div></div>` : ""}
    ${owedAll > 0 ? `<div class="warnbox">Σου χρωστάνε συνολικά <b>${K.money(owedAll)}</b> από παραδομένες παραγγελίες.</div>` : ""}
    ${L.length ? `<div class="culist">${L.map(c => { const s = custStats(c.key), g = custGeoState(c); return `<div class="it cuit${s.owed > 0 ? " owe" : ""}${g === "miss" || g === "amb" || g === "off" ? " nogeo" : ""}" data-cust="${c.key}" style="--cc:${custColor(c.key)}">
      <div class="cav" aria-hidden="true">${esc(custInit(c.name))}</div>
@@ -1235,7 +1323,7 @@ function custsView() {
       <span class="cup">${esc(c.phone || "")}</span>
       ${c.area ? `<span class="cuar${c.areaAuto ? " auto" : ""}">📍 ${esc(c.area)}${c.areaAuto ? (c.areaAuto === "c" ? " · από τις επαφές" : " · αυτόματα") : ""}</span>` : ""}
       <span class="cus">${s.n} ${s.n === 1 ? "παραγγελία" : "παραγγελίες"} · τζίρος ${K.money(s.sum)}</span>
-      ${s.owed > 0 || s.owed < 0 || g === "miss" || g === "noad" || g === "approx" || g === "amb" || g === "off" ? `<div class="cupl">${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : s.owed < 0 ? `<span class="pill warn">επιστροφή ${K.money(-s.owed)}</span>` : ""}${g === "off" ? `<span class="cugeo bad">⚠️ Βρέθηκε σε άλλη περιοχή</span>` : g === "amb" ? `<span class="cugeo bad">❓ Ίδια διεύθυνση σε πολλές περιοχές</span>` : g === "miss" ? `<span class="cugeo bad">⚠️ Δεν βρέθηκε η διεύθυνση</span>` : g === "noad" ? `<span class="cugeo">Χωρίς διεύθυνση</span>` : g === "approx" ? `<span class="cugeo">≈ κατά προσέγγιση</span>` : ""}</div>` : ""}</div>
+      ${pendOf(c.key).length || s.owed > 0 || s.owed < 0 || g === "miss" || g === "noad" || g === "approx" || g === "amb" || g === "off" ? `<div class="cupl">${pendOf(c.key).length ? `<span class="pill warn">⏳ περιμένει ${pendOf(c.key).length}</span>` : ""}${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : s.owed < 0 ? `<span class="pill warn">επιστροφή ${K.money(-s.owed)}</span>` : ""}${g === "off" ? `<span class="cugeo bad">⚠️ Βρέθηκε σε άλλη περιοχή</span>` : g === "amb" ? `<span class="cugeo bad">❓ Ίδια διεύθυνση σε πολλές περιοχές</span>` : g === "miss" ? `<span class="cugeo bad">⚠️ Δεν βρέθηκε η διεύθυνση</span>` : g === "noad" ? `<span class="cugeo">Χωρίς διεύθυνση</span>` : g === "approx" ? `<span class="cugeo">≈ κατά προσέγγιση</span>` : ""}</div>` : ""}</div>
      ${custActs(c)}</div>`; }).join("")}</div>` : custQ ? `<div class="emp sm"><div class="ee">🔍</div><b>Δεν βρέθηκε πελάτης</b><span>Δοκίμασε άλλο όνομα ή τηλέφωνο.</span></div>` : `<div class="emp"><div class="ee">👥</div><b>Οι πελάτες σου θα φαίνονται εδώ</b><span>Μπαίνουν μόνοι τους με την πρώτη τους παραγγελία. Μπορείς και να τους φέρεις από τις επαφές ή να τους γράψεις.</span><div class="row" style="justify-content:center"><button type="button" class="btn amber" data-act="link">📤 Στείλε τον κατάλογο</button><button type="button" class="btn soft" data-act="custNewBtn">＋ Νέος</button></div></div>`}`;
 }
 /* ---------- αξιολόγηση πελάτη (όπως στο Δρομολόγιο, για πωλητή) ---------- */
@@ -1308,6 +1396,7 @@ function openCust(k) {
   const s = custStats(k);
   const gs = custGeoState(c);
   sheet(c.name, `${custInfoHTML(k)}
+   ${pendOf(k).length ? `<div class="heldbox"><b>⏳ Περιμένει με την επόμενη παραγγελία</b>${pendOf(k).map(x => `<div class="heldr"><span>${esc(x.name)} · ${K.num(x.q)} ${esc(x.unit)} <span class="note">(από #${x.no})</span></span></div>`).join("")}</div>` : ""}
    ${gs === "off" ? `<div class="errbox cugeobox"><b>⚠️ ΒΡΕΘΗΚΕ ΣΕ ΑΛΛΗ ΠΕΡΙΟΧΗ</b><br>Η «${esc(c.addr)}» βρέθηκε στη «${esc(geoMem()[geoKey(c.addr, c.area)].off)}», όχι «${esc(c.area || "")}». Μάλλον είναι ομώνυμος δρόμος. Διόρθωσε τη διεύθυνση, ή πάτα «🗺 Βάλ' το στον χάρτη».</div>` : gs === "amb" ? `<div class="errbox cugeobox"><b>❓ ΠΟΙΑ «${esc(c.addr)}»;</b><br>Υπάρχουν ίδιες διευθύνσεις σε ${(geoMem()[geoKey(c.addr, c.area)].amb || []).length} περιοχές. Διάλεξε τη σωστή, αλλιώς η διαδρομή μπορεί να σε πάει αλλού. <button type="button" class="btn sm amber" data-ambfor="${esc(k)}" style="margin-top:6px">Διάλεξε περιοχή ›</button></div>` : gs === "miss" ? `<div class="errbox cugeobox"><b>⚠️ ΔΕΝ ΒΡΕΘΗΚΕ Η ΔΙΕΥΘΥΝΣΗ ΣΤΟΝ ΧΑΡΤΗ</b><br>Ο πελάτης δεν φαίνεται στον χάρτη και στο δρομολόγιο. Διόρθωσε τη διεύθυνση ή την περιοχή παρακάτω (π.χ. ολόκληρο το όνομα του δρόμου), ή πάτα «📍 Είμαι εδώ» όταν βρίσκεσαι στο σημείο.</div>` : gs === "approx" ? `<div class="warnbox">≈ Στον χάρτη μπήκε <b>κατά προσέγγιση</b>, στο κέντρο της περιοχής. Σύρε την πινέζα στο σωστό σημείο ή πάτα «📍 Είμαι εδώ» όταν βρίσκεσαι εκεί.</div>` : ""}
    <div class="card"><label class="f" for="cuN">Όνομα</label><input class="t" id="cuN" value="${esc(c.name)}"><label class="f" for="cuP">Τηλέφωνο</label><input class="t" id="cuP" value="${esc(c.phone)}"><label class="f" for="cuA">Διεύθυνση</label><input class="t" id="cuA" value="${esc(c.addr || "")}"><div class="row" style="margin-top:6px"><button type="button" class="btn soft sm grow" data-act="custGeoCheck" style="flex:1 1 0">🔎 Έλεγχος</button><button type="button" class="btn soft sm grow" data-act="custPinHere" style="flex:1 1 0">📍 Είμαι εδώ</button></div><div id="cuGeoSt" class="cugeost">${custGeoLine(c)}</div><div class="row" style="margin-top:6px"><button type="button" class="btn ghost sm grow" data-act="custPick" style="flex:1 1 0">🗺 Βάλ' το στον χάρτη</button><button type="button" class="btn ghost sm grow" data-act="custGm" style="flex:1 1 0">🔗 Από Google Maps</button></div><label class="f" for="cuAr">Περιοχή (για την οργάνωση της διανομής)${c.areaAuto ? ` <span class="autoarl">· ${c.areaAuto === "c" ? "από τις επαφές" : "αυτόματα από τον χάρτη"} — έλεγξέ τη</span>` : ""}</label><input class="t${c.areaAuto ? " autoar" : ""}" id="cuAr" value="${esc(c.area || "")}" placeholder="π.χ. Κορωπί" list="areaL"><datalist id="areaL">${[...new Set(Object.values(S.customers).map(x => x.area).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join("")}</datalist><label class="f" for="cuNo">Σημειώσεις (μόνο για σένα)</label><input class="t" id="cuNo" value="${esc(c.notes || "")}"></div>
    ${custPriceCard(c)}
@@ -2748,6 +2837,9 @@ const ACT = {
   demoEnd: () => demoEnd(),
   look: () => lookSheet(),
   lkReset: () => { S.ui.look = {}; save(); applyLook(); lookSheet(); },
+  holdNext: () => holdDo("next"), holdDay: () => holdDo("day"),
+  holdBack: () => { const o = $("#shB").dataset.hdo; if (o) openOrder(o); else closeSheet(); },
+  heroFut: () => { ordFilter = { st: "all", day: "fut" }; render(); },
   zAdd: () => { const Z = zonesRead(); Z.push({ a: [], d: [] }); zonesPut(Z); const i = $(`[data-za="${Z.length - 1}"]`); if (i) i.focus(); },
   zEx: () => { const Z = zonesRead().filter(z => z.a.length || z.d.length); Z.push({ a: ["Εξάρχεια", "Αμπελόκηποι"], d: [1, 3, 5] }, { a: ["Κυψέλη", "Πατήσια"], d: [2, 4, 6] }); zonesPut(Z); toast("Άλλαξε τις περιοχές και τις ημέρες όπως θέλεις και πάτα «Αποθήκευση».", 4500); },
   lkPhoto: () => { const f = $("#lkFile"); if (f) f.click(); },
@@ -2939,6 +3031,9 @@ document.addEventListener("click", async e => {
   const fp = t.closest("[data-fp]"); if (fp) { formQty(fp.dataset.fp, 1); return; }
   const nx = t.closest("[data-next]"); if (nx) { e.stopPropagation(); const o = S.orders.find(x => x.id === nx.dataset.next); if (o) { const done = setStatus(o, nx.dataset.to); render(); if (done) askNotify(o, nx.dataset.to); } return; }
   const os = t.closest("[data-ost]"); if (os) { ordFilter.st = os.dataset.ost; render(); return; }
+  const hb = t.closest("[data-hold]"); if (hb) { const o = curOrd(); if (o) holdSheet(o, +hb.dataset.hold); return; }
+  const uh = t.closest("[data-unhold]"); if (uh) { const o = curOrd(); if (o) unhold(o, uh.dataset.unhold); return; }
+  const csx = t.closest("[data-cusort]"); if (csx) { S.ui.cuSort = csx.dataset.cusort; save(); render(); return; }
   const zd = t.closest("[data-zdel]"); if (zd) { const Z = zonesRead(); Z.splice(+zd.dataset.zdel, 1); zonesPut(Z); return; }
   const od = t.closest("[data-oday]"); if (od) { ordFilter.day = od.dataset.oday; render(); return; }
   const td = t.closest("[data-tday]"); if (td) { totDay = td.dataset.tday; render(); return; }

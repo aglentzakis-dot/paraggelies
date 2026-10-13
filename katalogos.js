@@ -566,7 +566,12 @@
       } else {
         const cnt = ctx.count ? ctx.count(n) : 0;
         const img = n.photo ? `<img class="ph" src="${K.esc(n.photo)}" alt="">` : n.emoji ? `<span class="em">${K.esc(n.emoji)}</span>` : "";
-        out.push(`<div role="button" tabindex="0" class="tile cat sz-${sz}${sel}" data-node="${n.id}" data-open="${n.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<span class="nm">${K.esc(n.name || "Χωρίς όνομα")}</span>${cnt ? `<span class="badge">${K.num(cnt)}</span>` : ""}${ctx.edit ? `<span class="sub">${(n.kids || []).length} μέσα</span>` : ""}</div>`);
+        /* βασικές κατηγορίες (στην αρχική): άλλο χρώμα και από κάτω οι υποκατηγορίες τους (ή τα πρώτα προϊόντα) */
+        let subs = "";
+        if (ctx.root) { const kc = (n.kids || []).filter(k => k.t === "c").map(k => k.name).filter(Boolean);
+          const kp = kc.length ? [] : (n.kids || []).filter(k => k.t === "p").map(k => { const p = ctx.prod(k.pid); return p && !(p.hidden && !ctx.edit) ? (k.name || p.name) : ""; }).filter(Boolean);
+          const L = kc.length ? kc : kp; if (L.length) subs = `<span class="subs">${K.esc(L.slice(0, 4).join(" · "))}${L.length > 4 ? " …" : ""}</span>`; }
+        out.push(`<div role="button" tabindex="0" class="tile cat${ctx.root ? " top" : ""} sz-${sz}${sel}" data-node="${n.id}" data-open="${n.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<span class="nm">${K.esc(n.name || "Χωρίς όνομα")}</span>${subs}${cnt ? `<span class="badge">${K.num(cnt)}</span>` : ""}${ctx.edit ? `<span class="sub">${(n.kids || []).length} μέσα</span>` : ""}</div>`);
       }
     }
     return out.join("") || (ctx.edit ? "" : `<p class="empty">Δεν υπάρχουν είδη εδώ ακόμα.</p>`);

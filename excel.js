@@ -127,10 +127,14 @@ window.GXlsx = { write: writeXlsx, read: readXlsx, csv: readCsv };
 
 /* ================= κατάλογος ⇄ Excel ================= */
 const SIZES = [["s", "Μικρό"], ["m", "Μεσαίο"], ["l", "Μεγάλο"], ["w", "Φαρδύ"]];
+/* χρώμα κουμπιού: όνομα από τη λίστα ή #κωδικός· κενό = τα χρώματα του καταστήματος */
+const COLORS = [["Κόκκινο", "#C62828"], ["Πορτοκαλί", "#EF6C00"], ["Κίτρινο", "#F9A825"], ["Πράσινο", "#2E7D32"], ["Ανοιχτό πράσινο", "#7CB342"], ["Τιρκουάζ", "#00897B"], ["Γαλάζιο", "#039BE5"], ["Μπλε", "#1565C0"], ["Μωβ", "#6A1B9A"], ["Ροζ", "#D81B60"], ["Καφέ", "#6D4C41"], ["Γκρι", "#546E7A"], ["Μαύρο", "#263238"], ["Άσπρο", "#FFFFFF"]];
+const colorName = h => { if (!h) return ""; const c = COLORS.find(x => x[1].toLowerCase() === String(h).toLowerCase()); return c ? c[0] : String(h).toUpperCase(); };
+const colorParse = v => { const t = String(v == null ? "" : v).trim(); if (!t) return ""; if (/^#?[0-9a-f]{6}$/i.test(t)) return ("#" + t.replace("#", "")).toUpperCase(); const n = K.norm(t); const c = COLORS.find(x => K.norm(x[0]) === n) || COLORS.find(x => K.norm(x[0]).startsWith(n) || n.startsWith(K.norm(x[0]))); return c ? c[1] : null; };
 const COLS = [
   ["cat", "Κατηγορία", 18], ["sub", "Υποκατηγορία", 18], ["name", "Προϊόν *", 30], ["price", "Τιμή € *", 10], ["unit", "Μονάδα", 12], ["step", "Βήμα (κάθε +)", 10],
   ["vat", "ΦΠΑ %", 8], ["desc", "Περιγραφή", 32], ["av", "Διαθέσιμο", 11], ["hid", "Κρυφό", 9], ["per", "Ευπαθές", 9], ["emoji", "Εικονίδιο", 10],
-  ["size", "Μέγεθος κουμπιού", 14], ["keys", "Άλλες λέξεις (για Viber)", 26], ["code", "Κωδικός προϊόντος", 14], ["min", "Ελάχιστη ποσότητα", 11],
+  ["size", "Μέγεθος κουμπιού", 14], ["color", "Χρώμα κουμπιού (κενό = του καταστήματος)", 16], ["keys", "Άλλες λέξεις (για Viber)", 26], ["code", "Κωδικός προϊόντος", 14], ["min", "Ελάχιστη ποσότητα", 11],
   ["stock", "Απόθεμα (κενό = δεν μετράω)", 14], ["whole", "Τιμή χονδρικής €", 11], ["tiers", "Έκπτωση ποσότητας (π.χ. 10: 4,00; 50: 3,50)", 26], ["season", "Εποχή: μήνες (κενό = όλο τον χρόνο)", 22],
   ["id", "Αναγνωριστικό εφαρμογής (μην το αλλάζεις)", 16]
 ];
@@ -143,7 +147,7 @@ const seasonParse = v => { const set = new Set(); const MN = K.MONTHS.map(m => K
     if (/^\d{1,2}$/.test(tok) && +tok >= 1 && +tok <= 12) { set.add(+tok); continue; }
     const n = K.norm(tok); let i = MN.indexOf(n); if (i < 0) i = MN.findIndex(m => n.startsWith(m) || (n.length >= 3 && m.startsWith(n))); if (i < 0) { const full = ["ιανουαρ", "φεβρουαρ", "μαρτ", "απριλ", "μαι", "ιουν", "ιουλ", "αυγουστ", "σεπτεμβρ", "οκτωβρ", "νοεμβρ", "δεκεμβρ"]; i = full.findIndex(f => n.startsWith(f)); } if (i >= 0) set.add(i + 1); }
   const a = [...set].sort((x, y) => x - y); return a.length && a.length < 12 ? a : null; };
-const CCOLS = [["path", "Κατηγορία (υποκατηγορίες με >)", 34], ["emoji", "Εικονίδιο", 10], ["size", "Μέγεθος κουμπιού", 16]];
+const CCOLS = [["path", "Κατηγορία (υποκατηγορίες με >)", 34], ["emoji", "Εικονίδιο", 10], ["size", "Μέγεθος κουμπιού", 16], ["color", "Χρώμα κουμπιού (κενό = του καταστήματος)", 18]];
 const yes = v => v ? "ΝΑΙ" : "ΟΧΙ";
 const sizeName = z => (SIZES.find(x => x[0] === z) || SIZES[1])[1];
 const SEP = " > ";
@@ -152,7 +156,7 @@ function catalogRows() {
   const st = S(), rows = [], crows = [];
   const walk = (L, trail) => {
     for (const n of L) {
-      if (n.t === "c") { const t2 = trail.concat(n.name || "Χωρίς όνομα"); crows.push([t2.join(SEP), n.emoji || "", sizeName(n.size)]); walk(n.kids || [], t2); }
+      if (n.t === "c") { const t2 = trail.concat(n.name || "Χωρίς όνομα"); crows.push([t2.join(SEP), n.emoji || "", sizeName(n.size), colorName(n.color)]); walk(n.kids || [], t2); }
       else if (n.t === "p") { const p = st.products[n.pid]; if (!p || p.del) continue; rows.push(prodRow(p, trail, n)); }
     }
   };
@@ -164,15 +168,15 @@ function catalogRows() {
 function prodRow(p, trail, n) {
   const cat = trail ? trail[0] || "" : "", sub = trail ? trail.slice(1).join(SEP) : "";
   const av = K.avail(p, S().orders);
-  return [trail ? cat : "(εκτός μενού)", sub, p.name, K.round2(+p.price || 0), p.unit || "", +p.step && +p.step !== 1 ? +p.step : "", +p.vat || 0, p.desc || "", yes(!p.soldout), yes(!!p.hidden || !!p.draft), yes(p.perish !== false), p.emoji || "", sizeName(n ? n.size : "m"), p.keys || "",
+  return [trail ? cat : "(εκτός μενού)", sub, p.name, K.round2(+p.price || 0), p.unit || "", +p.step && +p.step !== 1 ? +p.step : "", +p.vat || 0, p.desc || "", yes(!p.soldout), yes(!!p.hidden || !!p.draft), yes(p.perish !== false), p.emoji || "", sizeName(n ? n.size : "m"), colorName(n && n.color), p.keys || "",
     p.code || "", +p.min > 0 ? +p.min : "", av === Infinity ? "" : Math.max(0, av), +p.whole > 0 ? +p.whole : "", tiersText(p.tiers), seasonText(p.season), p.id];
 }
 const EXAMPLES = [
-  ["Αυγά", "", "Αυγά ελευθέρας βοσκής", 4.5, "δωδεκάδα", "", 13, "Φρέσκα, από κότες που βόσκουν ελεύθερες", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μεσαίο", "αυγουλάκια", "ΑΥΓ-12", "", 60, 3.8, "10: 4,20; 30: 4,00", "", ""],
-  ["Αυγά", "", "Αυγά ελευθέρας βοσκής", 10, "θήκη 30", "", 13, "", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μεσαίο", "", "ΑΥΓ-30", "", "", "", "", "", ""],
-  ["Αυγά", "Βιολογικά", "Αυγά βιολογικά", 0.45, "τεμ.", 6, 13, "Κάθε «+» προσθέτει 6 αυγά", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μικρό", "", "", 12, "", "", "", "", ""],
-  ["Μέλι", "", "Μέλι θυμαρίσιο", 12, "βάζο", "", 13, "1 κιλό", "ΝΑΙ", "ΟΧΙ", "ΟΧΙ", "🍯", "Μεγάλο", "μελι", "", "", "", 10, "", "", ""],
-  ["Μέλι", "", "Μέλι ελάτου", 14, "βάζο", "", 13, "1 κιλό", "ΝΑΙ", "ΟΧΙ", "ΟΧΙ", "🍯", "Μεσαίο", "", "", "", "", "", "", "Ιούν, Ιούλ, Αύγ, Σεπ", ""]
+  ["Αυγά", "", "Αυγά ελευθέρας βοσκής", 4.5, "δωδεκάδα", "", 13, "Φρέσκα, από κότες που βόσκουν ελεύθερες", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μεσαίο", "", "αυγουλάκια", "ΑΥΓ-12", "", 60, 3.8, "10: 4,20; 30: 4,00", "", ""],
+  ["Αυγά", "", "Αυγά ελευθέρας βοσκής", 10, "θήκη 30", "", 13, "", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μεσαίο", "", "", "ΑΥΓ-30", "", "", "", "", "", ""],
+  ["Αυγά", "Βιολογικά", "Αυγά βιολογικά", 0.45, "τεμ.", 6, 13, "Κάθε «+» προσθέτει 6 αυγά", "ΝΑΙ", "ΟΧΙ", "ΝΑΙ", "🥚", "Μικρό", "", "", "", 12, "", "", "", "", ""],
+  ["Μέλι", "", "Μέλι θυμαρίσιο", 12, "βάζο", "", 13, "1 κιλό", "ΝΑΙ", "ΟΧΙ", "ΟΧΙ", "🍯", "Μεγάλο", "", "μελι", "", "", "", 10, "", "", ""],
+  ["Μέλι", "", "Μέλι ελάτου", 14, "βάζο", "", 13, "1 κιλό", "ΝΑΙ", "ΟΧΙ", "ΟΧΙ", "🍯", "Μεσαίο", "", "", "", "", "", "", "", "Ιούν, Ιούλ, Αύγ, Σεπ", ""]
 ];
 const HELP = [
   ["Πώς συμπληρώνεται ο κατάλογος"],
@@ -189,29 +193,45 @@ const HELP = [
   ["10. «Ευπαθές» ΝΑΙ: τρόφιμο που αλλοιώνεται γρήγορα (δεν ισχύει δικαίωμα υπαναχώρησης)."],
   ["11. «Εικονίδιο»: ένα σύμβολο όπως 🥚 🍯 🫒 🍞. Οι φωτογραφίες μπαίνουν μετά από την εφαρμογή."],
   ["12. «Μέγεθος κουμπιού»: Μικρό (3 στη σειρά), Μεσαίο (2), Μεγάλο (όλο το πλάτος), Φαρδύ (όλο το πλάτος σε μία γραμμή)."],
-  ["13. «Κωδικός προϊόντος»: δικός σου κωδικός (προαιρετικός), π.χ. ΑΥΓ-12."],
+  ["12α. «Χρώμα κουμπιού»: διάλεξε από τη λίστα (Κόκκινο, Πράσινο, Μπλε…) ή γράψε κωδικό χρώματος, π.χ. #2E7D32. Κενό = τα χρώματα του καταστήματός σου."],
+  ["13. «Κωδικός προϊόντος»: δικός σου κωδικός (προαιρετικός), π.χ. ΑΥΓ-12. Αν τον ξαναγράψεις ίδιο στο επόμενο ανέβασμα, το προϊόν αναγνωρίζεται ακόμα κι αν άλλαξες όνομα."],
   ["14. «Ελάχιστη ποσότητα»: ο πελάτης δεν μπορεί να παραγγείλει λιγότερο."],
   ["15. «Απόθεμα»: πόσα έχεις τώρα. Αφαιρούνται μόνα τους με κάθε παραγγελία και όταν τελειώσουν ο πελάτης δεν μπορεί να το παραγγείλει. Κενό = δεν μετράς απόθεμα."],
   ["16. «Τιμή χονδρικής»: ισχύει για τους πελάτες που έχεις ορίσει «χονδρικής» (Πελάτες › πελάτης › Τιμές για αυτόν)."],
   ["17. «Έκπτωση ποσότητας»: γράψε «από ποσότητα: τιμή», χωρισμένα με ερωτηματικό. Π.χ. 10: 4,00; 50: 3,50."],
   ["18. «Εποχή»: οι μήνες που το έχεις, π.χ. «Ιούν, Ιούλ, Αύγ» ή «6-9». Τους άλλους μήνες ο πελάτης το βλέπει «Εκτός εποχής». Κενό = όλο τον χρόνο."],
   ["19. «Αναγνωριστικό εφαρμογής»: το γράφει η εφαρμογή όταν κατεβάζεις τον δικό σου κατάλογο. Μην το αλλάζεις: έτσι κρατιούνται φωτογραφίες και ιστορικό τιμών ακόμα κι αν αλλάξεις όνομα. Στα νέα προϊόντα άφησέ το κενό."],
-  ["20. Στο φύλλο «Κατηγορίες» (προαιρετικό) δίνεις σειρά, εικονίδιο και μέγεθος στα κουμπιά των κατηγοριών."],
+  ["20. Στο φύλλο «Κατηγορίες» (προαιρετικό) δίνεις σειρά, εικονίδιο, μέγεθος και χρώμα στα κουμπιά των κατηγοριών και των υποκατηγοριών (γράψε «Καφές > Κρύοι καφέδες»). Η σειρά των γραμμών εκεί είναι η σειρά των κουμπιών."],
+  ["21. Συμβουλή για μαζικό πέρασμα: αντέγραψε μια γραμμή και άλλαξε μόνο όνομα και τιμή. Με «Ο κατάλογός μου» κατεβάζεις όσα έχεις ήδη, αλλάζεις τιμές σε όλα μαζί και τα ξανανεβάζεις."],
   [""],
   ["Οι γραμμές με τα παραδείγματα (κίτρινες) σβήσ' τες ή άλλαξέ τες με τα δικά σου."],
   ["Όταν τελειώσεις: Παραγγελίες › Κατάλογος › Προϊόντα και τιμές › 📊 Excel › Ανέβασμα."]
 ];
-function buildBook(mine) {
+/* πρότυπο γεμάτο με τα προϊόντα ενός επαγγέλματος (από τους έτοιμους καταλόγους) */
+function presetRows(k) {
+  const P = (window.PROTYPA || {})[k]; if (!P) return null;
+  const rows = [], crows = [], isSub = it => Array.isArray(it[2]);
+  const row = o => COLS.map(c => o[c[0]] != null ? o[c[0]] : "");
+  const walk = (items, trail, emoji) => { for (const it of items) {
+    if (isSub(it)) { const t2 = trail.concat(it[0]); crows.push([t2.join(SEP), it[1] || "", t2.length === 1 ? "Μεγάλο" : "Μεσαίο", ""]); walk(it[2], t2, it[1] || emoji); continue; }
+    const [n, u, pr, st, op] = it, o = op || {};
+    rows.push(row({ cat: trail[0] || "", sub: trail.slice(1).join(SEP), name: n, price: pr, unit: u, step: st && st !== 1 ? st : "", vat: o.v != null ? o.v : 13, desc: o.d || "", av: "ΝΑΙ", hid: "ΟΧΙ", per: o.np ? "ΟΧΙ" : "ΝΑΙ", emoji: emoji || "", size: "Μεσαίο" })); } };
+  for (const [cn, ce, items] of P.c) { crows.push([cn, ce || "", "Μεγάλο", ""]); walk(items, [cn], ce); }
+  return { rows, crows, name: P.n };
+}
+function buildBook(mine, preset) {
   const head = COLS.map(c => c[1]), chead = CCOLS.map(c => c[1]);
   let rows, crows, ex = [];
-  if (mine) { const r = catalogRows(); rows = r.rows; crows = r.crows; }
-  else { rows = EXAMPLES; crows = [["Αυγά", "🥚", "Μεγάλο"], ["Αυγά > Βιολογικά", "🥚", "Μεσαίο"], ["Μέλι", "🍯", "Μεσαίο"]]; ex = rows.map((_, i) => i + 1); }
+  const pr = preset ? presetRows(preset) : null;
+  if (pr) { rows = pr.rows; crows = pr.crows; }
+  else if (mine) { const r = catalogRows(); rows = r.rows; crows = r.crows; }
+  else { rows = EXAMPLES; crows = [["Αυγά", "🥚", "Μεγάλο", "Πορτοκαλί"], ["Αυγά > Βιολογικά", "🥚", "Μεσαίο", "Πράσινο"], ["Μέλι", "🍯", "Μεσαίο", "Κίτρινο"]]; ex = rows.map((_, i) => i + 1); }
   const yn = ["ΝΑΙ", "ΟΧΙ"], sz = SIZES.map(x => x[1]);
   return writeXlsx([
     { name: "Κατάλογος", head: true, cols: COLS.map(c => c[2]), num: [3, 5, 6], ex, rows: [head, ...rows],
-      valid: [{ col: 4, list: K.UNITS }, { col: 6, list: ["13", "24", "6", "0"] }, { col: 8, list: yn }, { col: 9, list: yn }, { col: 10, list: yn }, { col: 12, list: sz }] },
-    { name: "Κατηγορίες", head: true, cols: CCOLS.map(c => c[2]), ex: mine ? [] : crows.map((_, i) => i + 1), rows: [chead, ...crows], valid: [{ col: 2, list: sz }] },
-    { name: "Οδηγίες", title: true, wrap: true, cols: [120], rows: mine ? HELP.concat([[""], ["Εξαγωγή καταλόγου: " + new Date().toLocaleString("el-GR") + " · #" + Date.now() + " (μην το σβήσεις)"]]) : HELP }
+      valid: [{ col: 4, list: K.UNITS }, { col: 6, list: ["13", "24", "6", "0"] }, { col: 8, list: yn }, { col: 9, list: yn }, { col: 10, list: yn }, { col: 12, list: sz }, { col: 13, list: COLORS.map(x => x[0]), any: true }] },
+    { name: "Κατηγορίες", head: true, cols: CCOLS.map(c => c[2]), ex: mine ? [] : crows.map((_, i) => i + 1), rows: [chead, ...crows], valid: [{ col: 2, list: sz }, { col: 3, list: COLORS.map(x => x[0]), any: true }] },
+    { name: "Οδηγίες", title: true, wrap: true, cols: [120], rows: pr ? [["Πρότυπο: " + pr.name + " — ενδεικτικά προϊόντα και τιμές. Άλλαξε, σβήσε ή πρόσθεσε ό,τι θέλεις."], [""]].concat(HELP) : mine ? HELP.concat([[""], ["Εξαγωγή καταλόγου: " + new Date().toLocaleString("el-GR") + " · #" + Date.now() + " (μην το σβήσεις)"]]) : HELP }
   ]);
 }
 function saveBlob(name, blob) {
@@ -220,11 +240,11 @@ function saveBlob(name, blob) {
 }
 const GRL = { α: "a", β: "v", γ: "g", δ: "d", ε: "e", ζ: "z", η: "i", θ: "th", ι: "i", κ: "k", λ: "l", μ: "m", ν: "n", ξ: "x", ο: "o", π: "p", ρ: "r", σ: "s", τ: "t", υ: "y", φ: "f", χ: "ch", ψ: "ps", ω: "o" };
 const latin = t => K.norm(t).replace(/[α-ω]/g, c => GRL[c] || "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
-const fileName = mine => (mine ? "katalogos-" + (latin(S().shop.name || "") || "mou") : "protypo-katalogou") + ".xlsx";
+const fileName = (mine, preset) => (preset ? "protypo-" + preset : mine ? "katalogos-" + (latin(S().shop.name || "") || "mou") : "protypo-katalogou") + ".xlsx";
 
 /* ---------- ανάγνωση αρχείου → σχέδιο εισαγωγής ---------- */
 const hdrKey = h => { const n = K.norm(h).replace(/\*/g, "").trim(); if (!n) return "";
-  if (/μην το|αναγνωρ/.test(n)) return "id"; if (n.includes("κωδικ")) return "code"; if (n.includes("χονδρ")) return "whole"; if (n.includes("εκπτωσ")) return "tiers"; if (n.includes("εποχ")) return "season"; if (n.includes("αποθεμ")) return "stock"; if (n.includes("ελαχιστ")) return "min";
+  if (/μην το|αναγνωρ/.test(n)) return "id"; if (n.includes("κωδικ")) return "code"; if (n.includes("χρωμ")) return "color"; if (n.includes("χονδρ")) return "whole"; if (n.includes("εκπτωσ")) return "tiers"; if (n.includes("εποχ")) return "season"; if (n.includes("αποθεμ")) return "stock"; if (n.includes("ελαχιστ")) return "min";
   const M = [["υποκατηγ", "sub"], ["κατηγορ", "cat"], ["προιον", "name"], ["ονομα", "name"], ["τιμη", "price"], ["μοναδα", "unit"], ["βημα", "step"], ["φπα", "vat"], ["περιγραφ", "desc"], ["διαθεσιμ", "av"], ["κρυφ", "hid"], ["ευπαθ", "per"], ["εικονιδ", "emoji"], ["μεγεθ", "size"], ["λεξεις", "keys"]];
   for (const [k, v] of M) if (n.includes(k)) return v; return ""; };
 const ynParse = (v, def) => { if (v === "" || v == null) return def; const n = K.norm(String(v)); if (/^(ναι|ν|yes|y|1|true|✓|x)$/.test(n) || v === 1 || v === true) return true; if (/^(οχι|ο|no|n|0|false)$/.test(n) || v === 0) return false; return def; };
@@ -255,6 +275,7 @@ function makePlan(sheets) {
     items.push({ line, path, id: String(g(r, "id")).trim(), name: name.slice(0, 60), price: K.round2(price), unit: unit.slice(0, 20), step: Math.round(step * 1000) / 1000, vat,
       desc: String(g(r, "desc")).trim().slice(0, 80), av: ynParse(g(r, "av"), true), hid: ynParse(g(r, "hid"), false), per: ynParse(g(r, "per"), true),
       emoji: String(g(r, "emoji")).trim().slice(0, 4), size: sizeParse(g(r, "size")), keys: String(g(r, "keys")).trim().slice(0, 100),
+      color: map.color != null ? (() => { const c = colorParse(g(r, "color")); if (c === null) { warns.push(`Γραμμή ${line}: δεν κατάλαβα το χρώμα «${g(r, "color")}»· έμεινε το χρώμα του καταστήματος.`); return ""; } return c; })() : undefined,
       code: map.code != null ? String(g(r, "code")).trim().slice(0, 30) : undefined, min: map.min != null ? numParse(g(r, "min")) : undefined,
       stock: map.stock == null ? undefined : String(g(r, "stock")).trim() === "" ? null : numParse(g(r, "stock")), whole: map.whole != null ? numParse(g(r, "whole")) : undefined,
       tiers: map.tiers != null ? tiersParse(g(r, "tiers")) : undefined, season: map.season != null ? seasonParse(g(r, "season")) : undefined });
@@ -263,8 +284,8 @@ function makePlan(sheets) {
   const cats = [];
   const cs = sheets.find(s => s !== main && /κατηγορ/.test(K.norm(s.name)));
   if (cs) { const h = cs.rows.findIndex(r => r && r.some(c => /κατηγορ/.test(K.norm(c))));
-    if (h >= 0) { const cm = {}; cs.rows[h].forEach((x, i) => { const n = K.norm(x); if (/κατηγορ/.test(n) && cm.path == null) cm.path = i; else if (/εικονιδ/.test(n)) cm.emoji = i; else if (/μεγεθ/.test(n)) cm.size = i; });
-      cs.rows.slice(h + 1).forEach(r => { if (!r) return; const p = splitPath(r[cm.path]); if (p.length) cats.push({ path: p, emoji: cm.emoji != null ? String(r[cm.emoji] || "").trim().slice(0, 4) : "", size: cm.size != null ? sizeParse(r[cm.size]) : "" }); }); } }
+    if (h >= 0) { const cm = {}; cs.rows[h].forEach((x, i) => { const n = K.norm(x); if (/κατηγορ/.test(n) && cm.path == null) cm.path = i; else if (/εικονιδ/.test(n)) cm.emoji = i; else if (/μεγεθ/.test(n)) cm.size = i; else if (/χρωμ/.test(n)) cm.color = i; });
+      cs.rows.slice(h + 1).forEach(r => { if (!r) return; const p = splitPath(r[cm.path]); if (p.length) cats.push({ path: p, emoji: cm.emoji != null ? String(r[cm.emoji] || "").trim().slice(0, 4) : "", size: cm.size != null ? sizeParse(r[cm.size]) : "", color: cm.color != null ? colorParse(r[cm.color]) : undefined }); }); } }
   /* ταίριασμα με τα υπάρχοντα */
   const st = S(), live = Object.values(st.products).filter(p => !p.del);
   const byKey = {}; for (const p of live) byKey[K.norm(p.name) + "|" + K.norm(p.unit)] = byKey[K.norm(p.name) + "|" + K.norm(p.unit)] || p;
@@ -272,6 +293,7 @@ function makePlan(sheets) {
   for (const it of items) { if (it.onlyCat) continue;
     let p = it.id && st.products[it.id] && !st.products[it.id].del ? st.products[it.id] : null;
     if (p && used.has(p.id)) p = null;
+    if (!p && it.code) { const q = live.find(x => x.code && K.norm(x.code) === K.norm(it.code) && !used.has(x.id)); if (q) p = q; }
     if (!p) { const q = byKey[K.norm(it.name) + "|" + K.norm(it.unit)]; if (q && !used.has(q.id)) p = q; }
     if (p) { used.add(p.id); it.pid = p.id; if (Math.abs((+p.price || 0) - it.price) > 0.004) { nPrice++; it.oldPrice = +p.price || 0; } else nSame++; }
     else nNew++; }
@@ -321,11 +343,11 @@ function applyPlan(plan, delMissing) {
     if (!it.path) continue;
     const L = it.path.length ? getCat(it.path) : menu;
     const o = oldNode[p.id] || {};
-    if (!L.some(n => n.t === "p" && n.pid === p.id)) L.push({ id: o.id && !Object.values(catIdx).some(c => c.id === o.id) ? o.id : "n" + K.uid(5), t: "p", pid: p.id, size: it.size || o.size || "m", color: o.color || "", ...(o.name ? { name: o.name } : {}) });
+    if (!L.some(n => n.t === "p" && n.pid === p.id)) L.push({ id: o.id && !Object.values(catIdx).some(c => c.id === o.id) ? o.id : "n" + K.uid(5), t: "p", pid: p.id, size: it.size || o.size || "m", color: it.color !== undefined ? it.color : (o.color || ""), ...(o.name ? { name: o.name } : {}) });
   }
   /* φύλλο «Κατηγορίες»: εικονίδιο, μέγεθος και σειρά των κατηγοριών (τα προϊόντα μένουν στη σειρά των γραμμών) */
   const order = {};
-  plan.cats.forEach((c, i) => { getCat(c.path); const k = c.path.map(K.norm).join(">"), n = catIdx[k]; if (c.emoji) n.emoji = c.emoji; if (c.size) n.size = c.size; if (order[k] == null) order[k] = i; });
+  plan.cats.forEach((c, i) => { getCat(c.path); const k = c.path.map(K.norm).join(">"), n = catIdx[k]; if (c.emoji) n.emoji = c.emoji; if (c.size) n.size = c.size; if (c.color !== undefined && c.color !== null) n.color = c.color; if (order[k] == null) order[k] = i; });
   if (plan.cats.length) { const keyOf = new Map(Object.entries(catIdx).map(([k, n]) => [n, k]));
     const sortL = L => { const pos = [], cs = []; L.forEach((n, i) => { if (n.t === "c") { pos.push(i); cs.push(n); } });
       cs.map((n, i) => [n, order[keyOf.get(n)] != null ? order[keyOf.get(n)] : 1e6 + i]).sort((a, b) => a[1] - b[1]).forEach(([n], j) => { L[pos[j]] = n; });
@@ -342,8 +364,9 @@ function applyPlan(plan, delMissing) {
 function mainSheet() {
   const st = S(), has = Object.values(st.products).some(p => !p.del), u = st.undoImport;
   A.sheet("📊 Κατάλογος με Excel", `
-   <div class="card"><p class="note" style="margin-top:0">Γράψε όλο τον κατάλογο σε Excel (στο κινητό ή στον υπολογιστή): κατηγορίες, υποκατηγορίες, προϊόντα, τιμές, μονάδες, βήμα, ΦΠΑ, διαθεσιμότητα, εικονίδια, μέγεθος κουμπιών και σειρά. Μετά το ανεβάζεις εδώ και στήνεται μόνο του. Τις φωτογραφίες τις βάζεις μετά από την εφαρμογή.</p>
-    <div class="step"><div class="n">1</div><div class="t"><b>Κατέβασε το αρχείο</b><div class="row" style="margin-top:6px"><button type="button" class="btn sm amber grow" data-xl="tpl">⬇️ Κενό πρότυπο με παραδείγματα</button>${has ? `<button type="button" class="btn sm soft grow" data-xl="mine">⬇️ Ο κατάλογός μου</button>` : ""}</div>${has ? `<p class="note" style="margin:6px 0 0">«Ο κατάλογός μου» έχει ήδη μέσα όλα σου τα προϊόντα: αλλάζεις μόνο ό,τι θέλεις.</p>` : ""}</div></div>
+   <div class="card"><p class="note" style="margin-top:0">Γράψε όλο τον κατάλογο σε Excel (στο κινητό ή στον υπολογιστή): κατηγορίες, υποκατηγορίες, προϊόντα με κωδικούς, τιμές, μονάδες, βήμα, ΦΠΑ, διαθεσιμότητα, απόθεμα, εικονίδια, μέγεθος και χρώμα κουμπιών και σειρά. Μετά το ανεβάζεις εδώ και στήνεται μόνο του. Τις φωτογραφίες τις βάζεις μετά από την εφαρμογή.</p>
+    <div class="step"><div class="n">1</div><div class="t"><b>Κατέβασε το αρχείο</b><div class="row" style="margin-top:6px"><button type="button" class="btn sm amber grow" data-xl="tpl">⬇️ Κενό πρότυπο με παραδείγματα</button>${has ? `<button type="button" class="btn sm soft grow" data-xl="mine">⬇️ Ο κατάλογός μου</button>` : ""}</div>${has ? `<p class="note" style="margin:6px 0 0">«Ο κατάλογός μου» έχει ήδη μέσα όλα σου τα προϊόντα: αλλάζεις μόνο ό,τι θέλεις.</p>` : ""}
+     <div class="row" style="margin-top:8px"><select class="t grow" id="xlPre" style="min-width:0"><option value="">Ή πρότυπο γεμάτο για το επάγγελμά σου…</option>${Object.entries(window.PROTYPA || {}).map(([k, p]) => `<option value="${k}">${esc((p.e || "") + " " + p.n)}</option>`).join("")}</select><button type="button" class="btn sm soft" data-xl="pre">⬇️</button></div></div></div>
     <div class="step"><div class="n">2</div><div class="t"><b>Συμπλήρωσέ το</b><p class="note" style="margin:2px 0 0">Με Excel, Φύλλα Google ή όποια εφαρμογή λογιστικών φύλλων έχεις. Μία γραμμή για κάθε προϊόν· η σειρά των γραμμών είναι η σειρά στο μενού. Οδηγίες υπάρχουν μέσα στο αρχείο, στο φύλλο «Οδηγίες».</p></div></div>
     <div class="step"><div class="n">3</div><div class="t"><b>Ανέβασέ το</b><div style="margin-top:6px"><label class="btn sm amber">⬆️ Επιλογή αρχείου<input type="file" id="xlIn" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden></label></div><p class="note" style="margin:6px 0 0">Πριν αλλάξει οτιδήποτε, θα δεις τι θα γίνει και θα επιβεβαιώσεις.</p></div></div></div>
    ${u ? `<div class="card"><p class="note" style="margin:0 0 6px">Τελευταίο ανέβασμα: ${new Date(u.at).toLocaleString("el-GR")}</p><button type="button" class="btn sm soft" data-xl="undo">↩️ Αναίρεση τελευταίου ανεβάσματος</button></div>` : ""}`, "",
@@ -381,6 +404,7 @@ document.addEventListener("click", async e => {
   const k = b.dataset.xl;
   if (k === "open") return mainSheet();
   if (k === "tpl") { saveBlob(fileName(false), buildBook(false)); A.toast("⬇️ Κατέβηκε το πρότυπο. Άνοιξέ το από τις Λήψεις.", 3500); return; }
+  if (k === "pre") { const v = ($("#xlPre") || {}).value; if (!v) { A.toast("Διάλεξε πρώτα επάγγελμα από τη λίστα."); return; } saveBlob(fileName(false, v), buildBook(false, v)); A.toast("⬇️ Κατέβηκε το πρότυπο «" + window.PROTYPA[v].n + "». Άλλαξε τιμές και ανέβασέ το.", 4000); return; }
   if (k === "mine") { saveBlob(fileName(true), buildBook(true)); A.toast("⬇️ Κατέβηκε ο κατάλογός σου σε Excel.", 3500); return; }
   if (k === "go") {
     const plan = A._xlPlan; if (!plan) return;
