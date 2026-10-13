@@ -61,3 +61,10 @@
 .tile.drop-after{box-shadow:5px 0 0 0 #1f7a3d}
 .tile[style] .pr{color:inherit}
 .tile.cat[style] .nm,.tile.cat[style] .sub{color:inherit}
+/* 1.60 · πλακίδια με βάθος */
+.tile{border-radius:18px;box-shadow:0 1px 2px rgba(16,24,40,.05),0 10px 22px -14px rgba(16,24,40,.35);transition:transform .1s,box-shadow .15s}
+.tile:active{transform:scale(.97)}
+.tile.cat::after{content:"";position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.22),transparent 45%);pointer-events:none}
+.tile.prod.has{box-shadow:0 0 0 1px var(--c2,#F2B632),0 12px 24px -14px var(--c2,#F2B632)}
+.qb.plus{background:linear-gradient(180deg,color-mix(in srgb,var(--c1,#17324D) 82%,#fff),var(--c1,#17324D));box-shadow:0 6px 12px -6px var(--c1,#17324D)}
+.qb{transition:transform .08s}.qb:active{transform:scale(.9)}

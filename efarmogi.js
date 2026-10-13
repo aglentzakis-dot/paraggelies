@@ -463,15 +463,30 @@ function ordersView() {
   const list = S.orders.filter(o => ordMatch(o, ordFilter)).sort((a, b) => ordFilter.st === "all" || ordFilter.st === "paid" || ordFilter.st === "cancel" ? b.rx - a.rx : (a.when.date || "9").localeCompare(b.when.date || "9") || a.rx - b.rx);
   const lk = S.link.sentAt && !S.link.gSent ? `<div class="warnbox"><b>Στείλε μία τελευταία φορά τον κατάλογο στους πελάτες σου.</b> Από εκεί και πέρα κάθε αλλαγή σε προϊόντα, τιμές και ημέρες φτάνει μόνη της, χωρίς νέο σύνδεσμο. <button type="button" class="btn sm amber" data-act="link" style="margin-top:6px">Στείλε τον κατάλογο</button></div>` : "";
   const ntw = S.shop.name && !S.nt.on ? `<div class="warnbox">🔔 Οι ειδοποιήσεις δεν έχουν ενεργοποιηθεί ακόμα. <button type="button" class="btn sm amber" data-act="notif" style="margin-top:6px">Ενεργοποίηση</button></div>` : "";
-  return demoBanner() + updBanner() + installBanner() + (DEMO ? "" : onboarding()) + (DEMO ? "" : lk + ntw) + remindersHTML() + `
+  return heroHTML() + demoBanner() + updBanner() + installBanner() + (DEMO ? "" : onboarding()) + (DEMO ? "" : lk + ntw) + remindersHTML() + `
    <div class="note" id="liveSt" style="margin:0 2px 8px">${liveText()}</div>
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn amber grow" data-act="newOrder">＋ Παραγγελία</button><button type="button" class="btn ghost grow" data-act="paste">📋 Από μήνυμα</button><button type="button" class="btn soft" data-act="poll" aria-label="Έλεγχος για νέες">⟳</button></div>
    <div class="row" style="margin-bottom:10px"><button type="button" class="btn green grow" data-act="rtOpen">🚐 Δρομολόγιο</button><button type="button" class="btn soft grow" data-act="dvOpen">🚚 Διανομή</button><button type="button" class="btn soft grow" data-act="prepSheet">📦 Ετοιμασία</button></div>
    <div class="chips">${tabsDef.map(([k, l]) => `<button type="button" class="chip${ordFilter.st === k ? " on" : ""}" data-ost="${k}">${l}<span class="n">${cnt(k)}</span></button>`).join("")}</div>
    ${days.length ? `<div class="chips"><button type="button" class="chip${!ordFilter.day ? " on" : ""}" data-oday="">Όλες οι ημέρες</button>${days.map(d => `<button type="button" class="chip${ordFilter.day === d ? " on" : ""}" data-oday="${d}">${esc(K.dayLabel(d))}</button>`).join("")}</div>` : ""}
    ${ordFilter.st === "dup" ? `<div class="warnbox">Αυτές ήρθαν δεύτερη φορά με ίδια είδη από τον ίδιο πελάτη μέσα σε 15 λεπτά. Κράτησέ τες μόνο αν είναι πράγματι νέες παραγγελίες.</div>` : ""}
-   ${list.length ? list.map(ordCard).join("") : `<div class="card" style="text-align:center;color:var(--mute)">Δεν υπάρχουν παραγγελίες εδώ.</div>`}
+   ${list.length ? list.map(ordCard).join("") : ordEmpty()}
    <div class="efm-host" id="efmHost"></div>`;
+}
+/* καλωσόρισμα με τη μέρα σου με μια ματιά */
+function heroHTML() {
+  const h = new Date().getHours(), gr = h < 5 ? "Καλό βράδυ" : h < 13 ? "Καλημέρα" : h < 21 ? "Καλησπέρα" : "Καλό βράδυ";
+  const td = today(), act = S.orders.filter(o => o.st !== "cancel" && o.st !== "dup");
+  const nT = act.filter(o => o.when && o.when.date === td).length, nN = S.orders.filter(o => o.st === "new").length;
+  const owed = K.round2(debtors().reduce((a, x) => a + x.v, 0));
+  return `<div class="hero"><div class="hh"><span class="hg">${gr} 👋</span><b>${esc(S.shop.name || "Καλώς ήρθες")}</b></div>
+   <div class="hs"><button type="button" data-ost="new"><b>${nN}</b><small>${nN === 1 ? "νέα" : "νέες"}</small></button><button type="button" data-oday="${td}"><b>${nT}</b><small>για σήμερα</small></button><button type="button" data-act="collectList"${owed ? ' class="owe"' : ""}><b>${K.money(owed)}</b><small>σου χρωστάνε</small></button></div></div>`;
+}
+function ordEmpty() {
+  const st = ordFilter.st;
+  if (st === "new") return `<div class="emp"><div class="ee">🧺</div><b>Καμία νέα παραγγελία αυτή τη στιγμή</b><span>Στείλε τον κατάλογο στους πελάτες σου στο Viber. Οι παραγγελίες τους έρχονται εδώ μόνες τους.</span><button type="button" class="btn amber" data-act="link">📤 Στείλε τον κατάλογο</button></div>`;
+  const M = { prep: ["📦", "Τίποτα δεν ετοιμάζεται τώρα"], done: ["🚚", "Δεν υπάρχουν παραδομένες εδώ"], paid: ["💶", "Δεν υπάρχουν πληρωμένες εδώ"], cancel: ["🙌", "Καμία ακυρωμένη"], all: ["🧾", "Δεν υπάρχουν παραγγελίες εδώ."] }[st] || ["🧾", "Δεν υπάρχουν παραγγελίες εδώ."];
+  return `<div class="emp sm"><div class="ee">${M[0]}</div><b>${M[1]}</b></div>`;
 }
 function ordCard(o) {
   const items = o.lines.map(l => qtyTxt(l) + " " + l.name).join(" · ");
@@ -892,33 +907,73 @@ async function packAsk() {
   toast("Έχεις " + (packSt.full ? "το πακέτο GlenApps Full" : "και την εφαρμογή Ταμεία") + ". Διάλεξε αν θέλεις σύνδεση.", 4000);
   linkSheet2();
 }
-/* ---------- εμφάνιση: θέματα χρωμάτων και φόντο (όπως στο Δρομολόγιο) ---------- */
-const THEMES = { classic: { name: "Κλασικό", brand: "#17324D", accent: "#F2B632", paper: "#EDF1F2", ink: "#16232f" }, forest: { name: "Δάσος", brand: "#1E4D3A", accent: "#E9B949", paper: "#EDF3EF", ink: "#16372A" }, sea: { name: "Θάλασσα", brand: "#0B4F6C", accent: "#4FD1C5", paper: "#EAF3F6", ink: "#0C3446" }, sunset: { name: "Δειλινό", brand: "#5A2A3C", accent: "#F29E4C", paper: "#F6EFEC", ink: "#3B1E28" }, earth: { name: "Χώμα", brand: "#4A3726", accent: "#D9A441", paper: "#F3EFE8", ink: "#33261A" } };
-const lookOf = () => Object.assign({ theme: "classic", bg: "art", op: 0.1, br: 1, custom: "" }, S && S.ui.look || {});
+/* ---------- εμφάνιση: χρώματα, φόντο, διαφάνεια (1.60 — όπως στο Ημερολόγιο, πιο πλούσιο) ---------- */
+const THEMES = {
+  classic: { name: "Κλασικό", brand: "#17324D", accent: "#F2B632", paper: "#EEF2F4", ink: "#16232f" },
+  honey: { name: "Μέλι", brand: "#A85A07", accent: "#FACC15", paper: "#FFF8E5", ink: "#3A2306" },
+  rose: { name: "Τριαντάφυλλο", brand: "#BE185D", accent: "#F9A8D4", paper: "#FFF1F6", ink: "#4A0D28" },
+  cherry: { name: "Κεράσι", brand: "#B91C1C", accent: "#FBBF24", paper: "#FEF3F2", ink: "#3F0D0D" },
+  sky: { name: "Ουρανός", brand: "#1D4ED8", accent: "#38BDF8", paper: "#EFF6FF", ink: "#0F1E46" },
+  lavender: { name: "Λεβάντα", brand: "#6D28D9", accent: "#F0ABFC", paper: "#F6F3FF", ink: "#2A1052" },
+  mint: { name: "Μέντα", brand: "#0F766E", accent: "#5EEAD4", paper: "#EDFBF7", ink: "#083B37" },
+  orange: { name: "Πορτοκάλι", brand: "#C2410C", accent: "#FDBA74", paper: "#FFF6EE", ink: "#431A06" },
+  forest: { name: "Δάσος", brand: "#1E4D3A", accent: "#E9B949", paper: "#EDF3EF", ink: "#16372A" },
+  sea: { name: "Θάλασσα", brand: "#0B4F6C", accent: "#4FD1C5", paper: "#EAF3F6", ink: "#0C3446" },
+  sunset: { name: "Δειλινό", brand: "#5A2A3C", accent: "#F29E4C", paper: "#F6EFEC", ink: "#3B1E28" },
+  earth: { name: "Χώμα", brand: "#4A3726", accent: "#D9A441", paper: "#F3EFE8", ink: "#33261A" },
+  graphite: { name: "Γραφίτης", brand: "#1F2937", accent: "#F59E0B", paper: "#F2F3F5", ink: "#111827" }
+};
+const BGS = { wc: ["🎨", "Υδατογραφία"], pat: ["🌿", "Μοτίβο"], icon: ["🧺", "Το σήμα"], photo: ["📷", "Φωτογραφία"], none: ["▫️", "Απλό"] };
+const LOOK0 = { theme: "classic", bg: "wc", op: 0.55, br: 1, glass: 0, custom: "", own: null };
+const lookOf = () => { const L = Object.assign({}, LOOK0, S && S.ui.look || {}); if (L.bg === "art") L.bg = L.custom ? "photo" : "icon"; if (L.bg === "photo" && !L.custom) L.bg = "wc"; return L; };
 const lumOf = hex => { const n = parseInt(String(hex).replace("#", ""), 16); if (isNaN(n)) return .5; const f = c => { c /= 255; return c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; }; return .2126 * f(n >> 16 & 255) + .7152 * f(n >> 8 & 255) + .0722 * f(n & 255); };
+const hexMix = (a, b, t) => { const p = h => { const n = parseInt(String(h).replace("#", ""), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }, x = p(a), y = p(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join(""); };
+/* δικό σου χρώμα: αν είναι πολύ ανοιχτό, σκουραίνει όσο χρειάζεται για να διαβάζονται τα γράμματα */
+function ownTheme(o) {
+  let b = /^#[0-9a-f]{6}$/i.test(o && o.brand || "") ? o.brand : "#17324D"; const a = /^#[0-9a-f]{6}$/i.test(o && o.accent || "") ? o.accent : "#F2B632";
+  for (let i = 0; i < 12 && lumOf(b) > .2; i++) b = hexMix(b, "#000000", .15);
+  return { name: "Δικό μου", brand: b, accent: a, paper: hexMix(b, "#ffffff", .93), ink: hexMix(b, "#000000", .55) };
+}
+const themeOf = L => L.theme === "own" ? ownTheme(L.own) : (THEMES[L.theme] || THEMES.classic);
+function patSvg(c, a) {
+  const e = encodeURIComponent(c), f = encodeURIComponent(a);
+  return `url("data:image/svg+xml,${`%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cg fill='none' stroke='${e}' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cellipse cx='30' cy='34' rx='11' ry='14'/%3E%3Cpath d='M104 22c14 0 24 10 24 24-14 0-24-10-24-24zM104 22l24 24'/%3E%3Cpath d='M40 112h34l-4 22H44zM44 112c0-9 26-9 26 0'/%3E%3Cpath d='M120 112c-8-8-2-18 6-12 8-6 14 4 6 12l-6 6z'/%3E%3C/g%3E%3Cg fill='${f}'%3E%3Ccircle cx='80' cy='70' r='3.5'/%3E%3Ccircle cx='146' cy='84' r='2.5'/%3E%3Ccircle cx='12' cy='86' r='2.5'/%3E%3Ccircle cx='88' cy='150' r='2.5'/%3E%3C/g%3E%3C/svg%3E`}")`;
+}
 function applyLook() {
-  if (!S) return; const L = lookOf(), T = THEMES[L.theme] || THEMES.classic, R = document.documentElement.style;
+  if (!S) return; const L = lookOf(), T = themeOf(L), R = document.documentElement.style, H = document.documentElement;
   R.setProperty("--brand", T.brand); R.setProperty("--accent", T.accent); R.setProperty("--paper", T.paper); R.setProperty("--ink", T.ink);
   R.setProperty("--onbrand", lumOf(T.brand) > .45 ? "#10202E" : "#fff"); R.setProperty("--onaccent", lumOf(T.accent) > .35 ? "#10202E" : "#fff");
+  R.setProperty("--cardbg", `rgba(255,255,255,${(1 - Math.min(.45, Math.max(0, +L.glass || 0))).toFixed(2)})`); if (L.glass > .02) H.dataset.glass = "1"; else delete H.dataset.glass;
+  R.setProperty("--bgop", String(Math.min(1, Math.max(0, +L.op)))); R.setProperty("--bgbr", String(L.br || 1));
   const m = $('meta[name="theme-color"]'); if (m) m.content = T.brand;
-  const src = L.bg === "none" ? "" : (L.custom || "eikonidia/icon-512.png");
-  document.body.style.setProperty("--bgimg", src ? `url("${src}")` : "none"); document.body.classList.toggle("hasbg", !!src);
-  document.body.style.setProperty("--bgop", String(L.op)); document.body.style.setProperty("--bgbr", String(L.br));
+  let bg = $("#skinbg"); if (!bg) { document.body.insertAdjacentHTML("afterbegin", `<div id="skinbg" aria-hidden="true"><div class="ski"></div><i class="wc wc1"></i><i class="wc wc2"></i><i class="wc wc3"></i><i class="wc wc4"></i></div>`); bg = $("#skinbg"); }
+  H.dataset.bg = L.bg;
+  const img = L.bg === "photo" ? `url("${L.custom}")` : L.bg === "icon" ? `url("eikonidia/icon-512.png")` : L.bg === "pat" ? patSvg(T.brand, T.accent) : "none";
+  bg.querySelector(".ski").style.backgroundImage = img;
+  document.body.classList.remove("hasbg");
 }
 A.applyLook = applyLook;
+const lookLabel = () => { const L = lookOf(); return themeOf(L).name + " · " + BGS[L.bg][1].toLowerCase(); };
 function lookSheet() {
-  const L = lookOf(), pc = v => Math.round(v * 100) + "%";
-  sheet("🎨 Εμφάνιση και φόντο", `<div class="card"><h3>Έτοιμα θέματα</h3><div class="themes">${Object.entries(THEMES).map(([k, t]) => `<button type="button" class="theme${L.theme === k ? " on" : ""}" data-theme="${k}"><span style="background:${t.brand}"></span><span style="background:${t.accent}"></span><span style="background:${t.paper}"></span><em>${t.name}</em></button>`).join("")}</div></div>
-    <div class="card"><h3>Φόντο εφαρμογής</h3><div class="paysel"><button type="button" class="${L.bg !== "none" ? "on" : ""}" data-lkbg="art">🖼 Εικόνα</button><button type="button" class="${L.bg === "none" ? "on" : ""}" data-lkbg="none">▫️ Απλό</button></div>
-     <label class="f" for="lkOp">Πόσο έντονο: <b id="lkOpV">${pc(L.op)}</b></label><input type="range" id="lkOp" min="0.03" max="0.45" step="0.01" value="${L.op}" style="width:100%">
-     <label class="f" for="lkBr">Φωτεινότητα: <b id="lkBrV">${pc(L.br)}</b></label><input type="range" id="lkBr" min="0.4" max="1.6" step="0.05" value="${L.br}" style="width:100%">
-     <div class="row" style="margin-top:10px"><label class="btn soft sm grow" style="text-align:center;cursor:pointer">📷 Δική μου εικόνα φόντου<input type="file" id="lkFile" accept="image/*" hidden></label><button type="button" class="btn ghost sm" data-act="lkReset">↩ Επαναφορά</button></div>
-     <p class="note" style="margin:6px 0 0">Βάλε μόνο εικόνα που σου ανήκει ή έχεις δικαίωμα να χρησιμοποιείς.</p></div>`, "",
+  const L = lookOf(), pc = v => Math.round(v * 100) + "%", own = ownTheme(L.own);
+  const sw = (k, t) => `<button type="button" class="theme${L.theme === k ? " on" : ""}" data-theme="${k}" style="--tb:${t.brand};--ta:${t.accent};--tp:${t.paper}"><span class="thh"></span><span class="thb"><i></i><i></i></span><em>${t.name}</em>${L.theme === k ? `<span class="thok">✓</span>` : ""}</button>`;
+  sheet("🎨 Εμφάνιση", `<div class="card"><h3>Χρώματα</h3><div class="themes">${Object.entries(THEMES).map(([k, t]) => sw(k, t)).join("")}</div>
+     <div class="ownrow"><span><b>Δικό μου χρώμα</b><small>Διάλεξε κύριο και δεύτερο χρώμα</small></span><label class="cpick" style="--c:${own.brand}"><input type="color" id="lkOwnB" value="${own.brand}" aria-label="Κύριο χρώμα"></label><label class="cpick" style="--c:${own.accent}"><input type="color" id="lkOwnA" value="${own.accent}" aria-label="Δεύτερο χρώμα"></label></div></div>
+    <div class="card"><h3>Φόντο</h3><div class="bgopts">${Object.entries(BGS).map(([k, [e, n]]) => `<button type="button" class="bgo bg-${k}${L.bg === k ? " on" : ""}" data-lkbg="${k}"><span class="bgp"${k === "photo" && L.custom ? ` style="background-image:url('${L.custom}')"` : ""}>${k === "photo" && L.custom ? "" : e}</span><em>${n}</em></button>`).join("")}</div>
+     <input type="file" id="lkFile" accept="image/*" hidden>
+     <div class="sld"><label for="lkOp">Ένταση φόντου <b id="lkOpV">${pc(L.op)}</b></label><input type="range" id="lkOp" min="0" max="1" step="0.05" value="${L.op}"></div>
+     <div class="sld"><label for="lkBr">Φωτεινότητα <b id="lkBrV">${pc(L.br)}</b></label><input type="range" id="lkBr" min="0.4" max="1.6" step="0.05" value="${L.br}"></div>
+     <div class="sld"><label for="lkGl">Διαφάνεια καρτών <b id="lkGlV">${pc(L.glass)}</b></label><input type="range" id="lkGl" min="0" max="0.45" step="0.03" value="${L.glass}"></div>
+     <div class="row" style="margin-top:8px"><button type="button" class="btn soft sm grow" data-act="lkPhoto">📷 ${L.custom ? "Άλλη φωτογραφία" : "Δική μου φωτογραφία"}</button><button type="button" class="btn ghost sm" data-act="lkReset">↩ Αρχικά</button></div>
+     <p class="note" style="margin:8px 0 0">Βάλε μόνο φωτογραφία που σου ανήκει ή έχεις δικαίωμα να χρησιμοποιείς. Μένει μόνο στο κινητό σου.</p></div>`, "",
     el => {
-      const set = (k, v) => { S.ui.look = Object.assign(lookOf(), { [k]: v }); save(); applyLook(); };
-      el.querySelector("#lkOp").addEventListener("input", e => { set("op", +e.target.value); el.querySelector("#lkOpV").textContent = pc(+e.target.value); });
-      el.querySelector("#lkBr").addEventListener("input", e => { set("br", +e.target.value); el.querySelector("#lkBrV").textContent = pc(+e.target.value); });
-      el.querySelector("#lkFile").addEventListener("change", async e => { const f = e.target.files[0]; if (!f) return; try { const d = await K.shrinkImage(f, 640, 0.7); S.ui.look = Object.assign(lookOf(), { custom: d, bg: "art" }); save(); applyLook(); toast("✓ Η εικόνα μπήκε ως φόντο"); lookSheet(); } catch { toast("Η εικόνα δεν άνοιξε."); } });
+      const set = (k, v) => { S.ui.look = Object.assign(lookOf(), { [k]: v }); applyLook(); clearTimeout(set.t); set.t = setTimeout(save, 300); };
+      const sl = (id, k, f) => el.querySelector(id).addEventListener("input", e => { set(k, +e.target.value); el.querySelector(id + "V").textContent = pc(+e.target.value); });
+      sl("#lkOp", "op"); sl("#lkBr", "br"); sl("#lkGl", "glass");
+      const ownSet = (k, v) => { const o = Object.assign({}, lookOf().own || { brand: own.brand, accent: own.accent }, { [k]: v }); S.ui.look = Object.assign(lookOf(), { own: o, theme: "own" }); applyLook(); clearTimeout(ownSet.t); ownSet.t = setTimeout(() => { save(); }, 300); el.querySelectorAll(".theme.on").forEach(x => { x.classList.remove("on"); const k2 = x.querySelector(".thok"); if (k2) k2.remove(); }); };
+      el.querySelector("#lkOwnB").addEventListener("input", e => { ownSet("brand", e.target.value); e.target.parentNode.style.setProperty("--c", e.target.value); });
+      el.querySelector("#lkOwnA").addEventListener("input", e => { ownSet("accent", e.target.value); e.target.parentNode.style.setProperty("--c", e.target.value); });
+      el.querySelector("#lkFile").addEventListener("change", async e => { const f = e.target.files[0]; if (!f) return; try { const d = await K.shrinkImage(f, 1080, 0.72); S.ui.look = Object.assign(lookOf(), { custom: d, bg: "photo", op: Math.max(.35, lookOf().op) }); save(); applyLook(); toast("✓ Η φωτογραφία μπήκε ως φόντο"); lookSheet(); } catch { toast("Η φωτογραφία δεν άνοιξε."); } });
     });
 }
 /* ---------- η καρτέλα «Ταμείο» ---------- */
@@ -1164,7 +1219,7 @@ function custsView() {
       ${c.area ? `<span class="cuar${c.areaAuto ? " auto" : ""}">📍 ${esc(c.area)}${c.areaAuto ? (c.areaAuto === "c" ? " · από τις επαφές" : " · αυτόματα") : ""}</span>` : ""}
       <span class="cus">${s.n} ${s.n === 1 ? "παραγγελία" : "παραγγελίες"} · τζίρος ${K.money(s.sum)}</span>
       ${s.owed > 0 || s.owed < 0 || g === "miss" || g === "noad" || g === "approx" || g === "amb" || g === "off" ? `<div class="cupl">${s.owed > 0 ? `<span class="pill new">χρωστά ${K.money(s.owed)}</span>` : s.owed < 0 ? `<span class="pill warn">επιστροφή ${K.money(-s.owed)}</span>` : ""}${g === "off" ? `<span class="cugeo bad">⚠️ Βρέθηκε σε άλλη περιοχή</span>` : g === "amb" ? `<span class="cugeo bad">❓ Ίδια διεύθυνση σε πολλές περιοχές</span>` : g === "miss" ? `<span class="cugeo bad">⚠️ Δεν βρέθηκε η διεύθυνση</span>` : g === "noad" ? `<span class="cugeo">Χωρίς διεύθυνση</span>` : g === "approx" ? `<span class="cugeo">≈ κατά προσέγγιση</span>` : ""}</div>` : ""}</div>
-     ${custActs(c)}</div>`; }).join("")}</div>` : `<div class="card"><p class="note">Οι πελάτες προστίθενται μόνοι τους με την πρώτη τους παραγγελία, ή με «＋ Νέος».</p></div>`}`;
+     ${custActs(c)}</div>`; }).join("")}</div>` : custQ ? `<div class="emp sm"><div class="ee">🔍</div><b>Δεν βρέθηκε πελάτης</b><span>Δοκίμασε άλλο όνομα ή τηλέφωνο.</span></div>` : `<div class="emp"><div class="ee">👥</div><b>Οι πελάτες σου θα φαίνονται εδώ</b><span>Μπαίνουν μόνοι τους με την πρώτη τους παραγγελία. Μπορείς και να τους φέρεις από τις επαφές ή να τους γράψεις.</span><div class="row" style="justify-content:center"><button type="button" class="btn amber" data-act="link">📤 Στείλε τον κατάλογο</button><button type="button" class="btn soft" data-act="custNewBtn">＋ Νέος</button></div></div>`}`;
 }
 /* ---------- αξιολόγηση πελάτη (όπως στο Δρομολόγιο, για πωλητή) ---------- */
 const RATE_CATS = [
@@ -2169,7 +2224,7 @@ function moreView() {
    ${it("🏪", "Στοιχεία πωλητή", sh.ok ? "Συμπληρωμένα" : "Λείπουν: " + sh.miss.join(", "), "shop")}
    ${it("🚚", "Παράδοση και ημέρες", deliveryText(), "deliv")}
    ${it("📤", "Στείλε τον κατάλογο", S.link.sentAt ? (S.link.gSent ? "Οι αλλαγές φτάνουν μόνες τους στους πελάτες" + (S.link.catAt ? " · τελευταία " + fmtTime(S.link.catAt) : "") : "Στάλθηκε " + fmtTime(S.link.sentAt) + " · στείλ' τον μία τελευταία φορά") : "Δεν έχει σταλεί ακόμα", "link")}
-   ${it("🎨", "Εμφάνιση και φόντο", (THEMES[lookOf().theme] || THEMES.classic).name + " · φόντο " + (lookOf().bg === "none" ? "απλό" : "εικόνα"), "look")}
+   ${it("🎨", "Εμφάνιση", "Χρώματα, φόντο, διαφάνεια · " + lookLabel(), "look")}
    ${it("🔔", "Ειδοποιήσεις", S.nt.on ? "Ενεργές" : "Δεν έχουν ενεργοποιηθεί", "notif")}
    ${it("🏷️", "Έτοιμοι κατάλογοι επαγγελμάτων", "Πρόσθεσε ή άλλαξε επάγγελμα", "presetsGo")}
    ${it("📋", "Παραγγελία από μήνυμα Viber", "Επικόλληση ή κοινοποίηση μηνύματος", "paste")}</div>
@@ -2653,6 +2708,7 @@ const ACT = {
   demoEnd: () => demoEnd(),
   look: () => lookSheet(),
   lkReset: () => { S.ui.look = {}; save(); applyLook(); lookSheet(); },
+  lkPhoto: () => { const f = $("#lkFile"); if (f) f.click(); },
   lang: () => sheet("🌐 Γλώσσα · Language", `<div class="bigopts">${[["el", "🇬🇷", "Ελληνικά"], ["en", "🇬🇧", "English"]].map(([k, f, n]) => `<button type="button" class="bigopt" data-setlang="${k}"><span class="e">${f}</span><span class="t"><b data-notr="1">${n}</b></span>${(window.Glossa && Glossa.lang) === k ? '<span class="g">✓</span>' : ""}</button>`).join("")}</div><p class="note" data-notr="1">Η γλώσσα αφορά την εφαρμογή σου. Οι πελάτες βλέπουν τη σελίδα παραγγελίας στα ελληνικά. · The language applies to your app. Customers see the order page in Greek.</p>`),
   prepSheet: () => sheet("📦 Ετοιμασία ημέρας", prepView()),
   lkSave: () => { S.ui.tmSync = !!$("#lkTm").checked; S.ui.imSync = !!($("#lkIm") && $("#lkIm").checked && packSt && packSt.full); save(); closeSheet(); tmSync(); toast("✓ Αποθηκεύτηκε", 2000); render(); },
@@ -2803,7 +2859,7 @@ document.addEventListener("click", async e => {
   const tb = t.closest("#tabs [data-tab], #gearBtn"); if (tb) { if (tab !== tb.dataset.tab) { tab = tb.dataset.tab; window.scrollTo(0, 0); render(); } return; }
   if (t.id === "sheetbg") { closeSheet(); return; }
   { const x = t.closest("[data-theme]"); if (x) { S.ui.look = Object.assign(lookOf(), { theme: x.dataset.theme }); save(); applyLook(); lookSheet(); return; } }
-  { const x = t.closest("[data-lkbg]"); if (x) { S.ui.look = Object.assign(lookOf(), { bg: x.dataset.lkbg }); save(); applyLook(); lookSheet(); return; } }
+  { const x = t.closest("[data-lkbg]"); if (x) { if (x.dataset.lkbg === "photo" && !lookOf().custom) { const f = $("#lkFile"); if (f) f.click(); return; } S.ui.look = Object.assign(lookOf(), { bg: x.dataset.lkbg }); save(); applyLook(); lookSheet(); return; } }
   { const x = t.closest("[data-setlang]"); if (x) { if (window.Glossa) Glossa.set(x.dataset.setlang); return; } }
   { const x = t.closest("[data-cmsg]"); if (x) { e.stopPropagation(); custMsg(x.dataset.cmsg); return; } }
   { const x = t.closest("[data-cpin]"); if (x) { e.stopPropagation(); custPinGo(x.dataset.cpin); return; } }
