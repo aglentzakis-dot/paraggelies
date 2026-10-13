@@ -179,8 +179,8 @@ function emLayout() {
       if (!H[z[1]]) { w.insertAdjacentHTML("beforeend", '<button type="button" class="emx" data-emhide="' + z[1] + '" aria-label="' + emL("Απόκρυψη: ", "Hide: ") + z[2] + '" title="' + emL("Κρύψ' το αν δεν το χρησιμοποιείς", "Hide it if you don't use it") + '">✕</button>'); }
     });
     var hidden = [["sup", "🏭 " + emL("Προμηθευτές", "Suppliers")], ["tb", "🏦 " + emL("Τράπεζα", "Bank")]].filter(function (z) { return H[z[0]] && (z[0] === "sup" ? sup : tb); });
-    if (hidden.length) anchor.insertAdjacentHTML("afterend", '<div id="emHidLine" class="emhid">' + emL("Κρυμμένα:", "Hidden:") + " " + hidden.map(function (z) { return '<button type="button" data-emshow="' + z[0] + '">' + z[1] + " · " + emL("εμφάνιση", "show") + "</button>"; }).join("") + "</div>");
-    main.querySelectorAll("[data-emhide]").forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var k = b.dataset.emhide; if (!confirm(emL("Να κρυφτεί; Το ξαναβρίσκεις με «εμφάνιση» κάτω από τα σύνολα. Δεν σβήνεται τίποτα.", "Hide it? You can bring it back with «show» under the totals. Nothing is deleted."))) return; emHid()[k] = 1; write(); render(); }; });
+    if (hidden.length) main.insertAdjacentHTML("beforeend", '<div id="emHidLine" class="emhid">' + emL("Κρυμμένα:", "Hidden:") + " " + hidden.map(function (z) { return '<button type="button" data-emshow="' + z[0] + '">' + z[1] + " · " + emL("εμφάνιση", "show") + "</button>"; }).join("") + "</div>");
+    main.querySelectorAll("[data-emhide]").forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var k = b.dataset.emhide; if (!confirm(emL("Να κρυφτεί; Το ξαναβρίσκεις κάτω κάτω στη λίστα, με «εμφάνιση». Δεν σβήνεται τίποτα.", "Hide it? You can bring it back with «show» at the very bottom of the list. Nothing is deleted."))) return; emHid()[k] = 1; write(); render(); }; });
     main.querySelectorAll("[data-emshow]").forEach(function (b) { b.onclick = function () { delete emHid()[b.dataset.emshow]; write(); render(); }; });
   } catch (e) {}
 }

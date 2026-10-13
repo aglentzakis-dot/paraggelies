@@ -656,11 +656,12 @@ function statusText(o) {
 }
 /* μετά από αλλαγή κατάστασης: πρόταση να ενημερωθεί ο πελάτης */
 function askNotify(o, st) {
-  if (!["prep", "done", "cancel"].includes(st)) { if (isSheetOpen()) openOrder(o.id); return; }
+  if (!["prep", "done", "cancel"].includes(st) || S.ui.noAsk) { if (isSheetOpen()) openOrder(o.id); return; }
   const head = { prep: "▶ Η παραγγελία ετοιμάζεται", done: "✓ Η παραγγελία παραδόθηκε", cancel: "✕ Η παραγγελία ακυρώθηκε" }[st];
   sheet("💬 Ενημέρωση πελάτη", `<div class="okbox"><b>${head}.</b> Θέλεις να το μάθει και ο/η ${esc(o.cust.name)};</div>
    <div class="card"><div class="note" style="margin:0 0 6px">Το μήνυμα που θα σταλεί:</div><div style="background:#f5f7f8;border-radius:10px;padding:10px;font-size:14.5px">${esc(statusText(o))}</div></div>
-   ${ntfOf(o) ? ntfStatus(o) : ""}<div class="row" style="margin-bottom:10px">${msgButtons(o)}</div>`,
+   ${ntfOf(o) ? ntfStatus(o) : ""}<div class="row" style="margin-bottom:10px">${msgButtons(o)}</div>
+   <label class="ck noask"><input type="checkbox" id="anOff"><span><b>Να μην ξαναεμφανιστεί</b><small>Το μήνυμα το στέλνεις και από μέσα από την παραγγελία («💬 Ενημέρωση πελάτη»). Αν θέλεις να ξαναβγαίνει, το ανοίγεις από τις <b>⚙️ Ρυθμίσεις › 💬 Πρόταση ενημέρωσης πελάτη</b>.</small></span></label>`,
    `<button type="button" class="btn soft" data-act="shClose">Όχι τώρα</button><button type="button" class="btn ghost" data-act="ntOrder" data-oid="${o.id}">Άνοιγμα παραγγελίας</button>`);
 }
 function msgButtons(o) {
@@ -1031,7 +1032,8 @@ const PEEK = { t0: 0, tm: null, prev: null, y: 0,
   on() { clearTimeout(PEEK.tm); if (tab !== "orders" && PEEK.prev == null) { PEEK.prev = tab; PEEK.y = window.scrollY; tab = "orders"; render(); window.scrollTo(0, 0); } $("#sheetbg").classList.add("peek"); },
   off() { $("#sheetbg").classList.remove("peek"); if (PEEK.prev != null) { tab = PEEK.prev; PEEK.prev = null; render(); window.scrollTo(0, PEEK.y); } },
   up() { if (!PEEK.t0) return; const held = Date.now() - PEEK.t0; PEEK.t0 = 0; if (held < 350) PEEK.tm = setTimeout(PEEK.off, 2000); else PEEK.off(); } };
-window.addEventListener("pointerup", PEEK.up); window.addEventListener("pointercancel", PEEK.up);
+window.addEventListener("pointerup", PEEK.up);
+document.addEventListener("change", e => { if (e.target && e.target.id === "anOff") { S.ui.noAsk = e.target.checked; save(); if (e.target.checked) toast("Δεν θα ξαναβγαίνει. Αν το θέλεις πάλι: ⚙️ Ρυθμίσεις › 💬 Πρόταση ενημέρωσης πελάτη.", 5000); } }); window.addEventListener("pointercancel", PEEK.up);
 const lookLabel = () => { const L = lookOf(); return themeOf(L).name + " · " + BGS[L.bg][1].toLowerCase(); };
 function lookSheet() {
   const L = lookOf(), pc = v => Math.round(v * 100) + "%", own = ownTheme(L.own);
@@ -1314,7 +1316,7 @@ function custsView() {
   const nAll = Object.keys(S.customers).length;
   const owedAll = K.round2(Object.keys(S.customers).reduce((a, k) => a + custStats(k).owed, 0));
   return `<div class="row" style="margin-bottom:10px"><input class="t grow" id="custQ" placeholder="🔍 Αναζήτηση πελάτη" value="${esc(custQ)}"><button type="button" class="btn amber" data-act="custNewBtn">＋ Νέος</button><button type="button" class="btn soft" data-act="custContacts" aria-label="Από τις επαφές" title="Πελάτες από τις επαφές του κινητού">📇</button></div>
-   <button type="button" class="btn green wide cumapb" data-act="custMap">🗺 Χάρτης πελατών</button>
+   <button type="button" class="btn soft wide cumapb" data-act="custMap"><span>🗺</span> Χάρτης πελατών <span class="cumapg">›</span></button>
    ${nAll > 1 ? `<div class="cusort"><span>Ταξινόμηση</span><div class="chips">${Object.entries(CU_SORT).map(([k, l]) => `<button type="button" class="chip sm${so === k ? " on" : ""}" data-cusort="${k}">${l}</button>`).join("")}</div></div>` : ""}
    ${owedAll > 0 ? `<div class="warnbox">Σου χρωστάνε συνολικά <b>${K.money(owedAll)}</b> από παραδομένες παραγγελίες.</div>` : ""}
    ${L.length ? `<div class="culist">${L.map(c => { const s = custStats(c.key), g = custGeoState(c); return `<div class="it cuit${s.owed > 0 ? " owe" : ""}${g === "miss" || g === "amb" || g === "off" ? " nogeo" : ""}" data-cust="${c.key}" style="--cc:${custColor(c.key)}">
@@ -2332,6 +2334,7 @@ function moreView() {
    ${it("📤", "Στείλε τον κατάλογο", S.link.sentAt ? (S.link.gSent ? "Οι αλλαγές φτάνουν μόνες τους στους πελάτες" + (S.link.catAt ? " · τελευταία " + fmtTime(S.link.catAt) : "") : "Στάλθηκε " + fmtTime(S.link.sentAt) + " · στείλ' τον μία τελευταία φορά") : "Δεν έχει σταλεί ακόμα", "link")}
    ${it("🎨", "Εμφάνιση", "Χρώματα, φόντο, διαφάνεια · " + lookLabel(), "look")}
    ${it("🔔", "Ειδοποιήσεις", S.nt.on ? "Ενεργές" : "Δεν έχουν ενεργοποιηθεί", "notif")}
+   ${it("💬", "Πρόταση ενημέρωσης πελάτη", S.ui.noAsk ? "Κλειστή · πάτα για να ξαναβγαίνει μετά από κάθε αλλαγή κατάστασης" : "Βγαίνει μετά από «Ετοιμάζεται», «Παραδόθηκε», «Ακυρώθηκε» · πάτα για να κλείσει", "askToggle")}
    ${it("🏷️", "Έτοιμοι κατάλογοι επαγγελμάτων", "Πρόσθεσε ή άλλαξε επάγγελμα", "presetsGo")}
    ${it("📋", "Παραγγελία από μήνυμα Viber", "Επικόλληση ή κοινοποίηση μηνύματος", "paste")}</div>
    <div class="card list">
@@ -2839,6 +2842,7 @@ const ACT = {
   lkReset: () => { S.ui.look = {}; save(); applyLook(); lookSheet(); },
   holdNext: () => holdDo("next"), holdDay: () => holdDo("day"),
   holdBack: () => { const o = $("#shB").dataset.hdo; if (o) openOrder(o); else closeSheet(); },
+  askToggle: () => { S.ui.noAsk = !S.ui.noAsk; save(); render(); toast(S.ui.noAsk ? "Η πρόταση ενημέρωσης πελάτη δεν θα βγαίνει. Το μήνυμα το στέλνεις από μέσα από την παραγγελία." : "✓ Η πρόταση ενημέρωσης πελάτη θα βγαίνει πάλι μετά από κάθε αλλαγή κατάστασης.", 4500); },
   heroFut: () => { ordFilter = { st: "all", day: "fut" }; render(); },
   zAdd: () => { const Z = zonesRead(); Z.push({ a: [], d: [] }); zonesPut(Z); const i = $(`[data-za="${Z.length - 1}"]`); if (i) i.focus(); },
   zEx: () => { const Z = zonesRead().filter(z => z.a.length || z.d.length); Z.push({ a: ["Εξάρχεια", "Αμπελόκηποι"], d: [1, 3, 5] }, { a: ["Κυψέλη", "Πατήσια"], d: [2, 4, 6] }); zonesPut(Z); toast("Άλλαξε τις περιοχές και τις ημέρες όπως θέλεις και πάτα «Αποθήκευση».", 4500); },

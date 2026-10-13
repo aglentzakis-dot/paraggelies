@@ -8,6 +8,7 @@
 const K = window.Kat, A = window.App, esc = K.esc;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const ed = { path: [], marked: new Set(), view: "menu", q: "", hint: true };
+const HINT_DAYS = 10;   /* «Εντάξει» στην οδηγία: δεν ξαναβγαίνει για τόσες ημέρες */
 const S = () => A.S();
 const EMOJIS = ["🥚", "🐓", "🍯", "🐝", "🫒", "🍞", "🥖", "🥐", "🥧", "🍪", "🎂", "🧀", "🥛", "💧", "🍷", "🍅", "🥬", "🥔", "🧅", "🍊", "🍋", "🍎", "🍇", "🍓", "🌿", "🌸", "☕", "🍗", "🥩", "🐟", "🧺", "📦", "⭐", "🎁"];
 const TILE_COLORS = ["", "#FFF4D6", "#FDE2C8", "#F9D5D3", "#E3F1DF", "#DCEBF7", "#ECE3F5", "#F1F1EC", "#17324D", "#0B6E4F", "#7A3E1D", "#8C1C13", "#C2185B", "#E07A00"];
@@ -62,7 +63,7 @@ A.menuView = function (m) {
   ${path.length ? `<div style="display:flex;align-items:center;gap:8px;margin:2px 2px 12px;border-bottom:3px solid var(--accent);padding-bottom:8px"><h2 style="margin:0;font-size:24px;flex:1;min-width:0">${path[path.length - 1].emoji ? esc(path[path.length - 1].emoji) + " " : ""}${esc(path[path.length - 1].name || "Χωρίς όνομα")}</h2><button type="button" class="btn soft sm" data-ea="catEdit">✏️ Ρυθμίσεις</button></div>` : ""}`;
   const empty = !st.menu.length;
   m.innerHTML = seg + crumbs +
-    (ed.hint && L.length ? `<div class="note" style="margin:0 0 10px"><b>Πάτα ένα προϊόν</b> για να αλλάξεις όνομα και τιμή. <b>Πάτα μια κατηγορία</b> για να μπεις μέσα της. Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά, ή άφησέ το <b>πάνω σε μια κατηγορία</b> για να μπει μέσα της. <a href="#" data-ea="hintOff">Εντάξει</a></div>` : "") +
+    (ed.hint && !(st.ui && st.ui.hintOffAt && Date.now() - st.ui.hintOffAt < HINT_DAYS * 864e5) && L.length ? `<div class="note" style="margin:0 0 10px"><b>Πάτα ένα προϊόν</b> για να αλλάξεις όνομα και τιμή. <b>Πάτα μια κατηγορία</b> για να μπεις μέσα της. Πάτα <b>✓</b> για να μαρκάρεις κουμπιά (ένα ή πολλά). Κράτα πατημένο ένα κουμπί και σύρε το για να αλλάξεις σειρά, ή άφησέ το <b>πάνω σε μια κατηγορία</b> για να μπει μέσα της. <a href="#" data-ea="hintOff">Εντάξει, κρύψ' το για ${HINT_DAYS} ημέρες</a></div>` : "") +
     (empty ? presetsHTML() : "") +
     (() => { const nd = liveProducts().filter(p => p.draft).length; return nd ? `<div class="warnbox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><div style="flex:1">📝 <b>${nd === 1 ? "1 ενδεικτικό προϊόν" : nd + " ενδεικτικά προϊόντα"}</b> ${nd === 1 ? "δεν φαίνεται" : "δεν φαίνονται"} ακόμα στους πελάτες (αχνά κουμπιά).</div><button type="button" class="btn sm amber" data-ev="list">Έλεγχος και ενεργοποίηση</button></div>` : ""; })() +
     (() => { if (ed.path.length) return ""; const lo = st.menu.filter(n => n.t === "p").length; return lo && st.menu.some(n => n.t === "c") ? `<div class="warnbox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><div style="flex:1">Έχεις <b>${lo} ${lo === 1 ? "προϊόν" : "προϊόντα"} χύμα</b> στην αρχική, ανάμεσα στις κατηγορίες. Ο πελάτης τα βλέπει μπερδεμένα.</div><button type="button" class="btn sm amber" data-ea="tidy">🧹 Τακτοποίηση</button></div>` : ""; })() +
@@ -751,7 +752,7 @@ A.menuBack = function () {
 
 /* ---------- πατήματα ---------- */
 const EA = {
-  hintOff: () => { ed.hint = false; A.render(); },
+  hintOff: () => { const st = S(); st.ui.hintOffAt = Date.now(); A.save(); A.render(); A.toast("Η οδηγία κρύφτηκε για " + HINT_DAYS + " ημέρες.", 3000); },
   presets: presetPicker,
   presetBack: presetPicker,
   add: addSheet,
