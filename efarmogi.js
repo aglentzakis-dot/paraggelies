@@ -112,10 +112,10 @@ function sheet(title, body, foot, onOpen, onClose) {
   { const b = $("#shB"); for (const k of Object.keys(b.dataset)) delete b.dataset[k]; }   /* κάθε παράθυρο ξεκινά καθαρό: όχι σημάδια από το προηγούμενο */
   $("#shT").textContent = title; $("#shB").innerHTML = body; $("#shF").innerHTML = foot || ""; $("#shF").style.display = foot ? "" : "none";
   if (!isSheetOpen()) histPush({ sh: 1 });
-  $("#sheetbg").classList.add("open"); $("#shB").scrollTop = 0; shOnClose = onClose || null;
+  $("#sheetbg").classList.remove("peek"); $("#sheetbg").classList.add("open"); $("#shB").scrollTop = 0; shOnClose = onClose || null;
   if (onOpen) onOpen($("#shB"));
 }
-function hideSheet() { $("#sheetbg").classList.remove("open"); const f = shOnClose; shOnClose = null; if (f) f(); }
+function hideSheet() { $("#sheetbg").classList.remove("open", "peek"); const f = shOnClose; shOnClose = null; if (f) f(); }
 function closeSheet() { if (!isSheetOpen()) return; hideSheet(); if (history.state && history.state.sh) { skipPop++; history.back(); } }
 const isSheetOpen = () => $("#sheetbg").classList.contains("open");
 A.toast = toast; A.sheet = sheet; A.closeSheet = closeSheet;
@@ -949,15 +949,26 @@ function applyLook() {
   let bg = $("#skinbg"); if (!bg) { document.body.insertAdjacentHTML("afterbegin", `<div id="skinbg" aria-hidden="true"><div class="ski"></div><i class="wc wc1"></i><i class="wc wc2"></i><i class="wc wc3"></i><i class="wc wc4"></i></div>`); bg = $("#skinbg"); }
   H.dataset.bg = L.bg;
   const img = L.bg === "photo" ? `url("${L.custom}")` : L.bg === "icon" ? `url("eikonidia/icon-512.png")` : L.bg === "pat" ? patSvg(T.brand, T.accent) : "none";
-  bg.querySelector(".ski").style.backgroundImage = img;
+  document.querySelectorAll(".ski").forEach(x => { x.style.backgroundImage = img; });
   document.body.classList.remove("hasbg");
 }
 A.applyLook = applyLook;
+const PEEK = { t0: 0, tm: null, on() { clearTimeout(PEEK.tm); $("#sheetbg").classList.add("peek"); }, off() { $("#sheetbg").classList.remove("peek"); },
+  up() { if (!PEEK.t0) return; const held = Date.now() - PEEK.t0; PEEK.t0 = 0; if (held < 350) PEEK.tm = setTimeout(PEEK.off, 2000); else PEEK.off(); } };
+window.addEventListener("pointerup", PEEK.up); window.addEventListener("pointercancel", PEEK.up);
 const lookLabel = () => { const L = lookOf(); return themeOf(L).name + " · " + BGS[L.bg][1].toLowerCase(); };
 function lookSheet() {
   const L = lookOf(), pc = v => Math.round(v * 100) + "%", own = ownTheme(L.own);
   const sw = (k, t) => `<button type="button" class="theme${L.theme === k ? " on" : ""}" data-theme="${k}" style="--tb:${t.brand};--ta:${t.accent};--tp:${t.paper}"><span class="thh"></span><span class="thb"><i></i><i></i></span><em>${t.name}</em>${L.theme === k ? `<span class="thok">✓</span>` : ""}</button>`;
-  sheet("🎨 Εμφάνιση", `<div class="card"><h3>Χρώματα</h3><div class="themes">${Object.entries(THEMES).map(([k, t]) => sw(k, t)).join("")}</div>
+  const pv = `<div class="lkstick"><div class="lkpv" aria-hidden="true"><div class="pvbg"><div class="ski"></div><i class="wc wc1"></i><i class="wc wc2"></i><i class="wc wc3"></i></div>
+     <div class="pvtop"><img src="eikonidia/icon-192.png" alt=""><b>Παραγγελίες</b><span>⚙️</span></div>
+     <div class="pvin"><div class="pvhero"><small>Καλημέρα 👋</small><b>${esc(S.shop.name || "Το κατάστημά σου")}</b><span class="pvst"><i><b>3</b>νέες</i><i><b>5</b>για σήμερα</i></span></div>
+      <div class="pvrow"><span class="btn amber sm">＋ Παραγγελία</span><span class="btn green sm">🚐 Δρομολόγιο</span></div>
+      <div class="pvrow"><span class="chip on">Νέες 3</span><span class="chip">Ετοιμάζονται</span></div>
+      <div class="ord st-new pvord"><b>Μαρία Νικολάου</b><span class="tot">12,50 €</span></div></div>
+     <div class="pvtabs"><span>🗺</span><span class="on">🧾</span><span>🛒</span><span>👥</span><span>💶</span></div></div>
+    <button type="button" class="btn soft sm wide lkpeek" id="lkPeek">👁 Κράτα πατημένο για να δεις όλη την εφαρμογή</button></div>`;
+  sheet("🎨 Εμφάνιση", pv + `<div class="card"><h3>Χρώματα</h3><div class="themes">${Object.entries(THEMES).map(([k, t]) => sw(k, t)).join("")}</div>
      <div class="ownrow"><span><b>Δικό μου χρώμα</b><small>Διάλεξε κύριο και δεύτερο χρώμα</small></span><label class="cpick" style="--c:${own.brand}"><input type="color" id="lkOwnB" value="${own.brand}" aria-label="Κύριο χρώμα"></label><label class="cpick" style="--c:${own.accent}"><input type="color" id="lkOwnA" value="${own.accent}" aria-label="Δεύτερο χρώμα"></label></div></div>
     <div class="card"><h3>Φόντο</h3><div class="bgopts">${Object.entries(BGS).map(([k, [e, n]]) => `<button type="button" class="bgo bg-${k}${L.bg === k ? " on" : ""}" data-lkbg="${k}"><span class="bgp"${k === "photo" && L.custom ? ` style="background-image:url('${L.custom}')"` : ""}>${k === "photo" && L.custom ? "" : e}</span><em>${n}</em></button>`).join("")}</div>
      <input type="file" id="lkFile" accept="image/*" hidden>
@@ -969,7 +980,13 @@ function lookSheet() {
     el => {
       const set = (k, v) => { S.ui.look = Object.assign(lookOf(), { [k]: v }); applyLook(); save(); };
       const sl = (id, k, f) => el.querySelector(id).addEventListener("input", e => { set(k, +e.target.value); el.querySelector(id + "V").textContent = pc(+e.target.value); });
+      applyLook();
       sl("#lkOp", "op"); sl("#lkBr", "br"); sl("#lkGl", "glass");
+      /* ματιά σε όλη την εφαρμογή: κρατάς πατημένο (ή ένα πάτημα = 2 δευτερόλεπτα) */
+      { const pk = el.querySelector("#lkPeek");
+        pk.addEventListener("pointerdown", e => { e.preventDefault(); PEEK.t0 = Date.now(); PEEK.on(); });
+        pk.addEventListener("contextmenu", e => e.preventDefault());
+        pk.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); PEEK.on(); PEEK.tm = setTimeout(PEEK.off, 2000); } }); }
       const ownSet = (k, v) => { const o = Object.assign({}, lookOf().own || { brand: own.brand, accent: own.accent }, { [k]: v }); S.ui.look = Object.assign(lookOf(), { own: o, theme: "own" }); applyLook(); save(); el.querySelectorAll(".theme.on").forEach(x => { x.classList.remove("on"); const k2 = x.querySelector(".thok"); if (k2) k2.remove(); }); };
       el.querySelector("#lkOwnB").addEventListener("input", e => { ownSet("brand", e.target.value); e.target.parentNode.style.setProperty("--c", e.target.value); });
       el.querySelector("#lkOwnA").addEventListener("input", e => { ownSet("accent", e.target.value); e.target.parentNode.style.setProperty("--c", e.target.value); });
@@ -2883,8 +2900,8 @@ document.addEventListener("click", async e => {
   const t = e.target;
   const tb = t.closest("#tabs [data-tab], #gearBtn"); if (tb) { if (tab !== tb.dataset.tab) { tab = tb.dataset.tab; window.scrollTo(0, 0); render(); } return; }
   if (t.id === "sheetbg") { closeSheet(); return; }
-  { const x = t.closest("[data-theme]"); if (x) { S.ui.look = Object.assign(lookOf(), { theme: x.dataset.theme }); save(); applyLook(); lookSheet(); return; } }
-  { const x = t.closest("[data-lkbg]"); if (x) { if (x.dataset.lkbg === "photo" && !lookOf().custom) { const f = $("#lkFile"); if (f) f.click(); return; } S.ui.look = Object.assign(lookOf(), { bg: x.dataset.lkbg }); save(); applyLook(); lookSheet(); return; } }
+  { const x = t.closest("[data-theme]"); if (x) { S.ui.look = Object.assign(lookOf(), { theme: x.dataset.theme }); save(); applyLook(); const y = $("#shB").scrollTop; lookSheet(); $("#shB").scrollTop = y; return; } }
+  { const x = t.closest("[data-lkbg]"); if (x) { if (x.dataset.lkbg === "photo" && !lookOf().custom) { const f = $("#lkFile"); if (f) f.click(); return; } S.ui.look = Object.assign(lookOf(), { bg: x.dataset.lkbg }); save(); applyLook(); const y = $("#shB").scrollTop; lookSheet(); $("#shB").scrollTop = y; return; } }
   { const x = t.closest("[data-setlang]"); if (x) { if (window.Glossa) Glossa.set(x.dataset.setlang); return; } }
   { const x = t.closest("[data-cmsg]"); if (x) { e.stopPropagation(); custMsg(x.dataset.cmsg); return; } }
   { const x = t.closest("[data-cpin]"); if (x) { e.stopPropagation(); custPinGo(x.dataset.cpin); return; } }

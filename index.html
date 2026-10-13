@@ -8,7 +8,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.61">
+<meta name="app-version" content="1.62">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#17324D">
 <title>Παραγγελίες</title>
@@ -17,9 +17,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Παραγγελίες">
 <meta name="description" content="Οι πελάτες σου παραγγέλνουν από σύνδεσμο στο Viber, χωρίς τηλεφωνήματα.">
-<link rel="icon" href="eikonidia/icon-192.png?v=1.61">
-<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.61">
-<link rel="stylesheet" href="koino.css?v=1.61">
+<link rel="icon" href="eikonidia/icon-192.png?v=1.62">
+<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.62">
+<link rel="stylesheet" href="koino.css?v=1.62">
 <style>
 :root{--brand:#17324D;--onbrand:#fff;--accent:#F2B632;--onaccent:#17324D;--paper:#EDF1F2;--card:#fff;--ink:#16232f;--mute:#5d6873;--line:#d9dfe3;--ok:#1f7a3d;--bad:#b3261e;--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D}
 *{box-sizing:border-box}
@@ -234,16 +234,16 @@ body.hasbg::before{content:"";position:fixed;inset:0;z-index:-1;background:var(-
 .meter i{display:block;height:100%;background:var(--ok)}
 .meter.w i{background:#e3a008}.meter.b i{background:var(--bad)}
 .efm-host{margin:14px 0}
-/* ===== 1.61 · νέα εμφάνιση: βάθος, χρώμα, φόντο που ρυθμίζεις ===== */
+/* ===== 1.62 · νέα εμφάνιση: βάθος, χρώμα, φόντο που ρυθμίζεις ===== */
 :root{--edge:color-mix(in srgb,var(--brand) 10%,transparent);--soft:color-mix(in srgb,var(--brand) 7%,#fff);--asoft:color-mix(in srgb,var(--accent) 22%,#fff);--sh1:0 1px 2px rgba(16,24,40,.05),0 10px 26px -14px color-mix(in srgb,var(--brand) 45%,transparent);--cardbg:#fff}
 html{background:var(--paper)}html,body{transition:background-color .3s}body{background:transparent}
 #skinbg{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;opacity:var(--bgop,.55);filter:brightness(var(--bgbr,1))}
 #skinbg .ski{position:absolute;inset:0;background-repeat:no-repeat;background-position:center;background-size:60%}
-html[data-bg="photo"] #skinbg .ski{background-size:cover}
-html[data-bg="pat"] #skinbg .ski{background-repeat:repeat;background-size:150px;opacity:.55}
-html[data-bg="icon"] #skinbg .ski{background-size:min(78vw,520px) auto;background-position:right -10vw bottom 14vh;opacity:.35}
+html[data-bg="photo"] .ski{background-size:cover}
+html[data-bg="pat"] .ski{background-repeat:repeat;background-size:150px;opacity:.55}
+html[data-bg="icon"] .ski{background-size:min(78vw,520px) auto;background-position:right -10vw bottom 14vh;opacity:.35}
 #skinbg .wc{position:absolute;border-radius:50%;display:none;will-change:transform}
-html[data-bg="wc"] #skinbg .wc{display:block}
+html[data-bg="wc"] #skinbg .wc,html[data-bg="wc"] .lkpv .wc{display:block}
 .wc1{width:78vmax;height:78vmax;left:-32vmax;top:-26vmax;background:radial-gradient(circle,color-mix(in srgb,var(--brand) 55%,#fff),transparent 68%);animation:wcA 44s ease-in-out infinite alternate}
 .wc2{width:62vmax;height:62vmax;right:-24vmax;top:18vh;background:radial-gradient(circle,var(--accent),transparent 66%);animation:wcB 56s ease-in-out infinite alternate}
 .wc3{width:70vmax;height:70vmax;left:-6vw;bottom:-36vmax;background:radial-gradient(circle,color-mix(in srgb,var(--brand) 40%,var(--accent)),transparent 66%);animation:wcC 50s ease-in-out infinite alternate}
@@ -333,9 +333,25 @@ input.t:focus,select.t:focus,textarea.t:focus{border-color:var(--brand);box-shad
 .bgo em{font-style:normal;font-size:10.5px;overflow-wrap:anywhere;max-width:100%;font-weight:800;text-align:center;line-height:1.15}
 .bgo.on{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand)}
 .sld{margin-top:12px}.sld label{display:flex;justify-content:space-between;font-weight:700;font-size:14px}.sld input{width:100%;accent-color:var(--brand)}
-/* 1.61 · περιοχές */
+/* 1.62 · περιοχές */
 .hero .hs.two2{grid-template-columns:repeat(2,1fr)}.hero .hz{font-size:13px;font-weight:700;margin-top:4px;opacity:.95}
 .zone{border:1.5px solid var(--edge);background:var(--soft);border-radius:14px;padding:10px;margin:8px 0}.zone .zh{display:flex;align-items:center;gap:8px;margin-bottom:6px}.zone .zh b{font-size:15px}.zone .zsum{flex:1;font-size:12.5px;color:var(--mute);font-weight:700}.zone .zx{border:0;background:#fff;border-radius:10px;width:34px;height:32px;cursor:pointer;font-size:15px}.zone .chips{margin-top:8px;padding-bottom:0}
+/* 1.62 · ζωντανή προεπισκόπηση εμφάνισης */
+.lkstick{position:sticky;top:-12px;z-index:3;margin:-12px -14px 10px;background:var(--card);box-shadow:0 8px 18px -12px rgba(0,0,0,.35)}
+.lkpv{position:relative;height:228px;overflow:hidden;background:var(--paper);border-bottom:1px solid var(--line);box-shadow:0 8px 18px -12px rgba(0,0,0,.35);font-size:12px;pointer-events:none}
+.lkpv .pvbg{position:absolute;inset:0;overflow:hidden;opacity:var(--bgop,.55);filter:brightness(var(--bgbr,1))}
+.lkpv .ski{position:absolute;inset:0;background-repeat:no-repeat;background-position:center;background-size:60%}
+html[data-bg="pat"] .lkpv .ski{background-size:110px}html[data-bg="icon"] .lkpv .ski{background-size:150px auto;background-position:right -20px bottom -10px}
+.lkpv .wc{position:absolute;border-radius:50%;display:none;animation:none!important}
+.lkpv .wc1{width:150%;height:260%;left:-60%;top:-110%}.lkpv .wc2{width:120%;height:220%;right:-55%;top:0}.lkpv .wc3{width:130%;height:220%;left:-10%;bottom:-150%}
+.pvtop{position:relative;display:flex;align-items:center;gap:8px;padding:8px 12px;color:var(--onbrand);background:linear-gradient(118deg,var(--brand),color-mix(in srgb,var(--brand) 74%,var(--accent)))}.pvtop img{width:24px;height:24px;border-radius:7px}.pvtop b{flex:1;font-size:14px}
+.pvin{position:relative;padding:8px 12px;display:flex;flex-direction:column;gap:6px}
+.pvhero{border-radius:14px;padding:7px 10px;color:var(--onbrand);background:linear-gradient(130deg,var(--brand),color-mix(in srgb,var(--brand) 62%,var(--accent)));display:flex;flex-wrap:wrap;align-items:center;column-gap:8px}.pvhero small{flex-basis:100%;opacity:.85;font-size:10.5px}.pvhero>b{font-size:13.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pvst{display:flex;gap:5px}.pvst i{font-style:normal;background:rgba(255,255,255,.18);border-radius:8px;padding:2px 7px;font-size:10px;display:flex;gap:3px;align-items:baseline}.pvst i b{font-size:12px}
+.pvrow{display:flex;gap:6px}.pvrow .btn.sm{padding:5px 9px;font-size:11.5px;border-radius:9px}.pvrow .chip{padding:3px 9px;font-size:11px;border-width:1.5px}
+.pvord{display:flex;justify-content:space-between;align-items:center;padding:8px 10px!important;margin:0!important;border-radius:12px!important;font-size:12.5px}
+.pvtabs{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-around;padding:5px 0;background:color-mix(in srgb,#fff 86%,transparent);border-top:1px solid var(--edge);font-size:15px}.pvtabs .on{background:var(--asoft);border-radius:9px;padding:0 10px}
+.lkpeek{display:flex;width:calc(100% - 28px);margin:8px 14px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+.sheetbg.peek{background:transparent;transition:background .15s}.sheetbg.peek .sheet{opacity:0;transform:translateY(30px);transition:opacity .15s,transform .15s}
 @media print{body *{visibility:hidden}}
 </style>
 </head>
@@ -352,14 +368,14 @@ input.t:focus,select.t:focus,textarea.t:focus{border-color:var(--brand);box-shad
 </nav>
 <div class="sheetbg" id="sheetbg"><div class="sheet"><div class="sh"><h2 id="shT"></h2><button type="button" class="x" data-act="shClose" aria-label="Κλείσιμο">✕</button></div><div class="sb" id="shB"></div><div class="sf" id="shF"></div></div></div>
 <div id="toast"></div>
-<script src="glossa-en.js?v=1.61"></script>
-<script src="glossa.js?v=1.61"></script>
-<script src="katalogos.js?v=1.61"></script>
-<script src="antigrafa.js?v=1.61"></script>
-<script src="efarmoges-mas.js?v=1.61"></script>
-<script src="protypa.js?v=1.61"></script>
-<script src="efarmogi.js?v=1.61"></script>
-<script src="epexergasia.js?v=1.61"></script>
-<script src="excel.js?v=1.61"></script>
+<script src="glossa-en.js?v=1.62"></script>
+<script src="glossa.js?v=1.62"></script>
+<script src="katalogos.js?v=1.62"></script>
+<script src="antigrafa.js?v=1.62"></script>
+<script src="efarmoges-mas.js?v=1.62"></script>
+<script src="protypa.js?v=1.62"></script>
+<script src="efarmogi.js?v=1.62"></script>
+<script src="epexergasia.js?v=1.62"></script>
+<script src="excel.js?v=1.62"></script>
 </body>
 </html>
