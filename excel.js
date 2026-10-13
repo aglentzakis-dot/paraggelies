@@ -134,7 +134,7 @@ const colorParse = v => { const t = String(v == null ? "" : v).trim(); if (!t) r
 const COLS = [
   ["cat", "Κατηγορία", 18], ["sub", "Υποκατηγορία", 18], ["name", "Προϊόν *", 30], ["price", "Τιμή € *", 10], ["unit", "Μονάδα", 12], ["step", "Βήμα (κάθε +)", 10],
   ["vat", "ΦΠΑ %", 8], ["desc", "Περιγραφή", 32], ["av", "Διαθέσιμο", 11], ["hid", "Κρυφό", 9], ["per", "Ευπαθές", 9], ["emoji", "Εικονίδιο", 10],
-  ["size", "Μέγεθος κουμπιού", 14], ["color", "Χρώμα κουμπιού (κενό = του καταστήματος)", 16], ["keys", "Άλλες λέξεις (για Viber)", 26], ["code", "Κωδικός προϊόντος", 14], ["min", "Ελάχιστη ποσότητα", 11],
+  ["size", "Μέγεθος κουμπιού", 14], ["color", "Χρώμα κουμπιού (κενό = του καταστήματος)", 16], ["keys", "Πώς αλλιώς το λένε οι πελάτες (με κόμμα)", 26], ["code", "Κωδικός προϊόντος", 14], ["min", "Ελάχιστη ποσότητα", 11],
   ["stock", "Απόθεμα (κενό = δεν μετράω)", 14], ["whole", "Τιμή χονδρικής €", 11], ["tiers", "Έκπτωση ποσότητας (π.χ. 10: 4,00; 50: 3,50)", 26], ["season", "Εποχή: μήνες (κενό = όλο τον χρόνο)", 22],
   ["id", "Αναγνωριστικό εφαρμογής (μην το αλλάζεις)", 16]
 ];
@@ -245,7 +245,7 @@ const fileName = (mine, preset) => (preset ? "protypo-" + preset : mine ? "katal
 /* ---------- ανάγνωση αρχείου → σχέδιο εισαγωγής ---------- */
 const hdrKey = h => { const n = K.norm(h).replace(/\*/g, "").trim(); if (!n) return "";
   if (/μην το|αναγνωρ/.test(n)) return "id"; if (n.includes("κωδικ")) return "code"; if (n.includes("χρωμ")) return "color"; if (n.includes("χονδρ")) return "whole"; if (n.includes("εκπτωσ")) return "tiers"; if (n.includes("εποχ")) return "season"; if (n.includes("αποθεμ")) return "stock"; if (n.includes("ελαχιστ")) return "min";
-  const M = [["υποκατηγ", "sub"], ["κατηγορ", "cat"], ["προιον", "name"], ["ονομα", "name"], ["τιμη", "price"], ["μοναδα", "unit"], ["βημα", "step"], ["φπα", "vat"], ["περιγραφ", "desc"], ["διαθεσιμ", "av"], ["κρυφ", "hid"], ["ευπαθ", "per"], ["εικονιδ", "emoji"], ["μεγεθ", "size"], ["λεξεις", "keys"]];
+  const M = [["υποκατηγ", "sub"], ["κατηγορ", "cat"], ["προιον", "name"], ["ονομα", "name"], ["τιμη", "price"], ["μοναδα", "unit"], ["βημα", "step"], ["φπα", "vat"], ["περιγραφ", "desc"], ["διαθεσιμ", "av"], ["κρυφ", "hid"], ["ευπαθ", "per"], ["εικονιδ", "emoji"], ["μεγεθ", "size"], ["λεξεις", "keys"], ["αλλιως", "keys"]];
   for (const [k, v] of M) if (n.includes(k)) return v; return ""; };
 const ynParse = (v, def) => { if (v === "" || v == null) return def; const n = K.norm(String(v)); if (/^(ναι|ν|yes|y|1|true|✓|x)$/.test(n) || v === 1 || v === true) return true; if (/^(οχι|ο|no|n|0|false)$/.test(n) || v === 0) return false; return def; };
 const sizeParse = v => { const n = K.norm(String(v || "")); if (!n) return ""; if (/^(s|μικρ)/.test(n)) return "s"; if (/^(l|μεγαλ)/.test(n)) return "l"; if (/^(w|φαρδ)/.test(n)) return "w"; if (/^(m|μεσα)/.test(n)) return "m"; return ""; };

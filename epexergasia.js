@@ -510,67 +510,110 @@ const picked = id => { const b = document.querySelector("#" + id + " button.on")
 
 function catOptsHTML(sel, top) { const o = []; const w = (L, d) => { for (const n of L) if (n.t === "c") { o.push(`<option value="${n.id}"${n.id === sel ? " selected" : ""}>${"— ".repeat(d)}${esc((n.emoji ? n.emoji + " " : "") + (n.name || "Χωρίς όνομα"))}</option>`); w(n.kids || [], d + 1); } }; w(S().menu, 0); return `<option value=""${sel === "" ? " selected" : ""}>${top}</option>` + o.join(""); }
 function subtreeCount(node) { let cats = 0; const pids = new Set(); const w = L => { for (const n of L || []) { if (n.t === "c") { cats++; w(n.kids); } else if (n.t === "p") pids.add(n.pid); } }; w(node.kids); return { cats, prods: pids.size, pids }; }
-/* ---------- εικονίδιο με τεχνητή νοημοσύνη (δωρεάν, χωρίς λογαριασμό): γράφεις «σουβλάκι» και σχεδιάζεται στο ύφος των άλλων εικονιδίων ---------- */
-const AI_IMG = "https://image.pollinations.ai/prompt/", AI_TXT = "https://text.pollinations.ai/", AI_GAP = 16000;
-let aiLast = 0, aiBusy = false;
-const aiASCII = t => /^[\x20-\x7e]+$/.test(t);
-async function aiEnglish(t) {
-  if (aiASCII(t)) return t;
-  try { const c = new AbortController(), tm = setTimeout(() => c.abort(), 9000);
-    const r = await fetch(AI_TXT + encodeURIComponent("Translate this Greek product name to short simple English (1-4 words). Reply with the translation only, nothing else: " + t), { signal: c.signal });
-    clearTimeout(tm); if (!r.ok) throw 0; const x = (await r.text()).trim().split("\n")[0].replace(/["«».]/g, "").trim().slice(0, 60);
-    return x && aiASCII(x) ? x : t; } catch { return t; }
+/* ---------- εικονίδια: πρώτα από έτοιμη βιβλιοθήκη τρισδιάστατων εικονιδίων (Microsoft, ελεύθερη άδεια MIT), και μόνο αν δεν βρεθεί, σχέδιο με τεχνητή νοημοσύνη ---------- */
+const IC3_SHA = "1ffb34c752ecf5d402f04cfb4b392c77f57c54bc", IC3_CDN = "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@" + IC3_SHA + "/assets/";
+const ic3Url = e => IC3_CDN + (e[3] || (e[0] + "/3D/" + e[0].toLowerCase().replace(/ /g, "_") + "_3d.png")).split("/").map(encodeURIComponent).join("/");
+let IC3 = null;
+async function ic3Load() { if (IC3) return IC3; const r = await fetch("eikonidia3d.json?v=1"); if (!r.ok) throw new Error("βιβλιοθήκη"); IC3 = await r.json(); return IC3; }
+/* ελληνικές λέξεις καταστημάτων → αγγλικές λέξεις αναζήτησης (για να δουλεύει και χωρίς διαδίκτυο μετάφρασης) */
+const GR_EN = { "καφ": "coffee hot beverage", "φρεντο": "coffee ice cup straw", "φραπε": "coffee cup straw", "εσπρεσ": "coffee", "καπουτσιν": "coffee", "λατε": "coffee", "ποτηρ": "glass cup tumbler", "κουπα": "mug coffee", "φλυτζαν": "teacup cup", "καλαμακ": "cup straw", "τσαι": "tea teacup", "σοκολατ": "chocolate bar", "γαλα": "milk glass", "χυμ": "juice beverage box tropical", "πορτοκαλ": "orange tangerine", "λεμον": "lemon", "μηλ": "apple", "αχλαδ": "pear", "μπαναν": "banana", "φραουλ": "strawberry", "σταφυλ": "grapes", "καρπουζ": "watermelon", "πεπον": "melon", "κερασ": "cherries", "ροδακιν": "peach", "ανανα": "pineapple", "μανγκ": "mango", "καρυδ": "coconut", "ντοματ": "tomato", "πατατ": "potato", "κρεμμυδ": "onion", "σκορδ": "garlic", "καροτ": "carrot", "αγγουρ": "cucumber", "μαρουλ": "leafy green", "λαχανικ": "leafy green vegetable", "σαλατ": "green salad", "μανιταρ": "mushroom", "καλαμποκ": "corn", "πιπερι": "bell pepper hot", "μελιτζαν": "eggplant", "αβοκαντ": "avocado", "ελι": "olive", "λαδ": "olive oil bottle", "αυγ": "egg", "μελ": "honey pot", "ψωμ": "bread", "φρατζολ": "bread", "μπαγκετ": "baguette bread", "κουλουρ": "bagel", "κρουασαν": "croissant", "σφολιατ": "croissant pastry", "πιτ": "pie", "τυροπιτ": "pie", "σπανακοπιτ": "pie", "μπουγατσ": "pie", "τυρ": "cheese wedge", "κρεα": "meat on bone cut of meat", "μπριζολ": "cut of meat", "κοτοπουλ": "poultry leg chicken", "κοτ": "chicken", "λουκανικ": "hot dog", "μπεικον": "bacon", "σουβλακ": "kebab skewer oden", "γυρ": "stuffed flatbread gyro kebab", "κεμπαπ": "kebab stuffed flatbread", "μπιφτεκ": "hamburger", "μπεργκερ": "hamburger", "ψαρ": "fish", "γαριδ": "shrimp", "χταπ": "octopus", "καβουρ": "crab", "σαντουιτς": "sandwich", "τοστ": "sandwich bread", "τορτιγ": "burrito", "μπουριτ": "burrito", "πιτσ": "pizza", "μακαρον": "spaghetti", "ζυμαρικ": "spaghetti", "ρυζ": "cooked rice", "σουπ": "pot of food", "φαγητ": "pot of food", "μαγειρευτ": "pot of food shallow pan", "παγωτ": "ice cream soft", "γλυκ": "shortcake dessert", "τουρτ": "birthday cake", "κεικ": "shortcake cake", "μπισκοτ": "cookie", "κουλουρακ": "cookie", "ντονατ": "doughnut", "καραμελ": "candy", "λουκουμ": "candy", "κριτσιν": "pretzel", "ξηρ": "peanuts chestnut", "φυστικ": "peanuts", "καστ": "chestnut", "μπυρ": "beer mug", "κρασ": "wine glass", "τσιπουρ": "tumbler glass", "ουζ": "tumbler glass", "ποτ": "cocktail tropical drink", "αναψυκτικ": "cup with straw", "νερ": "droplet water bottle", "παγ": "ice", "λουλουδ": "bouquet flower", "τριανταφυλλ": "rose", "φυτ": "potted plant", "δεντρ": "deciduous tree", "βοταν": "herb", "ξυλ": "wood", "καυσοξυλ": "wood", "κονιακ": "tumbler glass", "σιροπ": "honey pot", "μαρμελαδ": "honey pot jar", "γιαουρτ": "bowl with spoon", "βουτυρ": "butter", "αλευρ": "sheaf of rice", "φασολ": "beans", "φακ": "beans", "ρεβυθ": "beans", "οσπρι": "beans", "τηγανιτ": "pancakes", "κρεπ": "pancakes", "βαφλ": "waffle", "πατατακ": "french fries", "τηγανητ": "french fries", "πελετ": "wood", "χαρτ": "roll of paper", "χαρτοπετσετ": "roll of paper", "σακουλ": "shopping bags", "κουτ": "package box", "συσκευασ": "package box", "καθαρ": "soap sponge", "σαπουν": "soap", "σκυλ": "dog", "γατ": "cat", "ζωοτροφ": "dog", "πουλ": "bird", "κατσικ": "goat", "προβατ": "ewe", "αγελαδ": "cow", "χοιρ": "pig", "δωρ": "wrapped gift", "κερ": "candle", "εργαλει": "hammer and wrench", "βιβλι": "books", "μολυβ": "pencil", "ρουχ": "t-shirt", "παπουτσ": "running shoe" };
+const grNorm = t => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ς/g, "σ");
+async function trEN(t) {
+  if (/^[\x20-\x7e]+$/.test(t)) return t;
+  try { const c = new AbortController(), tm = setTimeout(() => c.abort(), 7000);
+    const r = await fetch("https://api.mymemory.translated.net/get?langpair=el|en&q=" + encodeURIComponent(t), { signal: c.signal }); clearTimeout(tm);
+    const j = await r.json(), x = String(j && j.responseData && j.responseData.translatedText || "").replace(/[«»"]/g, "").trim();
+    return x && /^[\x20-\x7e]+$/.test(x) && x.toLowerCase() !== t.toLowerCase() ? x : ""; } catch { return ""; }
 }
-function aiLoad(url, ms) { return new Promise((res, rej) => { const im = new Image(); im.crossOrigin = "anonymous"; const tm = setTimeout(() => { im.src = ""; rej(new Error("χρόνος")); }, ms);
-  im.onload = () => { clearTimeout(tm); res(im); }; im.onerror = () => { clearTimeout(tm); rej(new Error("φόρτωση")); }; im.src = url; }); }
-/* αφαιρεί το άσπρο φόντο (από τις άκρες προς τα μέσα), κόβει γύρω από το σχέδιο, μικραίνει σε 96 εικονοστοιχεία */
-function aiCut(im, out) {
-  const W = 256, c = document.createElement("canvas"); c.width = c.height = W; const x = c.getContext("2d"); x.drawImage(im, 0, 0, W, W);
-  const d = x.getImageData(0, 0, W, W), a = d.data, seen = new Uint8Array(W * W), st = [];
-  const wh = i => a[i * 4] > 228 && a[i * 4 + 1] > 228 && a[i * 4 + 2] > 228;
-  for (let i = 0; i < W; i++) st.push(i, (W - 1) * W + i, i * W, i * W + W - 1);
-  while (st.length) { const i = st.pop(); if (seen[i] || !wh(i)) continue; seen[i] = 1; a[i * 4 + 3] = 0; const px = i % W, py = (i / W) | 0; if (px > 0) st.push(i - 1); if (px < W - 1) st.push(i + 1); if (py > 0) st.push(i - W); if (py < W - 1) st.push(i + W); }
-  for (let i = 0; i < W * W; i++) if (!seen[i] && a[i * 4 + 3]) { const m = Math.min(a[i * 4], a[i * 4 + 1], a[i * 4 + 2]); if (m > 205) { const px = i % W, py = (i / W) | 0, nb = [i - 1, i + 1, i - W, i + W].some(j => j >= 0 && j < W * W && seen[j] && Math.abs((j % W) - px) <= 1 && Math.abs(((j / W) | 0) - py) <= 1); if (nb) a[i * 4 + 3] = Math.round(255 * (255 - m) / 50); } }
-  let x0 = W, y0 = W, x1 = 0, y1 = 0; for (let y = 0; y < W; y++) for (let xx = 0; xx < W; xx++) if (a[(y * W + xx) * 4 + 3] > 30) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-  x.putImageData(d, 0, 0);
+/* όροι αναζήτησης στα αγγλικά: από το λεξικό μας και από τη μετάφραση */
+async function icTerms(q) {
+  const n = grNorm(q), out = new Set();
+  for (const w of n.split(/[^a-zα-ω0-9]+/).filter(Boolean)) Object.entries(GR_EN).filter(([k]) => w.startsWith(k)).sort((x, y) => y[0].length - x[0].length).forEach(([, v]) => v.split(" ").forEach(x => out.add(x)));
+  const tr = await trEN(q); if (tr) tr.toLowerCase().split(/[^a-z]+/).filter(x => x.length > 2 && !["the", "and", "with"].includes(x)).forEach(x => out.add(x));
+  if (/^[\x20-\x7e]+$/.test(q)) q.toLowerCase().split(/[^a-z]+/).filter(x => x.length > 2).forEach(x => out.add(x));
+  return { terms: [...out], en: tr };
+}
+function icFind(L, terms) {
+  const sc = [];
+  for (const e of L) { const nm = e[0].toLowerCase(), kw = " " + e[2].toLowerCase() + " "; let v = 0;
+    terms.forEach((t, i) => { const w = terms.length - i * 0.15; if (nm === t) v += 10 * w; else if ((" " + nm + " ").includes(" " + t + " ")) v += 6 * w; else if (kw.includes(" " + t + " ")) v += 3 * w; else if (t.length > 3 && (nm.includes(t) || kw.includes(t))) v += 1 * w; });
+    if (v > 0) sc.push([v, e]); }
+  return sc.sort((a, b) => b[0] - a[0]).slice(0, 12).map(x => x[1]);
+}
+function imgLoad(url, ms) { return new Promise((res, rej) => { const im = new Image(); im.crossOrigin = "anonymous"; const tm = setTimeout(() => { im.src = ""; rej(new Error("άργησε")); }, ms);
+  im.onload = () => { clearTimeout(tm); res(im); }; im.onerror = () => { clearTimeout(tm); rej(new Error("δεν φόρτωσε")); }; im.src = url; }); }
+/* μικρό εικονίδιο 96×96 (κομμένο γύρω από το σχέδιο) */
+function icSmall(src, out) {
+  const W = src.width, o = document.createElement("canvas"); o.width = o.height = out || 96;
+  const x = src.getContext("2d"), d = x.getImageData(0, 0, W, W).data; let x0 = W, y0 = W, x1 = 0, y1 = 0;
+  for (let y = 0; y < W; y++) for (let xx = 0; xx < W; xx++) if (d[(y * W + xx) * 4 + 3] > 30) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   if (x1 <= x0 || y1 <= y0) throw new Error("κενό");
-  const sz = Math.max(x1 - x0, y1 - y0) * 1.08, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, o = document.createElement("canvas"); o.width = o.height = out;
-  o.getContext("2d").drawImage(c, cx - sz / 2, cy - sz / 2, sz, sz, 0, 0, out, out);
-  let u = o.toDataURL("image/webp", 0.85); if (!u.startsWith("data:image/webp")) u = o.toDataURL("image/png");
-  return u;
+  const sz = Math.max(x1 - x0, y1 - y0) * 1.06, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  o.getContext("2d").drawImage(src, cx - sz / 2, cy - sz / 2, sz, sz, 0, 0, o.width, o.height);
+  let u = o.toDataURL("image/webp", 0.85); if (!u.startsWith("data:image/webp")) u = o.toDataURL("image/png"); return u;
+}
+const toCanvas = (im, W) => { const c = document.createElement("canvas"); c.width = c.height = W; c.getContext("2d").drawImage(im, 0, 0, W, W); return c; };
+/* τεχνητή νοημοσύνη: αφαιρεί φόντο (άσπρο ή γκρίζο, από τις άκρες) και το σήμα της υπηρεσίας κάτω */
+function aiCut(im, out) {
+  const W = 256, c = toCanvas(im, W), x = c.getContext("2d");
+  x.fillStyle = "#fff"; x.fillRect(0, Math.round(W * 0.88), W, W);   /* σήμα της δωρεάν υπηρεσίας */
+  const d = x.getImageData(0, 0, W, W), a = d.data, seen = new Uint8Array(W * W), st = [];
+  const cs = [0, W - 1, W * (W - 1), W * W - 1].map(i => [a[i * 4], a[i * 4 + 1], a[i * 4 + 2]]), bg = [0, 1, 2].map(k => cs.reduce((s, q) => s + q[k], 0) / 4);
+  const isBg = i => { const r = a[i * 4], g = a[i * 4 + 1], b = a[i * 4 + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b); return (mx - mn < 26 && mn > 150) || (Math.abs(r - bg[0]) + Math.abs(g - bg[1]) + Math.abs(b - bg[2]) < 54); };
+  for (let i = 0; i < W; i++) st.push(i, (W - 1) * W + i, i * W, i * W + W - 1);
+  while (st.length) { const i = st.pop(); if (seen[i] || !isBg(i)) continue; seen[i] = 1; a[i * 4 + 3] = 0; const px = i % W, py = (i / W) | 0; if (px > 0) st.push(i - 1); if (px < W - 1) st.push(i + 1); if (py > 0) st.push(i - W); if (py < W - 1) st.push(i + W); }
+  x.putImageData(d, 0, 0);
+  return icSmall(c, out || 96);
 }
 async function aiIcon(text, seed) {
-  const en = await aiEnglish(text);
-  const prompt = en + ", single cute emoji icon, Apple emoji style, glossy 3D cartoon, centered, isolated on plain white background, no text, no shadow, no border";
-  const img = await aiLoad(AI_IMG + encodeURIComponent(prompt) + "?width=256&height=256&nologo=true&model=flux&seed=" + seed, 60000);
+  const en = (await trEN(text)) || text;
+  const prompt = en + ", one single object, 3D emoji icon in Microsoft Fluent 3D style, soft glossy colors, centered, small with lots of empty space around, plain pure white background, no text, no letters, no logo";
+  const img = await imgLoad("https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt) + "?width=512&height=512&nologo=true&model=flux&seed=" + seed, 60000);
   return aiCut(img, 96);
 }
 function aiBoxHTML(cur, name) {
-  return `<div class="aibox"><label class="f" for="aiQ">✨ Ή φτιάξε δικό σου εικονίδιο με τεχνητή νοημοσύνη</label>
-    <div class="row"><input class="t grow" id="aiQ" value="${esc(name || "")}" maxlength="40" placeholder="π.χ. σουβλάκι, φρέντο, τυρόπιτα"><button type="button" class="btn sm amber" data-ea="aiMake">✨ Φτιάξε</button></div>
-    <div id="aiOut" class="aiout">${cur ? aiPrev(cur) : ""}</div><input type="hidden" id="aiIc" value="${esc(cur || "")}">
-    <p class="note" style="margin:6px 0 0">Το σχεδιάζει δωρεάν υπηρεσία (Pollinations), χωρίς λογαριασμό. Στέλνεται μόνο η λέξη που γράφεις. Θέλει 10–40 δευτερόλεπτα. Μη ζητάς σήματα ή λογότυπα άλλων εταιρειών.</p></div>`;
+  return `<div class="aibox"><label class="f" for="aiQ">✨ Ή βρες τρισδιάστατο εικονίδιο</label>
+    <div class="row"><input class="t grow" id="aiQ" value="${esc(name || "")}" maxlength="40" placeholder="π.χ. σουβλάκι, φρέντο, τυρόπιτα"><button type="button" class="btn sm amber" data-ea="icFind">🔍 Βρες</button></div>
+    <div id="icRes" class="icres"></div>
+    <div id="aiOut" class="aiout">${cur ? icPrev(cur) : ""}</div><input type="hidden" id="aiIc" value="${esc(cur || "")}">
+    <p class="note" style="margin:6px 0 0">Από δωρεάν βιβλιοθήκη 850 τρισδιάστατων εικονιδίων (Microsoft, ελεύθερη χρήση). Αν δεν βρεις κάτι, δοκίμασε και σχέδιο με τεχνητή νοημοσύνη.</p></div>`;
 }
-const aiPrev = u => `<img src="${esc(u)}" alt=""><div class="row"><button type="button" class="btn sm soft" data-ea="aiMake">🔄 Άλλο σχέδιο</button><button type="button" class="btn sm ghost" data-ea="aiClear">✕ Χωρίς</button></div>`;
+const icPrev = u => `<img src="${esc(u)}" alt=""><div class="row"><span class="note" style="margin:0">✓ Αυτό θα μπει</span><button type="button" class="btn sm ghost" data-ea="aiClear">✕ Χωρίς</button></div>`;
+let icBusy = false, aiLast = 0;
+async function icFindAct() {
+  const q = ($("#aiQ") || {}).value.trim(), box = $("#icRes"); if (!box) return;
+  if (!q) { A.toast("Γράψε τι ψάχνεις, π.χ. σουβλάκι."); return; }
+  if (icBusy) return; icBusy = true;
+  box.innerHTML = `<div class="aiwait"><div class="spin"></div><span>Ψάχνω «${esc(q)}»…</span></div>`;
+  try {
+    const L = await ic3Load(), { terms } = await icTerms(q), R = icFind(L, terms);
+    box.innerHTML = (R.length ? `<p class="note" style="margin:0 0 6px">Πάτα αυτό που ταιριάζει:</p><div class="icgrid">${R.map((e, i) => `<button type="button" class="icopt" data-icpick="${i}" title="${esc(e[0])}"><img src="${esc(ic3Url(e))}" alt="${esc(e[1] || e[0])}" loading="lazy" crossorigin="anonymous"></button>`).join("")}</div>` : `<p class="note" style="margin:0 0 6px">Δεν βρέθηκε έτοιμο εικονίδιο για «${esc(q)}».</p>`) +
+      `<button type="button" class="btn sm soft wide" data-ea="aiMake" style="margin-top:8px">🎨 ${R.length ? "Κανένα δεν ταιριάζει: " : ""}σχέδιο με τεχνητή νοημοσύνη (δοκιμαστικό)</button>`;
+    box._res = R;
+  } catch (e) { box.innerHTML = `<div class="warnbox">Η βιβλιοθήκη δεν άνοιξε (${esc(e.message || "σφάλμα")}). Χρειάζεται σύνδεση στο διαδίκτυο.</div>`; }
+  finally { icBusy = false; }
+}
+async function icPick(i) {
+  const box = $("#icRes"), e = box && box._res && box._res[i], out = $("#aiOut"); if (!e || !out) return;
+  out.innerHTML = `<div class="aiwait"><div class="spin"></div><span>Μπαίνει…</span></div>`;
+  try { const im = await imgLoad(ic3Url(e), 20000); const u = icSmall(toCanvas(im, 256), 96); $("#aiIc").value = u; out.innerHTML = icPrev(u); box.querySelectorAll(".icopt").forEach((b, j) => b.classList.toggle("on", j === i)); }
+  catch (er) { out.innerHTML = `<div class="warnbox">Δεν φόρτωσε (${esc(er.message || "σφάλμα")}). Δοκίμασε ξανά.</div>`; }
+}
 async function aiMake() {
   const q = ($("#aiQ") || {}).value.trim(), out = $("#aiOut"); if (!out) return;
   if (!q) { A.toast("Γράψε τι να σχεδιάσει, π.χ. σουβλάκι."); return; }
-  if (aiBusy) return;
-  if (!navigator.onLine) { A.toast("Χρειάζεται σύνδεση στο διαδίκτυο."); return; }
-  aiBusy = true;
+  if (icBusy) return; icBusy = true;
   try {
-    let wait = aiLast + AI_GAP - Date.now();
-    while (wait > 0) { out.innerHTML = `<div class="aiwait"><div class="spin"></div><span>Η δωρεάν υπηρεσία θέλει λίγα δευτερόλεπτα ανάμεσα στα σχέδια… ${Math.ceil(wait / 1000)}</span></div>`; await new Promise(r => setTimeout(r, 1000)); wait = aiLast + AI_GAP - Date.now(); if (!$("#aiOut")) return; }
-    out.innerHTML = `<div class="aiwait"><div class="spin"></div><span>Σχεδιάζω «${esc(q)}»…</span></div>`;
+    let wait = aiLast + 16000 - Date.now();
+    while (wait > 0) { out.innerHTML = `<div class="aiwait"><div class="spin"></div><span>Η δωρεάν υπηρεσία θέλει λίγα δευτερόλεπτα ανάμεσα στα σχέδια… ${Math.ceil(wait / 1000)}</span></div>`; await new Promise(r => setTimeout(r, 1000)); wait = aiLast + 16000 - Date.now(); if (!$("#aiOut")) return; }
+    out.innerHTML = `<div class="aiwait"><div class="spin"></div><span>Σχεδιάζω «${esc(q)}»… (10–40 δευτερόλεπτα)</span></div>`;
     aiLast = Date.now();
-    const u = await aiIcon(q, Math.floor(Math.random() * 1e6));
-    const o2 = $("#aiOut"); if (!o2) return;
-    $("#aiIc").value = u; o2.innerHTML = aiPrev(u);
-  } catch (e) {
-    const o2 = $("#aiOut"); if (o2) o2.innerHTML = `<div class="warnbox">Δεν βγήκε σχέδιο αυτή τη φορά (${esc(e && e.name === "SecurityError" ? "η υπηρεσία δεν επιτρέπει αποθήκευση" : (e && e.message) || "σφάλμα")}). Δοκίμασε ξανά σε λίγο.</div>`;
-  } finally { aiBusy = false; }
+    const u = await aiIcon(q, Math.floor(Math.random() * 1e6)), o2 = $("#aiOut"); if (!o2) return;
+    $("#aiIc").value = u; o2.innerHTML = icPrev(u) + `<button type="button" class="btn sm soft" data-ea="aiMake">🔄 Άλλο σχέδιο</button>`;
+  } catch (e) { const o2 = $("#aiOut"); if (o2) o2.innerHTML = `<div class="warnbox">Δεν βγήκε σχέδιο αυτή τη φορά (${esc(e && e.name === "SecurityError" ? "η υπηρεσία δεν επιτρέπει αποθήκευση" : (e && e.message) || "σφάλμα")}). Δοκίμασε ξανά σε λίγο.</div>`; }
+  finally { icBusy = false; }
 }
-A._aiCut = aiCut;   /* για τις δοκιμές */
+A._aiCut = aiCut; A._icTerms = icTerms; A._icFind = (L, t) => icFind(L, t);   /* για τις δοκιμές */
 function catSheet(node, parentId) {
   const isNew = !node;
   node = node || { name: "", emoji: "", color: "", size: "m" };
@@ -606,8 +649,11 @@ function moreHTML(x) {
   const tiers = (x.tiers || []).concat([[], [], []]).slice(0, 3);
   const custs = Object.values(st.customers || {}).sort((a, b) => (a.name || "").localeCompare(b.name || "", "el"));
   const sea = Array.isArray(x.season) ? x.season : [];
-  const any = stOn || +x.min > 0 || x.code || (sea.length && sea.length < 12) || +x.whole > 0 || (x.tiers || []).length || x.only;
-  return `<details class="card"${any ? " open" : ""}><summary style="cursor:pointer;font-weight:800">⚙️ Απόθεμα, ελάχιστη ποσότητα, εποχή, κωδικός, χονδρική, εκπτώσεις</summary>
+  const any = stOn || +x.min > 0 || x.keys || x.code || (sea.length && sea.length < 12) || +x.whole > 0 || (x.tiers || []).length || x.only;
+  return `<details class="card"${any ? " open" : ""}><summary style="cursor:pointer;font-weight:800">⚙️ Απόθεμα, ελάχιστη ποσότητα, εποχή, κωδικός, χονδρική, εκπτώσεις, άλλα ονόματα</summary>
+    <h3 style="margin:12px 0 4px">🗣 Πώς αλλιώς το λένε οι πελάτες</h3>
+    <input class="t" id="pK" value="${esc(x.keys || "")}" maxlength="100" placeholder="π.χ. φρέντο, κρύο εσπρέσο, φρεντάκι">
+    <p class="note" style="margin:4px 0 0">Μόνο αν σου στέλνουν παραγγελίες με απλό μήνυμα στο Viber: έτσι η εφαρμογή καταλαβαίνει το προϊόν ακόμα κι αν δεν γράψουν το ακριβές όνομα. Χωρίζεις με κόμμα.</p>
     <h3 style="margin:12px 0 4px">📦 Απόθεμα</h3>
     <label class="ck"><input type="checkbox" id="pStOn"${stOn ? " checked" : ""}><span>Μετράω απόθεμα: όταν τελειώσει, ο πελάτης δεν μπορεί να το παραγγείλει</span></label>
     <div id="pStBox" style="${stOn ? "" : "display:none"}"><label class="f" for="pStock">Διαθέσιμη ποσότητα τώρα (${esc(x.unit || "τεμ.")})</label><input class="t" id="pStock" inputmode="decimal" value="${stOn ? K.num(Math.max(0, av)) : ""}" data-was="${stOn ? K.num(Math.max(0, av)) : ""}" placeholder="π.χ. 120">
@@ -648,8 +694,7 @@ function prodSheet(pid, nodeId) {
     <label class="f">Φωτογραφία</label><div class="row"><div id="pPhPrev">${x.photo ? `<img src="${esc(x.photo)}" style="width:64px;height:64px;border-radius:12px;object-fit:cover">` : `<span class="note">Χωρίς φωτογραφία</span>`}</div><label class="btn soft sm">📷 Επιλογή<input type="file" accept="image/*" id="pPh" hidden></label>${x.photo ? `<button type="button" class="btn soft sm" data-ea="phDel">Αφαίρεση</button>` : ""}</div>
     <p class="note">Μόνο δικές σου φωτογραφίες ή με άδεια χρήσης.</p>
     <label class="f">Εικονίδιο (αν δεν υπάρχει φωτογραφία)</label>${emojiPicker(x.emoji)}<input class="t" id="emFree" value="${esc(x.emoji || "")}" maxlength="4" style="margin-top:6px;width:150px">
-    ${aiBoxHTML(x.aic, x.name)}
-    <label class="f" for="pK">Άλλες λέξεις που γράφουν οι πελάτες (για τα μηνύματα Viber)</label><input class="t" id="pK" value="${esc(x.keys || "")}" maxlength="100" placeholder="π.χ. αυγουλάκια, φρέσκα"></div>
+    ${aiBoxHTML(x.aic, x.name)}</div>
    <div class="card"><div class="sw"><span id="pAvL" style="font-weight:800;color:${x.soldout ? "var(--bad)" : "var(--ok)"}">${x.soldout ? "❌ Εξαντλήθηκε" : "✅ Διαθέσιμο"}</span><label class="tog g av"><input type="checkbox" id="pAv"${x.soldout ? "" : " checked"}><span></span></label></div>
     <div id="pSoQ" class="warnbox" style="display:none;margin:6px 0"><b>Τι να βλέπουν οι πελάτες;</b><div class="row" style="margin-top:6px"><button type="button" class="btn sm soft grow" data-soq="show">👁 «Εξαντλήθηκε»</button><button type="button" class="btn sm amber grow" data-soq="hide">🙈 Να εξαφανιστεί</button></div></div>
     <div class="sw"><span>Κρυφό (δεν φαίνεται στον πελάτη)</span><label class="tog"><input type="checkbox" id="pHi"${x.hidden ? " checked" : ""}><span></span></label></div>
@@ -818,6 +863,7 @@ A.menuBack = function () {
 /* ---------- πατήματα ---------- */
 const EA = {
   aiMake: () => aiMake(),
+  icFind: () => icFindAct(),
   aiClear: () => { const i = $("#aiIc"), o = $("#aiOut"); if (i) i.value = ""; if (o) o.innerHTML = ""; },
   hintOff: () => { const st = S(); st.ui.hintOffAt = Date.now(); A.save(); A.render(); A.toast("Η οδηγία κρύφτηκε για " + HINT_DAYS + " ημέρες.", 3000); },
   presets: presetPicker,
@@ -928,6 +974,7 @@ document.addEventListener("click", e => {
   const pd = t.closest("[data-pdel]"); if (pd) { const p = S().products[pd.dataset.pdel]; if (p && confirm("Διαγραφή του «" + p.name + "» από τον κατάλογο; Οι παλιές παραγγελίες δεν αλλάζουν.")) { delete S().products[p.id]; removeProductEverywhere(p.id); A.save({ catalog: true }); A.render(); A.toast("Διαγράφηκε: " + p.name); } return; }
   const ax = t.closest("[data-addex]"); if (ax) { curList().push({ id: newId(), t: "p", pid: ax.dataset.addex, size: "m" }); A.save({ catalog: true }); A.closeSheet(); A.render(); return; }
   const mv = t.closest("[data-mvto]"); if (mv) { moveTo(mv.dataset.mvto); return; }
+  { const ip = t.closest("[data-icpick]"); if (ip) { e.preventDefault(); icPick(+ip.dataset.icpick); return; } }
   const a = t.closest("[data-ea]"); if (a && EA[a.dataset.ea]) { e.preventDefault(); EA[a.dataset.ea](a); }
 }, true);
 document.addEventListener("change", e => {

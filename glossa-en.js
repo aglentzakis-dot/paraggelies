@@ -40,3 +40,7 @@ Object.assign(window.GL_EN,{"για τις επόμενες μέρες":"for the
 Object.assign(window.GL_EN,{"Να μην ξαναεμφανιστεί":"Don't show again","💬 Πρόταση ενημέρωσης πελάτη":"💬 Customer update prompt","Πρόταση ενημέρωσης πελάτη":"Customer update prompt"});
 /* 1.65 */
 Object.assign(window.GL_EN,{"📇 Από τις επαφές":"📇 From contacts","έναν, συμπληρώνει τη φόρμα":"one, fills the form","👥 Πολλούς μαζί":"👥 Many at once","διαλέγεις όσους θέλεις":"pick as many as you like","✨ Ή φτιάξε δικό σου εικονίδιο με τεχνητή νοημοσύνη":"✨ Or make your own icon with AI","✨ Φτιάξε":"✨ Make","🔄 Άλλο σχέδιο":"🔄 Another design","✕ Χωρίς":"✕ None"});
+/* 1.66 */
+Object.assign(window.GL_EN,{"✨ Ή βρες τρισδιάστατο εικονίδιο":"✨ Or find a 3D icon","🔍 Βρες":"🔍 Find","Πάτα αυτό που ταιριάζει:":"Tap the one that fits:","✓ Αυτό θα μπει":"✓ This one will be used","Αναψυκτήριο – πλήρης κατάλογος":"Snack bar – full catalogue"});
+/* 1.66 */
+Object.assign(window.GL_EN,{"✨ Ή βρες τρισδιάστατο εικονίδιο":"✨ Or find a 3D icon","🔍 Βρες":"🔍 Find","Πάτα αυτό που ταιριάζει:":"Tap the one that fits:","✓ Αυτό θα μπει":"✓ This one will be used","Αναψυκτήριο – πλήρης κατάλογος":"Snack bar – full catalogue","🗣 Πώς αλλιώς το λένε οι πελάτες":"🗣 Other names customers use"});

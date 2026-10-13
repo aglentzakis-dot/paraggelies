@@ -30,8 +30,9 @@ function emStart() {
   emSettings();
   if (!window.__emR) { window.__emR = 1; var r0 = render; render = function () { var x = r0.apply(this, arguments); emDebtCard(); emLayout(); return x; }; setTimeout(function () { emDebtCard(); emLayout(); }, 0); }
   if (!window.__emSup && typeof supForm === "function") { window.__emSup = 1;
-    var sf0 = supForm; supForm = function (id) { var x = sf0.apply(this, arguments); try { emSupHist(id); } catch (e) {} return x; };
-    var ss0 = supSheet; supSheet = function () { var x = ss0.apply(this, arguments); try { emSupRows(); } catch (e) {} return x; }; }
+    /* στις νεότερες εκδόσεις των Ταμείων μπορεί να είναι σταθερές: τότε δεν αγγίζονται (έχουν δικό τους ιστορικό) */
+    try { var sf0 = supForm; supForm = function (id) { var x = sf0.apply(this, arguments); try { emSupHist(id); } catch (e) {} return x; }; } catch (e) {}
+    try { var ss0 = supSheet; supSheet = function () { var x = ss0.apply(this, arguments); try { emSupRows(); } catch (e) {} return x; }; } catch (e) {} }
   if (!window.__emW) { window.__emW = 1; var w0 = write; write = function () { var r = w0.apply(this, arguments); try { var A = emParent(); if (A && A.tameioChanged) A.tameioChanged(); } catch (e) {} return r; }; }
 }
 function emEnsureKind(k, b) {
