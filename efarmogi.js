@@ -1407,6 +1407,8 @@ const geoMem = () => {
   if (S.geoV < 3) { for (const k of Object.keys(G)) if (G[k].src) delete G[k]; S.geoV = 3; }
   /* 1.57: ξαναψάχνονται οι θέσεις των δωρεάν υπηρεσιών (ελέγχεται πλέον αν είναι στη σωστή περιοχή) */
   if (S.geoV < 4) { for (const k of Object.keys(G)) if (!G[k].src && !G[k].picked && !k.startsWith("πόλη|")) delete G[k]; S.geoQ = {}; S.geoV = 4; }
+  /* 1.58: και όσες ήρθαν από HERE/TomTom (ελέγχεται πλέον η περιοχή και στα λατινικά) */
+  if (S.geoV < 5) { for (const k of Object.keys(G)) if (G[k].src) delete G[k]; S.geoV = 5; }
   return G;
 };
 let geoLast = 0;
@@ -1504,10 +1506,16 @@ async function geoPaidAsk(svc, q, base) {
     if (r.status === 401 || r.status === 403 || r.status === 429) { paidOff[svc] = r.status; return null; }   /* τέλος ορίου ή λάθος κλειδί */
     if (!r.ok) return null;
     const js = await r.json();
-    if (svc === "here") return (js.items || []).filter(x => x.position).map(x => { const a = x.address || {}; return { lat: +x.position.lat, lng: +x.position.lng, type: x.resultType === "houseNumber" ? "house" : x.resultType === "street" ? "road" : x.resultType === "intersection" ? "cross" : "area", num: x.resultType === "houseNumber", label: a.label ? a.label.replace(/,\s*Ελλάδα$/, "") : "", town: a.district || a.city || "" }; });
-    return (js.results || []).filter(x => x.position).map(x => { const a = x.address || {}; return { lat: +x.position.lat, lng: +x.position.lon, type: x.type === "Point Address" ? "house" : x.type === "Address Range" ? "range" : x.type === "Street" ? "road" : x.type === "Cross Street" ? "cross" : "area", num: x.type === "Point Address", label: a.freeformAddress || "", town: a.municipalitySubdivision || a.municipality || "" }; });
+    if (svc === "here") return (js.items || []).filter(x => x.position).map(x => { const a = x.address || {}; return { lat: +x.position.lat, lng: +x.position.lng, type: x.resultType === "houseNumber" ? "house" : x.resultType === "street" ? "road" : x.resultType === "intersection" ? "cross" : "area", num: x.resultType === "houseNumber", label: a.label ? a.label.replace(/,\s*Ελλάδα$/, "") : "", town: a.district || a.city || "", where: [a.district, a.city, a.county, a.subdistrict].filter(Boolean).join(" ") }; });
+    return (js.results || []).filter(x => x.position).map(x => { const a = x.address || {}; return { lat: +x.position.lat, lng: +x.position.lon, type: x.type === "Point Address" ? "house" : x.type === "Address Range" ? "range" : x.type === "Street" ? "road" : x.type === "Cross Street" ? "cross" : "area", num: x.type === "Point Address", label: a.freeformAddress || "", town: a.municipalitySubdivision || a.municipality || "", where: [a.municipalitySubdivision, a.municipality, a.localName, a.countrySecondarySubdivision, a.countrySubdivision].filter(Boolean).join(" ") }; });
   } catch { return null; } finally { clearTimeout(tm); }
 }
+/* σύγκριση περιοχών και όταν η υπηρεσία απαντά με λατινικά (π.χ. «Athina» = «Αθήνα», «Nea Peramos» = «Νέα Πέραμος») */
+const GR2L = { α: "a", β: "v", γ: "g", δ: "d", ε: "e", ζ: "z", η: "i", θ: "th", ι: "i", κ: "k", λ: "l", μ: "m", ν: "n", ξ: "x", ο: "o", π: "p", ρ: "r", σ: "s", ς: "s", τ: "t", υ: "y", φ: "f", χ: "ch", ψ: "ps", ω: "o" };
+const GRDI = [[/ου/g, "u"], [/αι/g, "e"], [/ει|οι|υι/g, "i"], [/αυ/g, "av"], [/ευ/g, "ev"], [/μπ/g, "b"], [/ντ/g, "d"], [/γκ|γγ/g, "g"]];
+const LADI = [[/ou/g, "u"], [/ai/g, "e"], [/ei|oi|yi/g, "i"], [/a[uf]/g, "av"], [/e[uf]/g, "ev"], [/mp/g, "b"], [/nt/g, "d"], [/gk|gg/g, "g"], [/ch|kh/g, "h"], [/y/g, "i"], [/ks/g, "x"], [/(.)\1/g, "$1"]];
+const latn = t => { let x = K.norm(t); for (const [r, w] of GRDI) x = x.replace(r, w); x = x.replace(/[α-ως]/g, ch => GR2L[ch] || ch); for (const [r, w] of LADI) x = x.replace(r, w); return x.replace(/[^a-z0-9]+/g, " ").trim(); };
+const inArea = (where, area) => { if (!area) return true; const w = latn(where), a = latn(area); return !w || w.includes(a); };
 async function geoFind(q, ctx) {
   ctx = ctx || {};
   const area0 = String(ctx.area || "").trim(), k0 = K.norm(String(q || "").trim() + "|" + area0), G0 = geoMem();
@@ -1537,7 +1545,9 @@ async function geoFindPaid(q, ctx, area0, k0, r) {
     if (L) answered = true;
     if (!L || !L.length) { if (L) break; continue; }   /* απάντησε «τίποτα»: δεν ρωτάμε και τη δεύτερη */
     /* μόνο δρόμος ή πόρτα — ποτέ σκέτη πόλη/περιοχή (το «κέντρο της Αθήνας» είναι το Σύνταγμα) */
-    const near = (base ? L.filter(x => geoKm(base, x) <= 150) : L).filter(x => x.type !== "area"); if (!near.length) break;
+    let near = (base ? L.filter(x => geoKm(base, x) <= 150) : L).filter(x => x.type !== "area"); if (!near.length) break;
+    /* μόνο μέσα στην περιοχή του πελάτη (π.χ. όχι «Ypatis 9, Nea Peramos» για «Υπάτης 9, Αθήνα») */
+    if (area0) { const inA = near.filter(x => inArea(x.where + " " + x.label + " " + x.town, area0)); if (!inA.length) continue; near = inA; }
     const best = near.find(x => x.num) || near[0];
     const out = { lat: best.lat, lng: best.lng, src: svc, at: Date.now(), via: svc, lbl: String(best.label || "").slice(0, 90), town: String(best.town || "").slice(0, 60) };
     if (!best.num && /\d/.test(q)) out.nonum = 1;
@@ -1580,7 +1590,7 @@ async function geoFindFree(q, ctx) {
   const paidFresh = () => G[k] && G[k].src && G[k].lat != null && G[k].at && Date.now() - G[k].at < PAID_TTL;
   /* η δωρεάν απάντηση δεν πατά ποτέ φρέσκια απάντηση της HERE/TomTom (π.χ. που ήρθε στο μεταξύ από το παρασκήνιο) */
   /* βρέθηκε έξω από την περιοχή του πελάτη; (π.χ. «Υπάτης 9, Αθήνα» → Νέα Πέραμος) */
-  const offArea = best => { if (!area || !best) return ""; const w = K.norm((best.where || "") + " " + (best.label || "") + " " + (best.town || "")); if (!w.trim()) return "";   /* καμία πληροφορία περιοχής: δεν κρίνουμε */ return w.includes(K.norm(area)) ? "" : (best.town || String(best.label || "").split(",").slice(-1)[0] || "άλλη περιοχή").trim(); };
+  const offArea = best => { if (!area || !best) return ""; const w = (best.where || "") + " " + (best.label || "") + " " + (best.town || ""); if (!K.norm(w).trim()) return "";   /* καμία πληροφορία περιοχής: δεν κρίνουμε */ return inArea(w, area) ? "" : (best.town || String(best.label || "").split(",").slice(-1)[0] || "άλλη περιοχή").trim(); };
   const keep = (best, approx, via) => { if (paidFresh()) return G[k]; G[k] = { lat: best.lat, lng: best.lng, via: via || "osm", lbl: String(best.label || "").slice(0, 90), town: String(best.town || "").slice(0, 60) }; if (approx) G[k].approx = 1; return G[k]; };
   /* για δρόμο: όχι πόλεις και χωριά με παρόμοιο όνομα (π.χ. «Υπάτης» → η πόλη Υπάτη) */
   const PLACE = /^(city|town|village|hamlet|municipality|county|state|region|country|administrative|postcode|island|locality|district)$/;
