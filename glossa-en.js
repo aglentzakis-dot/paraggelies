@@ -25,3 +25,6 @@ Object.assign(window.GL_EN,{"❓ Δεν βρέθηκε ο δρόμος":"❓ Str
 Object.assign(window.GL_EN,{"🔬 Από:":"🔬 From:","δική σου θέση":"your own location","δες τη θέση στο Google Maps":"see the location on Google Maps","μόνο περιοχή":"area only"});
 Object.assign(window.GL_EN,{"· αυτόματα":"· automatic","· από τις επαφές":"· from contacts","αυτόματα από τον χάρτη":"automatically from the map","από τις επαφές":"from contacts","— έλεγξέ τη":"— check it"});
 Object.assign(window.GL_EN,{"⚠️ Βρέθηκε σε άλλη περιοχή":"⚠️ Found in another area","⚠️ ΒΡΕΘΗΚΕ ΣΕ ΑΛΛΗ ΠΕΡΙΟΧΗ":"⚠️ FOUND IN ANOTHER AREA"});
+/* 1.59 */
+Object.assign(window.GL_EN,{"🗺 Google Maps":"🗺 Google Maps","🍎 Χάρτες Apple":"🍎 Apple Maps","📋 Επικόλληση":"📋 Paste","📍 Είμαι εκεί τώρα":"📍 I'm there now","🗺 Πάτα στον χάρτη":"🗺 Tap on the map","Ή αλλιώς:":"Or else:","🤖 Android":"🤖 Android","📱 iPhone":"📱 iPhone","✓ Βρέθηκε":"✓ Found","⚠️ Έξω από την Ελλάδα":"⚠️ Outside Greece","δες το":"see it","❌ Δεν βρίσκω θέση εδώ μέσα ακόμη.":"❌ No location found in this yet.","Κράτα πατημένο το κουτί και διάλεξε «Επικόλληση».":"Long-press the box and choose «Paste».","✓ Κρατήθηκε η θέση εκεί που είσαι τώρα":"✓ Saved the location where you are now"});
+Object.assign(window.GL_EN,{"❓ Πώς αντιγράφω τη θέση;":"❓ How do I copy the location?"});

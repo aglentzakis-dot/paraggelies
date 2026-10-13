@@ -1639,23 +1639,93 @@ function geoAmbSheet(addr, area, ck, after) {
   A._ambAfter = after || null;
 }
 /* συντεταγμένες από ό,τι επικολλήσεις: «37.98, 23.72», σύνδεσμο Google Maps με @…, q=…, !3d…!4d… */
-function parseLL(t) {
-  t = String(t || "");
-  let m = /!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(t) || /(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/.exec(t);
-  if (!m) return null; const lat = +m[1], lng = +m[2];
-  return isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+/* Θέση από ό,τι κι αν επικολλήσεις (όπως στο Fish IQ): 37.98380, 23.72750 · 37,98380, 23,72750 (ελληνικό κόμμα) ·
+   37,98380 23,72750 · 37°59'01.7"N 23°43'39.0"E · 37,98380° Β, 23,72750° Α (Χάρτες iPhone) · N 37° 59.017' E 23° 43.650' ·
+   σύνδεσμοι Google Maps (!3d!4d, @, q=, query=, ll=, destination=) · Apple Maps (?ll= / ?q= / &sll=) · Plus Code (8G95WQRF+X2 ή WQRF+X2 Αθήνα) */
+const OLC_A = "23456789CFGHJMPQRVWX", OLC_R = [20, 1, .05, .0025, .000125];
+function olcFull(code) {
+  code = code.toUpperCase(); const sep = code.indexOf("+"); if (sep !== 8) return null;
+  const s = code.replace("+", "").replace(/0+$/, ""); let lat = -90, lng = -180, n = 0;
+  for (let i = 0; i + 1 < s.length && n < 5; i += 2, n++) { const a = OLC_A.indexOf(s[i]), b = OLC_A.indexOf(s[i + 1]); if (a < 0 || b < 0) return null; lat += a * OLC_R[n]; lng += b * OLC_R[n]; }
+  if (!n) return null; return { lat: lat + OLC_R[n - 1] / 2, lng: lng + OLC_R[n - 1] / 2 };
 }
-/* «Από Google Maps»: το βρίσκεις εκεί και φέρνεις μόνο τη θέση (αριθμούς) — χωρίς κλειδί και χωρίς κάρτα */
+function olcShort(code, ref) {
+  code = code.toUpperCase(); const sep = code.indexOf("+"); if (sep < 2 || sep > 7 || sep % 2) return null;
+  const pad = 8 - sep, res = Math.pow(20, 2 - pad / 2); let la = Math.min(89.99, Math.max(-90, ref.lat)) + 90, ln = ((ref.lng + 180) % 360 + 360) % 360, pre = "";
+  for (let p = 0; p < pad / 2; p++) { const a = Math.floor(la / OLC_R[p]), b = Math.floor(ln / OLC_R[p]); la -= a * OLC_R[p]; ln -= b * OLC_R[p]; pre += OLC_A[a] + OLC_A[b]; }
+  const g = olcFull(pre + code); if (!g) return null;
+  if (ref.lat + res / 2 < g.lat && g.lat - res >= -90) g.lat -= res; else if (ref.lat - res / 2 > g.lat && g.lat + res <= 90) g.lat += res;
+  if (ref.lng + res / 2 < g.lng) g.lng -= res; else if (ref.lng - res / 2 > g.lng) g.lng += res;
+  return g;
+}
+function parseLL(t, ref) {
+  t = String(t || "").trim(); if (!t) return null;
+  try { if (/%[0-9a-f]{2}/i.test(t)) t = decodeURIComponent(t.replace(/\+/g, " ")); } catch {}
+  const num = x => +String(x).replace(",", "."), okp = (lat, lng) => {
+    if (!isFinite(lat) || !isFinite(lng)) return null;
+    if (lat > 19 && lat < 30.5 && lng > 34 && lng < 42) [lat, lng] = [lng, lat];   /* ανάποδα (μήκος, πλάτος) */
+    return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat || lng) ? { lat: +lat.toFixed(7), lng: +lng.toFixed(7) } : null; };
+  const D = "(-?\\d{1,3}(?:[.,]\\d+)?)", pair = re => { const m = re.exec(t); return m ? okp(num(m[1]), num(m[2])) : null; };
+  let p = pair(/!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/)
+    || pair(/[?&#](?:q|query|ll|sll|destination|daddr|center|coordinate|loc|location)=(?:loc:)?\s*(-?\d{1,3}\.\d+)\s*(?:,|\s)\s*(-?\d{1,3}\.\d+)/i)
+    || pair(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/)
+    || pair(/\/maps\/(?:place|search|dir)\/[^@]*?(-?\d{1,3}\.\d{3,}),\s*(-?\d{1,3}\.\d{3,})/);
+  if (p) return p;
+  /* μοίρες: με ή χωρίς λεπτά/δεύτερα, γράμμα πριν ή μετά (N/S/E/W ή Β/Ν/Α/Δ) */
+  const H = "NSEWnsewΒΝΑΔβναδ", re = new RegExp(`([${H}])?\\s*(\\d{1,3}(?:[.,]\\d+)?)\\s*[°º˚]\\s*(?:(\\d{1,2}(?:[.,]\\d+)?)\\s*['′’´]\\s*)?(?:(\\d{1,2}(?:[.,]\\d+)?)\\s*(?:["″”]|''|′′)\\s*)?([${H}](?![a-zα-ω]))?`, "g");
+  const dm = [...t.matchAll(re)];
+  if (dm.length >= 2) {
+    const v = m => { const h = (m[1] || m[5] || "").toUpperCase(); const x = num(m[2]) + (m[3] ? num(m[3]) / 60 : 0) + (m[4] ? num(m[4]) / 3600 : 0); return { x: /[SWΝΔ]/.test(h) ? -x : x, ew: /[EWΑΔ]/.test(h) }; };
+    const a = v(dm[0]), b = v(dm[1]); p = a.ew && !b.ew ? okp(b.x, a.x) : okp(a.x, b.x); if (p) return p;
+  }
+  /* Plus Code */
+  let m = /(?:^|[^0-9A-Z])([23456789CFGHJMPQRVWX]{8}\+[23456789CFGHJMPQRVWX]{2,3})(?![0-9A-Z])/i.exec(t);
+  if (m) { p = olcFull(m[1]); if (p) return okp(p.lat, p.lng); }
+  m = /(?:^|[^0-9A-Z])([23456789CFGHJMPQRVWX]{4,6}\+[23456789CFGHJMPQRVWX]{2,3})(?![0-9A-Z])/i.exec(t);
+  if (m) { p = olcShort(m[1], ref || { lat: 37.9755, lng: 23.7348 }); if (p) return okp(p.lat, p.lng); }
+  /* απλοί αριθμοί: με τελεία ή με ελληνικό κόμμα, χωρισμένοι με κόμμα, ερωτηματικό, κενό ή «/» */
+  return pair(new RegExp(`(-?\\d{1,3}[.,]\\d{3,})\\s*[,;/]\\s*\\+?\\s*(-?\\d{1,3}[.,]\\d{3,})`))
+    || pair(new RegExp(`(-?\\d{1,3}[.,]\\d{3,})[\\s+]+(-?\\d{1,3}[.,]\\d{3,})`))
+    || pair(new RegExp(`(-?\\d{1,3}[.,]\\d{3,})\\D{1,12}?(-?\\d{1,3}[.,]\\d{3,})`));
+}
+/* «Από Google Maps»: το βρίσκεις εκεί και φέρνεις μόνο τη θέση — χωρίς κλειδί και χωρίς κάρτα.
+   Όπως στο Fish IQ: δέχεται κάθε μορφή (και ελληνικό κόμμα), κουμπί επικόλλησης, οδηγίες για Android και iPhone, «Είμαι εδώ», «Στον χάρτη». */
+const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const gmRef = c => (c && custGeoCached(c)) || (S.shop.pin && S.shop.pin.lat != null ? S.shop.pin : null) || { lat: 37.9755, lng: 23.7348 };
+const inGR = p => p.lat > 34 && p.lat < 42 && p.lng > 19 && p.lng < 30.5;
+const gmShortLink = t => /(?:goo\.gl|maps\.app|g\.co\/|maps\.apple\/p|apple\.co\/|share\.google)/i.test(t);
+function gmPreview(c) {
+  const el = $("#gmPv"), t = ($("#gmLL") || {}).value || ""; if (!el) return;
+  if (!t.trim()) { el.className = "gmpv"; el.innerHTML = ""; return; }
+  const p = parseLL(t, gmRef(c));
+  if (!p) { el.className = "gmpv bad"; el.innerHTML = gmShortLink(t) ? "⚠️ Αυτός ο σύντομος σύνδεσμος δεν έχει μέσα αριθμούς. Αντέγραψε τους <b>αριθμούς</b> της καρφίτσας (βήμα 2)." : "❌ Δεν βρίσκω θέση εδώ μέσα ακόμη."; return; }
+  el.className = "gmpv " + (inGR(p) ? "good" : "bad");
+  el.innerHTML = `${inGR(p) ? "✓ Βρέθηκε" : "⚠️ Έξω από την Ελλάδα"}: <b>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</b> · <a href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}" target="_blank" rel="noopener">δες το</a>`;
+}
 function gmSheet(k) {
   const c = S.customers[k]; if (!c) return;
-  const q = [c.addr, c.area].filter(Boolean).join(", ");
-  sheet("🔗 Θέση από Google Maps", `<div class="card" style="margin-top:0"><ol class="gmsteps">
-    <li><a class="btn soft wide" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}" target="_blank" rel="noopener">🗺 Άνοιξε «${esc(q || c.name)}» στο Google Maps</a></li>
-    <li>Κράτα πατημένο το δάχτυλο <b>πάνω στο σωστό σημείο</b> (την πόρτα). Πάνω εμφανίζονται αριθμοί, π.χ. <b>37.98380, 23.72750</b>· πάτησέ τους για αντιγραφή.</li>
-    <li>Γύρνα εδώ και επικόλλησέ τους:</li></ol>
-    <input class="t" id="gmLL" placeholder="37.98380, 23.72750" inputmode="decimal" autocomplete="off">
-    <p class="note" style="margin:6px 0 0">Δέχεται και σύνδεσμο Google Maps που έχει μέσα τους αριθμούς.</p></div>`,
-    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="gmSave">✓ Κράτα τη θέση</button>`, el => { el.dataset.gmk = k; });
+  const q = [c.addr, c.area].filter(Boolean).join(", "), ios = isIOS(), qe = encodeURIComponent(q || c.name);
+  const gBtn = `<a class="btn soft wide" href="https://www.google.com/maps/search/?api=1&query=${qe}" target="_blank" rel="noopener">🗺 Google Maps</a>`,
+    aBtn = `<a class="btn soft wide" href="https://maps.apple.com/?q=${qe}" target="_blank" rel="noopener">🍎 Χάρτες Apple</a>`;
+  const andr = `<details class="gmdev"${ios ? "" : " open"}><summary>🤖 Android</summary><ol class="gmsteps">
+      <li>Στο Google Maps <b>κράτα πατημένο</b> το σωστό σημείο (την πόρτα) μέχρι να πέσει κόκκινη καρφίτσα.</li>
+      <li>Πάνω, στο κουτί αναζήτησης, φαίνονται αριθμοί, π.χ. <b>37,98380, 23,72750</b>. Πάτα τους → <b>Αντιγραφή</b>.</li></ol></details>`;
+  const iph = `<details class="gmdev"${ios ? " open" : ""}><summary>📱 iPhone</summary><ol class="gmsteps">
+      <li><b>Χάρτες Apple:</b> κράτα πατημένο το σημείο → πέφτει καρφίτσα → σήκωσε την κάρτα από κάτω → πάτα τους αριθμούς (π.χ. <b>37,98380° Β, 23,72750° Α</b>) → <b>Αντιγραφή</b>.</li>
+      <li><b>Google Maps στο iPhone:</b> κράτα πατημένο το σημείο → οι αριθμοί βγαίνουν πάνω στο κουτί → πάτα τους → <b>Αντιγραφή</b>.</li>
+      <li>Ή <b>Κοινοποίηση → Αντιγραφή</b> του συνδέσμου (αν δεν τον δέχεται, πάρε τους αριθμούς).</li></ol></details>`;
+  sheet("🔗 Θέση από Google Maps", `<div class="card" style="margin-top:0">
+    <p class="note" style="margin:0 0 6px">1. Άνοιξε τη διεύθυνση «<b>${esc(q || c.name)}</b>»:</p>
+    <div class="row gmapps">${ios ? aBtn + gBtn : gBtn + aBtn}</div>
+    <p class="note" style="margin:10px 0 4px">2. Κράτα πατημένο το σωστό σημείο, αντέγραψε τους αριθμούς, γύρνα εδώ και επικόλλησέ τους:</p>
+    <div class="row gmin"><textarea class="t" id="gmLL" rows="2" placeholder="37,98380, 23,72750 ή σύνδεσμος" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea><button type="button" class="btn amber sm" data-act="gmPaste">📋 Επικόλληση</button></div>
+    <div id="gmPv" class="gmpv"></div>
+    <p class="note" style="margin:10px 0 4px"><b>❓ Πώς αντιγράφω τη θέση;</b></p>
+    ${ios ? iph + andr : andr + iph}
+    <p class="note" style="margin:6px 0 0">Δέχεται: αριθμούς με κόμμα ή τελεία, μοίρες (37°59'01"N), σύνδεσμο Google Maps ή Χαρτών Apple, Plus Code (π.χ. WQRF+X2).</p></div>
+    <div class="card"><p class="note" style="margin:0 0 6px"><b>Ή αλλιώς:</b></p><div class="row"><button type="button" class="btn ghost sm grow" data-act="gmHere" style="flex:1 1 0">📍 Είμαι εκεί τώρα</button><button type="button" class="btn ghost sm grow" data-act="gmPick" style="flex:1 1 0">🗺 Πάτα στον χάρτη</button></div></div>`,
+    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="gmSave">✓ Κράτα τη θέση</button>`,
+    el => { el.dataset.gmk = k; const i = el.querySelector("#gmLL"); if (i) i.addEventListener("input", () => gmPreview(c)); });
 }
 /* «Βάλ' το στον χάρτη»: πατάς το σωστό σημείο */
 async function pickOnMap(k) {
@@ -2647,10 +2717,19 @@ const ACT = {
   custPick: () => { const k = $("#shB").dataset.cust; ACT.custSave(true); pickOnMap(k); },
   custGm: () => { const k = $("#shB").dataset.cust; ACT.custSave(true); gmSheet(k); },
   gmSave: () => { const k = $("#shB").dataset.gmk, c = S.customers[k]; if (!c) return; const t = ($("#gmLL").value || "").trim();
-    if (/goo\.gl|maps\.app/i.test(t) && !parseLL(t)) { toast("Αυτός είναι σύντομος σύνδεσμος χωρίς αριθμούς. Αντέγραψε τις συντεταγμένες (π.χ. 37.98380, 23.72750).", 6000); return; }
-    const p = parseLL(t); if (!p) { toast("Δεν βρήκα συντεταγμένες. Επικόλλησε κάτι σαν 37.98380, 23.72750", 5000); return; }
-    if (!(p.lat > 34 && p.lat < 42 && p.lng > 19 && p.lng < 30.5) && !confirm("Αυτό το σημείο είναι έξω από την Ελλάδα. Να κρατηθεί;")) return;
-    c.pin = { lat: p.lat, lng: p.lng, at: Date.now() }; save(); toast("✓ Κρατήθηκε η θέση από το Google Maps", 3000); openCust(k); },
+    if (!t) { toast("Επικόλλησε πρώτα τη θέση (βήμα 3) ή πάτα «📋 Επικόλληση».", 4000); return; }
+    const p = parseLL(t, gmRef(c));
+    if (!p) { toast(gmShortLink(t) ? "Αυτός είναι σύντομος σύνδεσμος χωρίς αριθμούς. Αντέγραψε τους αριθμούς της καρφίτσας (π.χ. 37,98380, 23,72750)." : "Δεν βρήκα θέση. Επικόλλησε κάτι σαν 37,98380, 23,72750", 6000); return; }
+    if (!inGR(p) && !confirm("Αυτό το σημείο είναι έξω από την Ελλάδα. Να κρατηθεί;")) return;
+    c.pin = { lat: p.lat, lng: p.lng, at: Date.now() }; save(); toast("✓ Κρατήθηκε η θέση του πελάτη", 3000); openCust(k); },
+  gmPaste: async () => { const c = S.customers[$("#shB").dataset.gmk], i = $("#gmLL"); if (!i) return;
+    let t = ""; try { t = navigator.clipboard && navigator.clipboard.readText ? await navigator.clipboard.readText() : ""; } catch { t = ""; }
+    if (!t) { i.focus(); toast("Κράτα πατημένο το κουτί και διάλεξε «Επικόλληση».", 4500); return; }
+    i.value = t.trim(); gmPreview(c); },
+  gmHere: async () => { const k = $("#shB").dataset.gmk, c = S.customers[k]; if (!c) return; toast("📍 Βρίσκω τη θέση σου…");
+    const p = await myPos(); if (!p) { toast("Δεν βρέθηκε η θέση. Άνοιξε τον εντοπισμό (Ρυθμίσεις → Απόρρητο → Υπηρεσίες τοποθεσίας στο iPhone).", 6000); return; }
+    c.pin = { lat: p.lat, lng: p.lng, at: Date.now() }; save(); toast("✓ Κρατήθηκε η θέση εκεί που είσαι τώρα", 3000); openCust(k); },
+  gmPick: () => { const k = $("#shB").dataset.gmk; if (k) pickOnMap(k); },
   custGeoCheck: async () => {
     const k = $("#shB").dataset.cust, c = S.customers[k]; if (!c) return;
     ACT.custSave(true);
