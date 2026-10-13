@@ -96,7 +96,8 @@ let catT = null;
 function catSoon(ms, force) {
   if (!S.link.gSent || !S.nt.spriv) return;
   clearTimeout(catT); catT = setTimeout(async () => { try {
-    const C = K.buildCatalog(S, { photos: false, logo: false, appUrl: BASE });
+    let C = K.buildCatalog(S, { photos: false, logo: false, appUrl: BASE });
+    if (Math.ceil((await K.pack(C)).length / K.CHUNK) > 20) C = K.buildCatalog(S, { photos: false, logo: false, icons: false, appUrl: BASE });   /* πολύ μεγάλος: χωρίς τα εικονίδια, μένουν τα σύμβολα */
     const sig = JSON.stringify(Object.assign({}, C, { ts: 0 }));
     if (!force && sig === S.link.catSig) return;
     if (await K.catalogPublish(S, C)) { S.link.catSig = sig; S.link.catAt = Date.now(); S.link.dirty = false; clearTimeout(saveT); saveT = setTimeout(write, 250); if (tab === "orders" || tab === "more") render(); }
@@ -1299,6 +1300,9 @@ function custPinGo(k) {
   if (!(c.addr || "").trim() && !(c.pin && c.pin.lat != null)) { toast("Ο πελάτης δεν έχει διεύθυνση. Πρόσθεσέ τη στην καρτέλα του, ή πάτα «📍 Είμαι εδώ» όταν είσαι εκεί.", 4500); openCust(k); return; }
   closeSheet(); cm.focus = k; cm.f = "all"; cm.area = ""; tab = "map"; render();
 }
+/* εικονίδιο χάρτη (δικό μας, ίδιο σε όλα τα κινητά) */
+const MAPIC = `<svg viewBox="0 0 48 48" width="1em" height="1em" aria-hidden="true"><path d="M4 13.5 16 8.5l16 5 12-5v28l-12 5-16-5-12 5z" fill="#D7EFD9"/><path d="M16 8.5v28l16 5v-28z" fill="#BFE3C4"/><path d="M4 13.5 16 8.5l16 5 12-5v28l-12 5-16-5-12 5z" fill="none" stroke="#3E8E57" stroke-width="2.2" stroke-linejoin="round"/><path d="M6.5 30c5-3 8.5 2 13.5 0s7-8 12.5-6.5S39 27 42 25" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M33.5 3.5c-5 0-8.6 3.8-8.6 8.4 0 6.2 8.6 15.1 8.6 15.1s8.6-8.9 8.6-15.1c0-4.6-3.6-8.4-8.6-8.4z" fill="#E53935" stroke="#B71C1C" stroke-width="1.2"/><circle cx="33.5" cy="12" r="3.3" fill="#fff"/></svg>`;
+A.MAPIC = MAPIC;
 const CU_SORT = { rec: "🕒 Πρόσφατοι", freq: "🔁 Συχνότεροι", sum: "💶 Τζίρος", name: "🔤 Όνομα", owe: "🔴 Χρωστάνε", area: "📍 Περιοχή", idle: "💤 Καιρό χωρίς παραγγελία" };
 function custsView() {
   const q = K.norm(custQ);
@@ -1315,8 +1319,8 @@ function custsView() {
   const L = Object.values(S.customers).filter(c => !q || K.norm(c.name + " " + c.phone + " " + (c.addr || "") + " " + (c.area || "")).includes(q)).filter(c => so !== "owe" || owe[c.key] > 0).sort(cmp);
   const nAll = Object.keys(S.customers).length;
   const owedAll = K.round2(Object.keys(S.customers).reduce((a, k) => a + custStats(k).owed, 0));
-  return `<div class="row" style="margin-bottom:10px"><input class="t grow" id="custQ" placeholder="🔍 Αναζήτηση πελάτη" value="${esc(custQ)}"><button type="button" class="btn amber" data-act="custNewBtn">＋ Νέος</button><button type="button" class="btn soft" data-act="custContacts" aria-label="Από τις επαφές" title="Πελάτες από τις επαφές του κινητού">📇</button></div>
-   <button type="button" class="btn soft wide cumapb" data-act="custMap"><span>🗺</span> Χάρτης πελατών <span class="cumapg">›</span></button>
+  return `<div class="row" style="margin-bottom:10px"><input class="t grow" id="custQ" placeholder="🔍 Αναζήτηση πελάτη" value="${esc(custQ)}"><button type="button" class="btn amber" data-act="custNewBtn">＋ Νέος</button></div>
+   <button type="button" class="btn soft wide cumapb" data-act="custMap"><span class="mapic">${MAPIC}</span> Χάρτης πελατών <span class="cumapg">›</span></button>
    ${nAll > 1 ? `<div class="cusort"><span>Ταξινόμηση</span><div class="chips">${Object.entries(CU_SORT).map(([k, l]) => `<button type="button" class="chip sm${so === k ? " on" : ""}" data-cusort="${k}">${l}</button>`).join("")}</div></div>` : ""}
    ${owedAll > 0 ? `<div class="warnbox">Σου χρωστάνε συνολικά <b>${K.money(owedAll)}</b> από παραδομένες παραγγελίες.</div>` : ""}
    ${L.length ? `<div class="culist">${L.map(c => { const s = custStats(c.key), g = custGeoState(c); return `<div class="it cuit${s.owed > 0 ? " owe" : ""}${g === "miss" || g === "amb" || g === "off" ? " nogeo" : ""}" data-cust="${c.key}" style="--cc:${custColor(c.key)}">
@@ -2514,7 +2518,7 @@ async function importContacts() {
   toast((added === 1 ? "✓ Προστέθηκε 1 πελάτης." : "✓ Προστέθηκαν " + added + " πελάτες.") + (had ? " " + had + (had === 1 ? " υπήρχε ήδη." : " υπήρχαν ήδη.") : "") + (nophone ? " " + nophone + " χωρίς κινητό." : ""), 4500);
 }
 function newCustSheet(after) {
-  sheet("＋ Νέος πελάτης", `<button type="button" class="btn soft wide" data-act="ncContact" style="margin-bottom:10px">📇 Συμπλήρωση από τις επαφές</button><div class="card"><label class="f" for="ncN">Ονοματεπώνυμο</label><input class="t" id="ncN" maxlength="80">
+  sheet("＋ Νέος πελάτης", `<div class="nccts"><button type="button" class="btn soft grow" data-act="ncContact">📇 Από τις επαφές<small>έναν, συμπληρώνει τη φόρμα</small></button><button type="button" class="btn soft grow" data-act="ncMany">👥 Πολλούς μαζί<small>διαλέγεις όσους θέλεις</small></button></div><div class="card"><label class="f" for="ncN">Ονοματεπώνυμο</label><input class="t" id="ncN" maxlength="80">
    <label class="f" for="ncP">Κινητό</label><input class="t" id="ncP" type="tel" maxlength="20"><label class="f" for="ncA">Διεύθυνση</label><input class="t" id="ncA" maxlength="160"><label class="f" for="ncAr">Περιοχή</label><input class="t" id="ncAr" maxlength="60" placeholder="π.χ. Κορωπί"></div><div id="ncErr"></div>`,
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="ncSave">Αποθήκευση</button>`);
   A._ncAfter = after;
@@ -2581,7 +2585,7 @@ async function makeLink(cust, lo) {
     for (const [id, p] of Object.entries(st.products)) prodsForLink[id] = p.photo ? Object.assign({}, p, { photo: await thumbOf(p.photo) }) : p;
   }
   const shopForLink = st.shop.logo && S.link.logo && !lo.noLogo ? Object.assign({}, st.shop, { logo: await thumbOf(st.shop.logo, 48, 0.5) }) : st.shop;
-  const C = K.buildCatalog(Object.assign({}, st, { products: prodsForLink, shop: shopForLink }), { photos: S.link.photos && isPro() && !lo.noPhotos, logo: S.link.logo && !lo.noLogo, appUrl: BASE, cust: cust || undefined });
+  const C = K.buildCatalog(Object.assign({}, st, { products: prodsForLink, shop: shopForLink }), { photos: S.link.photos && isPro() && !lo.noPhotos, logo: S.link.logo && !lo.noLogo, icons: !lo.noIcons, appUrl: BASE, cust: cust || undefined });
   const pk = await K.pack(C);
   return BASE + "p.html#n=" + pk.length + "&k=" + pk;
 }
@@ -2606,7 +2610,9 @@ async function shortOf(url) {
 async function shortLink(cust) {
   const tries = [{}];
   if (S.link.photos && isPro()) tries.push({ noPhotos: 1 });
-  if (S.shop.logo && S.link.logo) tries.push({ noPhotos: 1, noLogo: 1 });
+  const hasIc = Object.values(S.products).some(p => p.aic) || JSON.stringify(S.menu).includes('"aic"');
+  if (hasIc) tries.push({ noPhotos: 1, noIcons: 1 });
+  if (S.shop.logo && S.link.logo) tries.push({ noPhotos: 1, noIcons: 1, noLogo: 1 });
   let first = "", r = null;
   for (const t of tries) {
     const long = await makeLink(cust, t); if (!first) first = long;
@@ -2615,7 +2621,7 @@ async function shortLink(cust) {
     if (!r.svc) break;   /* χωρίς διαδίκτυο ή η υπηρεσία δεν απαντά: το μικρότερο δεν θα βοηθήσει */
   }
   /* καμία υπηρεσία: στέλνεται ο μικρότερος κανονικός (χωρίς φωτογραφίες και λογότυπο), για να χωρέσει ολόκληρος */
-  const small = tries.length > 1 ? await makeLink(cust, { noPhotos: 1, noLogo: 1 }) : first;
+  const small = tries.length > 1 ? await makeLink(cust, { noPhotos: 1, noLogo: 1, noIcons: 1 }) : first;
   return { long: small, short: "", err: r && r.err, svc: r && r.svc, full: first, small: small !== first };
 }
 const droppedTxt = d => d && (d.noPhotos || d.noLogo) ? `<div class="okbox" style="margin-top:8px">ℹ️ Ο κατάλογος ήταν πολύ μεγάλος για σύντομο σύνδεσμο, οπότε στέλνεται ${d.noLogo && S.link.photos && isPro() ? "χωρίς φωτογραφίες και χωρίς λογότυπο" : d.noLogo ? "χωρίς λογότυπο" : "χωρίς φωτογραφίες"}. Τα προϊόντα και οι τιμές είναι όλα μέσα.</div>` : "";
@@ -2861,6 +2867,7 @@ const ACT = {
   ncSave: () => { const n = $("#ncN").value.trim(), p = $("#ncP").value.trim(); if (n.length < 2 || p.replace(/\D/g, "").length < 10) { $("#ncErr").innerHTML = `<div class="errbox">Γράψε όνομα και κινητό (10 ψηφία).</div>`; return; } const c = upsertCustomer({ name: n, phone: p, addr: $("#ncA").value.trim() }, Date.now()); { const ar = $("#ncAr") ? $("#ncAr").value.trim() : ""; if (ar) c.area = ar; } save(); const f = A._ncAfter; A._ncAfter = null; if (f) f(c.key); else { render(); openCust(c.key); } },
   custNewBtn: () => newCustSheet(null),
   custContacts: () => importContacts(),
+  ncMany: async () => { closeSheet(); await importContacts(); },
   ncContact: async () => { const r = await pickContacts(false); if (!r) return; const d = contactToCust(r[0]); if ($("#ncN") && d.name) $("#ncN").value = d.name; if ($("#ncP") && d.phone) $("#ncP").value = d.phone; if ($("#ncA") && d.addr) $("#ncA").value = d.addr; if ($("#ncAr") && d.area) $("#ncAr").value = d.area; if (!d.phone) toast("Η επαφή δεν έχει κινητό.", 3000); },
   custRoute: () => delivSheet($("#shB").dataset.cust),
   custLink: () => custLinkSheet($("#shB").dataset.cust),

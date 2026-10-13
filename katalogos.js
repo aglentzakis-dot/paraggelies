@@ -559,13 +559,13 @@
         if (!p || (p.hidden && !ctx.edit)) continue;
         const q = ctx.qty ? ctx.qty(p.id) : 0;
         const so = !!p.soldout;
-        const img = p.photo ? `<img class="ph" src="${K.esc(p.photo)}" alt="">` : (n.emoji || p.emoji ? `<span class="em">${K.esc(n.emoji || p.emoji)}</span>` : "");
+        const img = p.photo ? `<img class="ph" src="${K.esc(p.photo)}" alt="">` : /^data:image\//.test(p.aic || "") ? `<img class="em emi" src="${K.esc(p.aic)}" alt="">` : (n.emoji || p.emoji ? `<span class="em">${K.esc(n.emoji || p.emoji)}</span>` : "");
         const ctl = ctx.edit ? "" : so ? `<div class="so">${p.oos ? "Εκτός εποχής" : "Εξαντλήθηκε"}</div>` :
           `<div class="qty"><button type="button" class="qb" data-minus="${p.id}" aria-label="Λιγότερο"${q ? "" : " disabled"}>−</button><span class="qv" data-qv="${p.id}">${q ? K.num(q) : "0"}</span><button type="button" class="qb plus" data-plus="${p.id}" aria-label="Περισσότερο">+</button></div>`;
         out.push(`<div class="tile prod sz-${sz}${so ? " soldout" : ""}${q ? " has" : ""}${p.hidden || p.draft ? " hid" : ""}${sel}" data-node="${n.id}" data-pid="${p.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<div class="tx"><div class="nm">${K.esc(n.name || p.name)}</div><div class="pr">${K.money(p.price)} <small>/ ${K.esc(p.unit)}</small></div>${+p.step && +p.step !== 1 ? `<div class="stp">κάθε ＋ ${K.num(p.step)} ${K.esc(p.unit)} = <b>${K.money(p.price * p.step)}</b></div>` : ""}${(p.tiers || []).length ? `<div class="stp">${p.tiers.slice().sort((a, b) => a[0] - b[0]).map(t => `από ${K.num(t[0])}: <b>${K.money(t[1])}</b>`).join(" · ")}</div>` : ""}${+p.min > 0 && !ctx.edit ? `<div class="stp">ελάχιστη παραγγελία: ${K.num(p.min)}</div>` : ""}${p.max != null && !ctx.edit && p.max < 20 ? `<div class="stp lft">έμειναν ${K.num(p.max)}</div>` : ""}${p.desc && sz !== "s" ? `<div class="ds">${K.esc(p.desc)}</div>` : ""}</div>${ctl}${ctx.edit && (so || p.hidden || p.draft) ? `<div class="flag">${p.draft ? "Ενδεικτικό" : so ? "Εξαντλήθηκε" : "Κρυφό"}</div>` : ""}</div>`);
       } else {
         const cnt = ctx.count ? ctx.count(n) : 0;
-        const img = n.photo ? `<img class="ph" src="${K.esc(n.photo)}" alt="">` : n.emoji ? `<span class="em">${K.esc(n.emoji)}</span>` : "";
+        const img = n.photo ? `<img class="ph" src="${K.esc(n.photo)}" alt="">` : /^data:image\//.test(n.aic || "") ? `<img class="em emi" src="${K.esc(n.aic)}" alt="">` : n.emoji ? `<span class="em">${K.esc(n.emoji)}</span>` : "";
         /* βασικές κατηγορίες (στην αρχική): άλλο χρώμα και από κάτω οι υποκατηγορίες τους (ή τα πρώτα προϊόντα) */
         let subs = "";
         if (ctx.root) { const kc = (n.kids || []).filter(k => k.t === "c").map(k => k.name).filter(Boolean);
@@ -618,7 +618,7 @@
       if (n.emoji) o.e = n.emoji;
       if (n.color) o.c = n.color;
       if (n.t === "p") { const p = st.products[n.pid]; if (!visible(p)) return null; o.p = n.pid; used.add(n.pid); if (o.n === p.name) delete o.n; }
-      else { o.k = walk(n.kids).filter(Boolean); if (!o.k.length) return null; if (opts.photos && n.photo) o.f = n.photo; }
+      else { o.k = walk(n.kids).filter(Boolean); if (!o.k.length) return null; if (opts.photos && n.photo) o.f = n.photo; if (opts.icons !== false && n.aic) o.ai = n.aic; }
       return o;
     }).filter(Boolean);
     const m = walk(st.menu);
@@ -641,6 +641,7 @@
       if (x.emoji) o.e = x.emoji;
       if (x.perish === false) o.np = 1;
       if (opts.photos && x.photo) o.f = x.photo;
+      if (opts.icons !== false && x.aic) o.ai = x.aic;
       p[id] = o;
     }
     const d = st.deliv || {};
@@ -656,8 +657,8 @@
   /* από τον συμπαγή κατάλογο σε κοινή μορφή για την απόδοση */
   K.expandCatalog = C => {
     const products = {};
-    for (const [id, o] of Object.entries(C.p || {})) products[id] = { id, name: o.n, unit: o.u, price: +o.r || 0, step: +o.s || 1, vat: o.v != null ? +o.v : 13, soldout: !!o.x || !!o.xs, oos: !!o.xs, desc: o.d || "", emoji: o.e || "", perish: !o.np, photo: o.f || "", tiers: Array.isArray(o.tq) ? o.tq : [], min: +o.mn || 0, max: o.mx != null ? +o.mx : null };
-    const walk = ns => (ns || []).map(o => o.p ? { id: o.i, t: "p", pid: o.p, name: o.n || (products[o.p] || {}).name || "", size: o.z || "m", emoji: o.e || "", color: o.c || "" } : { id: o.i, t: "c", name: o.n, size: o.z || "m", emoji: o.e || "", color: o.c || "", photo: o.f || "", kids: walk(o.k) });
+    for (const [id, o] of Object.entries(C.p || {})) products[id] = { id, name: o.n, unit: o.u, price: +o.r || 0, step: +o.s || 1, vat: o.v != null ? +o.v : 13, soldout: !!o.x || !!o.xs, oos: !!o.xs, desc: o.d || "", emoji: o.e || "", perish: !o.np, photo: o.f || "", tiers: Array.isArray(o.tq) ? o.tq : [], min: +o.mn || 0, max: o.mx != null ? +o.mx : null, aic: typeof o.ai === "string" ? o.ai : "" };
+    const walk = ns => (ns || []).map(o => o.p ? { id: o.i, t: "p", pid: o.p, name: o.n || (products[o.p] || {}).name || "", size: o.z || "m", emoji: o.e || "", color: o.c || "" } : { id: o.i, t: "c", name: o.n, size: o.z || "m", emoji: o.e || "", color: o.c || "", photo: o.f || "", aic: typeof o.ai === "string" ? o.ai : "", kids: walk(o.k) });
     return { products, menu: walk(C.m) };
   };
 

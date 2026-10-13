@@ -510,6 +510,67 @@ const picked = id => { const b = document.querySelector("#" + id + " button.on")
 
 function catOptsHTML(sel, top) { const o = []; const w = (L, d) => { for (const n of L) if (n.t === "c") { o.push(`<option value="${n.id}"${n.id === sel ? " selected" : ""}>${"— ".repeat(d)}${esc((n.emoji ? n.emoji + " " : "") + (n.name || "Χωρίς όνομα"))}</option>`); w(n.kids || [], d + 1); } }; w(S().menu, 0); return `<option value=""${sel === "" ? " selected" : ""}>${top}</option>` + o.join(""); }
 function subtreeCount(node) { let cats = 0; const pids = new Set(); const w = L => { for (const n of L || []) { if (n.t === "c") { cats++; w(n.kids); } else if (n.t === "p") pids.add(n.pid); } }; w(node.kids); return { cats, prods: pids.size, pids }; }
+/* ---------- εικονίδιο με τεχνητή νοημοσύνη (δωρεάν, χωρίς λογαριασμό): γράφεις «σουβλάκι» και σχεδιάζεται στο ύφος των άλλων εικονιδίων ---------- */
+const AI_IMG = "https://image.pollinations.ai/prompt/", AI_TXT = "https://text.pollinations.ai/", AI_GAP = 16000;
+let aiLast = 0, aiBusy = false;
+const aiASCII = t => /^[\x20-\x7e]+$/.test(t);
+async function aiEnglish(t) {
+  if (aiASCII(t)) return t;
+  try { const c = new AbortController(), tm = setTimeout(() => c.abort(), 9000);
+    const r = await fetch(AI_TXT + encodeURIComponent("Translate this Greek product name to short simple English (1-4 words). Reply with the translation only, nothing else: " + t), { signal: c.signal });
+    clearTimeout(tm); if (!r.ok) throw 0; const x = (await r.text()).trim().split("\n")[0].replace(/["«».]/g, "").trim().slice(0, 60);
+    return x && aiASCII(x) ? x : t; } catch { return t; }
+}
+function aiLoad(url, ms) { return new Promise((res, rej) => { const im = new Image(); im.crossOrigin = "anonymous"; const tm = setTimeout(() => { im.src = ""; rej(new Error("χρόνος")); }, ms);
+  im.onload = () => { clearTimeout(tm); res(im); }; im.onerror = () => { clearTimeout(tm); rej(new Error("φόρτωση")); }; im.src = url; }); }
+/* αφαιρεί το άσπρο φόντο (από τις άκρες προς τα μέσα), κόβει γύρω από το σχέδιο, μικραίνει σε 96 εικονοστοιχεία */
+function aiCut(im, out) {
+  const W = 256, c = document.createElement("canvas"); c.width = c.height = W; const x = c.getContext("2d"); x.drawImage(im, 0, 0, W, W);
+  const d = x.getImageData(0, 0, W, W), a = d.data, seen = new Uint8Array(W * W), st = [];
+  const wh = i => a[i * 4] > 228 && a[i * 4 + 1] > 228 && a[i * 4 + 2] > 228;
+  for (let i = 0; i < W; i++) st.push(i, (W - 1) * W + i, i * W, i * W + W - 1);
+  while (st.length) { const i = st.pop(); if (seen[i] || !wh(i)) continue; seen[i] = 1; a[i * 4 + 3] = 0; const px = i % W, py = (i / W) | 0; if (px > 0) st.push(i - 1); if (px < W - 1) st.push(i + 1); if (py > 0) st.push(i - W); if (py < W - 1) st.push(i + W); }
+  for (let i = 0; i < W * W; i++) if (!seen[i] && a[i * 4 + 3]) { const m = Math.min(a[i * 4], a[i * 4 + 1], a[i * 4 + 2]); if (m > 205) { const px = i % W, py = (i / W) | 0, nb = [i - 1, i + 1, i - W, i + W].some(j => j >= 0 && j < W * W && seen[j] && Math.abs((j % W) - px) <= 1 && Math.abs(((j / W) | 0) - py) <= 1); if (nb) a[i * 4 + 3] = Math.round(255 * (255 - m) / 50); } }
+  let x0 = W, y0 = W, x1 = 0, y1 = 0; for (let y = 0; y < W; y++) for (let xx = 0; xx < W; xx++) if (a[(y * W + xx) * 4 + 3] > 30) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  x.putImageData(d, 0, 0);
+  if (x1 <= x0 || y1 <= y0) throw new Error("κενό");
+  const sz = Math.max(x1 - x0, y1 - y0) * 1.08, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, o = document.createElement("canvas"); o.width = o.height = out;
+  o.getContext("2d").drawImage(c, cx - sz / 2, cy - sz / 2, sz, sz, 0, 0, out, out);
+  let u = o.toDataURL("image/webp", 0.85); if (!u.startsWith("data:image/webp")) u = o.toDataURL("image/png");
+  return u;
+}
+async function aiIcon(text, seed) {
+  const en = await aiEnglish(text);
+  const prompt = en + ", single cute emoji icon, Apple emoji style, glossy 3D cartoon, centered, isolated on plain white background, no text, no shadow, no border";
+  const img = await aiLoad(AI_IMG + encodeURIComponent(prompt) + "?width=256&height=256&nologo=true&model=flux&seed=" + seed, 60000);
+  return aiCut(img, 96);
+}
+function aiBoxHTML(cur, name) {
+  return `<div class="aibox"><label class="f" for="aiQ">✨ Ή φτιάξε δικό σου εικονίδιο με τεχνητή νοημοσύνη</label>
+    <div class="row"><input class="t grow" id="aiQ" value="${esc(name || "")}" maxlength="40" placeholder="π.χ. σουβλάκι, φρέντο, τυρόπιτα"><button type="button" class="btn sm amber" data-ea="aiMake">✨ Φτιάξε</button></div>
+    <div id="aiOut" class="aiout">${cur ? aiPrev(cur) : ""}</div><input type="hidden" id="aiIc" value="${esc(cur || "")}">
+    <p class="note" style="margin:6px 0 0">Το σχεδιάζει δωρεάν υπηρεσία (Pollinations), χωρίς λογαριασμό. Στέλνεται μόνο η λέξη που γράφεις. Θέλει 10–40 δευτερόλεπτα. Μη ζητάς σήματα ή λογότυπα άλλων εταιρειών.</p></div>`;
+}
+const aiPrev = u => `<img src="${esc(u)}" alt=""><div class="row"><button type="button" class="btn sm soft" data-ea="aiMake">🔄 Άλλο σχέδιο</button><button type="button" class="btn sm ghost" data-ea="aiClear">✕ Χωρίς</button></div>`;
+async function aiMake() {
+  const q = ($("#aiQ") || {}).value.trim(), out = $("#aiOut"); if (!out) return;
+  if (!q) { A.toast("Γράψε τι να σχεδιάσει, π.χ. σουβλάκι."); return; }
+  if (aiBusy) return;
+  if (!navigator.onLine) { A.toast("Χρειάζεται σύνδεση στο διαδίκτυο."); return; }
+  aiBusy = true;
+  try {
+    let wait = aiLast + AI_GAP - Date.now();
+    while (wait > 0) { out.innerHTML = `<div class="aiwait"><div class="spin"></div><span>Η δωρεάν υπηρεσία θέλει λίγα δευτερόλεπτα ανάμεσα στα σχέδια… ${Math.ceil(wait / 1000)}</span></div>`; await new Promise(r => setTimeout(r, 1000)); wait = aiLast + AI_GAP - Date.now(); if (!$("#aiOut")) return; }
+    out.innerHTML = `<div class="aiwait"><div class="spin"></div><span>Σχεδιάζω «${esc(q)}»…</span></div>`;
+    aiLast = Date.now();
+    const u = await aiIcon(q, Math.floor(Math.random() * 1e6));
+    const o2 = $("#aiOut"); if (!o2) return;
+    $("#aiIc").value = u; o2.innerHTML = aiPrev(u);
+  } catch (e) {
+    const o2 = $("#aiOut"); if (o2) o2.innerHTML = `<div class="warnbox">Δεν βγήκε σχέδιο αυτή τη φορά (${esc(e && e.name === "SecurityError" ? "η υπηρεσία δεν επιτρέπει αποθήκευση" : (e && e.message) || "σφάλμα")}). Δοκίμασε ξανά σε λίγο.</div>`;
+  } finally { aiBusy = false; }
+}
+A._aiCut = aiCut;   /* για τις δοκιμές */
 function catSheet(node, parentId) {
   const isNew = !node;
   node = node || { name: "", emoji: "", color: "", size: "m" };
@@ -517,6 +578,7 @@ function catSheet(node, parentId) {
    ${isNew ? `<div class="card"><label class="f" for="cPar">Πού μπαίνει</label><select class="t" id="cPar">${catOptsHTML(parentId != null ? parentId : ed.view === "menu" && curCat() ? curCat().id : "", "🏠 Στην αρχική (κύρια κατηγορία)")}</select><p class="note" style="margin-bottom:0">Αν διαλέξεις μια κατηγορία, η νέα γίνεται υποκατηγορία της.</p></div>` : ""}
    <div class="card"><label class="f" for="cName">Όνομα ${isNew ? "κατηγορίας" : "κουμπιού"}</label><input class="t" id="cName" value="${esc(node.name)}" maxlength="40" placeholder="π.χ. Αυγά">
     <label class="f">Εικονίδιο</label>${emojiPicker(node.emoji)}<input class="t" id="emFree" value="${esc(node.emoji || "")}" maxlength="4" placeholder="ή γράψε δικό σου" style="margin-top:6px;width:150px">
+    ${aiBoxHTML(node.aic, node.name)}
     <label class="f">Μέγεθος κουμπιού</label>${sizePicker(node.size)}
     <label class="f">Χρώμα κουμπιού</label>${colorPicker(node.color)}</div>
    ${!isNew ? (() => { const c = subtreeCount(node); return `<div class="card"><h3 style="margin-top:0">Διαγραφή</h3>
@@ -529,8 +591,9 @@ function catSheet(node, parentId) {
 function catSave() {
   const name = $("#cName").value.trim(); if (!name) { A.toast("Γράψε όνομα."); return; }
   const id = $("#shB").dataset.node;
-  const v = { name, emoji: $("#emFree").value.trim(), size: picked("szPick") || "m", color: picked("colPick") };
-  if (id) Object.assign(K.findNode(S().menu, id).node, v);
+  const v = { name, emoji: $("#emFree").value.trim(), size: picked("szPick") || "m", color: picked("colPick"), aic: $("#aiIc") ? $("#aiIc").value : "" };
+  if (!v.aic) delete v.aic;
+  if (id) { const nd = K.findNode(S().menu, id).node; Object.assign(nd, v); if (!v.aic) delete nd.aic; }
   else { const par = $("#cPar") ? $("#cPar").value : null; const L = par == null ? curList() : par ? (K.findNode(S().menu, par).node.kids = K.findNode(S().menu, par).node.kids || []) : S().menu;
     const nc = Object.assign({ id: newId(), t: "c", kids: [] }, v); if (L === S().menu) { let lc = -1; L.forEach((n, i) => { if (n.t === "c") lc = i; }); L.splice(lc + 1, 0, nc); } else L.push(nc);
     if (ed.view === "list") A.toast("✓ Νέα κατηγορία «" + name + "». Πάτα «＋ Προσθήκη» μέσα της.", 3500); }
@@ -585,6 +648,7 @@ function prodSheet(pid, nodeId) {
     <label class="f">Φωτογραφία</label><div class="row"><div id="pPhPrev">${x.photo ? `<img src="${esc(x.photo)}" style="width:64px;height:64px;border-radius:12px;object-fit:cover">` : `<span class="note">Χωρίς φωτογραφία</span>`}</div><label class="btn soft sm">📷 Επιλογή<input type="file" accept="image/*" id="pPh" hidden></label>${x.photo ? `<button type="button" class="btn soft sm" data-ea="phDel">Αφαίρεση</button>` : ""}</div>
     <p class="note">Μόνο δικές σου φωτογραφίες ή με άδεια χρήσης.</p>
     <label class="f">Εικονίδιο (αν δεν υπάρχει φωτογραφία)</label>${emojiPicker(x.emoji)}<input class="t" id="emFree" value="${esc(x.emoji || "")}" maxlength="4" style="margin-top:6px;width:150px">
+    ${aiBoxHTML(x.aic, x.name)}
     <label class="f" for="pK">Άλλες λέξεις που γράφουν οι πελάτες (για τα μηνύματα Viber)</label><input class="t" id="pK" value="${esc(x.keys || "")}" maxlength="100" placeholder="π.χ. αυγουλάκια, φρέσκα"></div>
    <div class="card"><div class="sw"><span id="pAvL" style="font-weight:800;color:${x.soldout ? "var(--bad)" : "var(--ok)"}">${x.soldout ? "❌ Εξαντλήθηκε" : "✅ Διαθέσιμο"}</span><label class="tog g av"><input type="checkbox" id="pAv"${x.soldout ? "" : " checked"}><span></span></label></div>
     <div id="pSoQ" class="warnbox" style="display:none;margin:6px 0"><b>Τι να βλέπουν οι πελάτες;</b><div class="row" style="margin-top:6px"><button type="button" class="btn sm soft grow" data-soq="show">👁 «Εξαντλήθηκε»</button><button type="button" class="btn sm amber grow" data-soq="hide">🙈 Να εξαφανιστεί</button></div></div>
@@ -628,6 +692,7 @@ function prodSave() {
   if (!p) { pid = "p" + K.uid(5); p = st.products[pid] = { id: pid, hist: [], created: now }; }
   const old = p.price;
   Object.assign(p, { name, unit, price: K.round2(price), step: (() => { const v = K.parseNum($("#pS").value); return isFinite(v) && v > 0 ? Math.round(v * 1000) / 1000 : 1; })(), vat: +$("#pV").value, desc: $("#pD").value.trim(), emoji: $("#emFree").value.trim(), keys: $("#pK").value.trim(), soldout: !$("#pAv").checked, hidden: $("#pHi").checked, perish: $("#pPe").checked });
+  if ($("#aiIc")) { if ($("#aiIc").value) p.aic = $("#aiIc").value; else delete p.aic; }
   if (p.hidden && b.dataset.hidBySo === "1") p.hidBySo = true; else delete p.hidBySo;
   /* επιπλέον ρυθμίσεις */
   const num = id => { const e = $(id); if (!e) return NaN; return K.parseNum(e.value); };
@@ -752,6 +817,8 @@ A.menuBack = function () {
 
 /* ---------- πατήματα ---------- */
 const EA = {
+  aiMake: () => aiMake(),
+  aiClear: () => { const i = $("#aiIc"), o = $("#aiOut"); if (i) i.value = ""; if (o) o.innerHTML = ""; },
   hintOff: () => { const st = S(); st.ui.hintOffAt = Date.now(); A.save(); A.render(); A.toast("Η οδηγία κρύφτηκε για " + HINT_DAYS + " ημέρες.", 3000); },
   presets: presetPicker,
   presetBack: presetPicker,
