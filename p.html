@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.60">
+<meta name="app-version" content="1.61">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.60">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.60">
-<link rel="stylesheet" href="koino.css?v=1.60">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.61">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.61">
+<link rel="stylesheet" href="koino.css?v=1.61">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -86,7 +86,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 .sect::after{content:"";flex:1;height:2px;background:var(--c2);opacity:.6;border-radius:2px;margin-left:6px}
 .sect.d2{font-size:16.5px;margin-top:12px}.sect.d3{font-size:15px;opacity:.85}
 .home-add{display:block;margin:4px auto 0;border:0;background:transparent;color:var(--c1);font-weight:700;text-decoration:underline;cursor:pointer;padding:8px}
-/* 1.60 · πιο ζεστή, πιο «βιτρίνα» εμφάνιση για τον πελάτη (με τα χρώματα του πωλητή) */
+/* 1.61 · πιο ζεστή, πιο «βιτρίνα» εμφάνιση για τον πελάτη (με τα χρώματα του πωλητή) */
 html{background:color-mix(in srgb,var(--c1) 6%,var(--paper))}html,body{background:color-mix(in srgb,var(--c1) 6%,var(--paper))}
 .hdr{position:relative;overflow:hidden;background:linear-gradient(125deg,var(--c1),color-mix(in srgb,var(--c1) 70%,var(--c2)));border-radius:0 0 26px 26px;padding-bottom:22px;box-shadow:0 12px 28px -16px color-mix(in srgb,var(--c1) 90%,transparent)}
 .hdr::before,.hdr::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
@@ -113,7 +113,7 @@ input.t,textarea.t{transition:border-color .15s,box-shadow .15s}input.t:focus,te
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.60"></script>
+<script src="katalogos.js?v=1.61"></script>
 <script>
 (function(){
 "use strict";
@@ -290,7 +290,19 @@ function sentBox(d){const L=sentFor(d);if(!L.length)return"";const tot=L.reduce(
 const PCd=()=>C.c&&Array.isArray(C.c.d)&&C.c.d.length?C.c:null;
 function daysFor(extra){const d=C.d||{},pc=PCd();
   if(pc&&!extra)return K.availDays({days:pc.d,closed:d.cl,min:d.min,max:28,cut:d.cut});
+  const zd=zoneDays();if(zd)return zd.length?K.availDays({days:zd,closed:d.cl,min:d.min,max:d.max,cut:d.cut}):[];
   return K.availDays({days:d.days,closed:d.cl,min:d.min,max:d.max,cut:d.cut})}
+/* ημέρες ανά περιοχή: ο πελάτης διαλέγει περιοχή και βλέπει μόνο τις δικές της ημέρες */
+const ZS=()=>{const z=(C.d||{}).z;return Array.isArray(z)&&z.length&&!PCd()?z:null};
+const ZOTHER="_";
+function zoneOn(){const ch=store.get(SK+":ck",{});const d=C.d||{};const how=d.h==="pick"?"pick":d.h==="del"?"del":(ch.h||"del");return ZS()&&how==="del"}
+function zoneDays(){if(!zoneOn())return null;const ch=store.get(SK+":ck",{}),d=C.d||{};
+  if(!ch.ar)return[];if(ch.ar===ZOTHER)return d.zo?[]:(d.days||[]);
+  const z=K.zoneFor(ZS(),ch.ar);return z?z.d:[]}
+function zoneBox(){if(!zoneOn())return"";const ch=store.get(SK+":ck",{}),d=C.d||{},Z=ZS();
+  const areas=Z.flatMap(z=>z.a);const z=ch.ar&&ch.ar!==ZOTHER?K.zoneFor(Z,ch.ar):null;
+  return`<label class="f">📍 Η περιοχή σου</label><div class="chips zchips">${areas.map(a=>`<button type="button" class="chip${ch.ar&&ch.ar!==ZOTHER&&K.areaEq(ch.ar,a)?" on":""}" data-zar="${esc(a)}">${esc(a)}</button>`).join("")}<button type="button" class="chip${ch.ar===ZOTHER?" on":""}" data-zar="${ZOTHER}">Άλλη περιοχή</button></div>
+   ${!ch.ar?`<p class="note" style="margin:6px 0 10px">Διάλεξε την περιοχή σου για να δεις τις ημέρες παράδοσης.</p>`:z?`<div class="how" style="margin:8px 0 10px">🚚 <b>${esc(ch.ar)}:</b> περνάμε ${esc(wdList(z.d))}</div>`:d.zo?`<div class="how" style="margin:8px 0 10px;border-left-color:#e3a008;background:#fff8e1">🏪 Στην περιοχή σου δεν κάνουμε παράδοση.${d.h==="both"?` Μπορείς να την παραλάβεις από εμάς.<br><button type="button" class="btn ghost" data-how="pick" style="margin-top:8px">🏪 Παραλαβή</button>`:""}</div>`:`<p class="note" style="margin:6px 0 10px">Γράψε πιο κάτω τη διεύθυνσή σου.</p>`}`}
 const wdList=a=>a.slice().sort((x,y)=>((x+6)%7)-((y+6)%7)).map(i=>K.WD[i]).join(", ").replace(/, ([^,]*)$/," και $1");
 function routeBox(){const pc=PCd();if(!pc)return"";const nx=daysFor(false)[0];
   return`<div class="how">🚚 <b>Περνάμε από εσάς:</b> ${esc(wdList(pc.d))}${pc.sl?", "+esc(pc.sl):""}${pc.nt?" · "+esc(pc.nt):""}${nx?`<br>Επόμενη διανομή: <b>${esc(K.dayLabel(nx))}</b>`:""}</div>`}
@@ -317,7 +329,8 @@ function renderCheck(){
   <div class="sec"><h2>Πότε</h2>
    ${pc?(extra?`<div class="how" style="border-left-color:#d93025">⚡ <b>Έκτακτη παραγγελία</b> — εκτός από τις κανονικές σας ημέρες. Ο πωλητής θα σας επιβεβαιώσει αν μπορεί.</div>`:routeBox()):""}
    ${d.h==="both"?`<div class="chips" style="margin-bottom:10px"><button type="button" class="chip${how==="del"?" on":""}" data-how="del">🚚 Παράδοση</button><button type="button" class="chip${how==="pick"?" on":""}" data-how="pick">🏪 Παραλαβή</button></div>`:`<p class="note" style="margin:0 0 8px">${how==="pick"?"🏪 Παραλαβή από τον πωλητή":"🚚 Παράδοση"}</p>`}
-   ${days.length?`<div class="chips">${days.slice(0,10).map(x=>`<button type="button" class="chip${x===ch.d?" on":""}" data-day="${x}">${esc(K.dayLabel(x))}</button>`).join("")}</div>`:`<p class="err">Δεν υπάρχουν διαθέσιμες ημέρες αυτή τη στιγμή.</p>`}
+   ${zoneBox()}
+   ${zoneOn()&&!zoneDays().length?"":days.length?`<div class="chips">${days.slice(0,10).map(x=>`<button type="button" class="chip${x===ch.d?" on":""}" data-day="${x}">${esc(K.dayLabel(x))}</button>`).join("")}</div>`:`<p class="err">Δεν υπάρχουν διαθέσιμες ημέρες αυτή τη στιγμή.</p>`}
    ${slots.length>1?`<label class="f">Ώρα</label><div class="chips">${slots.map(x=>`<button type="button" class="chip${x===ch.s?" on":""}" data-slot="${esc(x)}">${esc(x)}</button>`).join("")}</div>`:slots.length?`<p class="note">Ώρα: ${esc(slots[0])}</p>`:""}
    ${pc&&pc.ex?(extra?`<button type="button" class="btn ghost wide" data-act="normal" style="margin-top:10px">↩ Κανονική διανομή</button>`:`<button type="button" class="btn ghost wide" data-act="extra" style="margin-top:10px;border-color:#d93025;color:#d93025">⚡ Έκτακτη παραγγελία σε άλλη ημέρα</button>`):""}
    ${d.nt?`<p class="note">${esc(d.nt)}</p>`:""}${sentBox(ch.d)}</div>
@@ -359,14 +372,15 @@ async function send(){
   if($("#ca")&&a.length<5)return err("Γράψε τη διεύθυνση παράδοσης.");
   const extra=!!(PCd()&&PCd().ex&&ch.x);
   const days=daysFor(extra);
-  if(!ch.d||!days.includes(ch.d))return err("Διάλεξε ημέρα.");
+  if(zoneOn()&&!ch.ar)return err("Διάλεξε την περιοχή σου.");
+  if(!ch.d||!days.includes(ch.d))return err(zoneOn()&&!days.length?"Στην περιοχή σου δεν υπάρχουν ημέρες παράδοσης.":"Διάλεξε ημέρα.");
   if(ch.inv!=="r"&&ch.inv!=="i")return err("Διάλεξε αν θέλεις απόδειξη ή τιμολόγιο.");
   let inv=null;if(ch.inv==="i"){saveCk();inv=store.get(SK+":inv",{});if((inv.n||"").length<2)return err("Γράψε την επωνυμία για το τιμολόγιο.");if(!afmOk(inv.f))return err("Ο ΑΦΜ για το τιμολόγιο δεν είναι έγκυρος.");if((inv.a||"").length<4)return err("Γράψε τη διεύθυνση έδρας για το τιμολόγιο.")}
   if(!$("#ccons").checked)return err("Χρειάζεται να αποδεχτείς τους όρους και την ενημέρωση απορρήτου.");
   if(sentFor(ch.d).length&&!confirm("Έχεις ήδη στείλει παραγγελία για "+K.dayLabel(ch.d)+".\n\nΝα σταλεί κι αυτή; Ο πωλητής θα την προσθέσει στην προηγούμενη."))return;
   if($("#crem").checked)store.set(SK+":me",{n,p,a});else{try{localStorage.removeItem(SK+":me")}catch{}}
   if(!orderId)orderId=K.uid(12);
-  const O={v:1,id:orderId,cv:C.ts,at:Date.now(),c:{n,p,a,note},w:{d:ch.d,s:ch.s||"",h:ch.h||"del",x:extra?1:0},l:Object.entries(cart).filter(([id])=>P[id]).map(([id,q])=>[id,q,K.unitPrice(P[id],q)]),cons:1,tk:C.c&&C.c.tk||undefined,inv:ch.inv==="i"?Object.assign({t:"i"},inv):{t:"r"}};
+  const O={v:1,id:orderId,cv:C.ts,at:Date.now(),c:Object.assign({n,p,a,note},zoneOn()&&ch.ar?{ar:ch.ar===ZOTHER?"":ch.ar}:{}),w:{d:ch.d,s:ch.s||"",h:ch.h||"del",x:extra?1:0},l:Object.entries(cart).filter(([id])=>P[id]).map(([id,q])=>[id,q,K.unitPrice(P[id],q)]),cons:1,tk:C.c&&C.c.tk||undefined,inv:ch.inv==="i"?Object.assign({t:"i"},inv):{t:"r"}};
   sending=true;$("#send").disabled=true;$("#send").textContent="Αποστολή…";
   let ct;
   try{ct=await K.seal(C.k,O)}catch{sending=false;render();return err("Το κινητό δεν μπόρεσε να κρυπτογραφήσει την παραγγελία. Δοκίμασε σε άλλον περιηγητή (π.χ. Chrome).")}
@@ -419,6 +433,7 @@ document.addEventListener("click",e=>{
   if(b.dataset.plus){const p=P[b.dataset.plus];setQ(p.id,qty(p.id)+(p.step||1),1);stage==="check"?renderCheck():refreshTile(p.id);return}
   if(b.dataset.minus){const p=P[b.dataset.minus];setQ(p.id,qty(p.id)-(p.step||1),-1);if(stage==="check"){if(!totals().n)stage="shop";render()}else refreshTile(p.id);return}
   if(b.dataset.open){go(view.concat(b.dataset.open),"shop");return}
+  if(b.dataset.zar){saveCk();const ch=store.get(SK+":ck",{});ch.ar=b.dataset.zar;ch.d="";store.set(SK+":ck",ch);keepInputs(renderCheck);return}
   if(b.dataset.day||b.dataset.slot||b.dataset.how||b.dataset.inv){saveCk();const ch=store.get(SK+":ck",{});if(b.dataset.day)ch.d=b.dataset.day;if(b.dataset.slot)ch.s=b.dataset.slot;if(b.dataset.how)ch.h=b.dataset.how;if(b.dataset.inv)ch.inv=b.dataset.inv;store.set(SK+":ck",ch);keepInputs(renderCheck);return}
   const a=b.dataset.act;if(!a)return;
   if(a==="back"){history.back()}

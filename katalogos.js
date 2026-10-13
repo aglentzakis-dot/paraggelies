@@ -307,11 +307,13 @@
     if (!lines.length) return { err: "Κανένα έγκυρο είδος στην παραγγελία." };
     const w = O.w || {};
     const date = /^\d{4}-\d\d-\d\d$/.test(w.d || "") ? w.d : "";
+    { const zs = (st.deliv && st.deliv.zones) || [], z = c.ar && w.h !== "pick" && !w.x ? K.zoneFor(zs, c.ar) : null;
+      if (z && date && !(z.d || []).includes(K.fromYmd(date).getDay())) warn.push("Η ημέρα παράδοσης δεν είναι από τις ημέρες της περιοχής «" + String(c.ar).slice(0, 60) + "». Ελέγξτε την."); }
     return {
       ok: true, warn, at,
       order: {
         id: O.id, at, rx: now,
-        cust: { name, phone, addr: String(c.a || "").trim().slice(0, 160), note: String(c.note || "").trim().slice(0, 400) },
+        cust: { name, phone, addr: String(c.a || "").trim().slice(0, 160), note: String(c.note || "").trim().slice(0, 400), area: String(c.ar || "").trim().slice(0, 60) },
         when: { date, slot: String(w.s || "").slice(0, 30), how: w.h === "pick" ? "pick" : "del", extra: !!w.x },
         lines, total: K.round2(total), cv: +O.cv || 0,
         inv: O.inv && O.inv.t === "i" ? { t: "i", n: String(O.inv.n || "").slice(0, 100), f: String(O.inv.f || "").replace(/\D/g, "").slice(0, 9), d: String(O.inv.d || "").slice(0, 60), j: String(O.inv.j || "").slice(0, 80), a: String(O.inv.a || "").slice(0, 140) } : { t: O.inv && O.inv.t === "r" ? "r" : "" }
@@ -453,6 +455,10 @@
 
   /* ---------- κανονικοποίηση ελληνικών και ανάλυση μηνύματος ---------- */
   K.norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ς/g, "σ").replace(/[^a-z0-9α-ω\s.,/:+-]/g, " ").replace(/\s+/g, " ").trim();
+  /* περιοχές: «Αμπελόκηποι» = «Αμπελοκήπους» = «αμπελοκηποι» (ίδια ρίζα, χωρίς τόνους) */
+  K.areaEq = (a, b) => { a = K.norm(a); b = K.norm(b); if (!a || !b) return false; if (a === b) return true;
+    const n = Math.min(a.length, b.length); if (n < 5) return false; let k = 0; while (k < n && a[k] === b[k]) k++; return k >= Math.max(5, n - 2); };
+  K.zoneFor = (zones, area) => (zones || []).find(z => (z.a || []).some(x => K.areaEq(x, area))) || null;
   const stem = w => w.length <= 3 ? w : w.slice(0, Math.max(3, w.length - 2));
   const WORDNUM = { ενα: 1, μια: 1, μιαν: 1, ενασ: 1, δυο: 2, τρια: 3, τρεισ: 3, τεσσερα: 4, τεσσερισ: 4, πεντε: 5, εξι: 6, επτα: 7, εφτα: 7, οκτω: 8, οχτω: 8, εννια: 9, εννεα: 9, δεκα: 10, εντεκα: 11, δωδεκα: 12, δεκαπεντε: 15, εικοσι: 20, τριαντα: 30, σαραντα: 40, πενηντα: 50, μισο: 0.5, μιση: 0.5, μισα: 0.5, μισοκιλο: 0.5, εναμισο: 1.5, εναμιση: 1.5, εναμισι: 1.5, μιαμισι: 1.5, ενασημισο: 1.5, μιαμιση: 1.5 };
   const WDN = { κυριακη: 0, δευτερα: 1, τριτη: 2, τεταρτη: 3, πεμπτη: 4, παρασκευη: 5, σαββατο: 6 };
@@ -636,7 +642,7 @@
     return {
       v: 1, ts: Date.now(),
       s: { n: sh.name || "", l: sh.legal || "", a: sh.addr || "", f: sh.afm || "", t: sh.phone || "", vb: sh.viber || "", m: sh.email || "", lg: opts.logo !== false ? sh.logo || "" : "", c1: sh.c1 || "#17324D", c2: sh.c2 || "#F2B632", w: sh.welcome || "", vi: sh.vatIncl !== false ? 1 : 0, lic: sh.lic || "", tr: sh.terms || "" },
-      d: { h: d.how || "both", days: d.days || [1, 2, 3, 4, 5, 6], sl: d.slots || [], min: +d.min || 0, max: +d.max || 14, cut: d.cut || "", cl: K.closedDates(d, 70), ad: d.askAddr !== false ? 1 : 0, mo: +d.minOrder || 0, nt: d.note || "" },
+      d: { h: d.how || "both", days: d.days || [1, 2, 3, 4, 5, 6], sl: d.slots || [], min: +d.min || 0, max: +d.max || 14, cut: d.cut || "", cl: K.closedDates(d, 70), ad: d.askAddr !== false ? 1 : 0, mo: +d.minOrder || 0, nt: d.note || "", z: (d.zones || []).filter(z => (z.a || []).length && (z.d || []).length).map(z => ({ a: z.a, d: z.d })), zo: d.zOther === "pick" ? 1 : 0 },
       m, p,
       k: st.nt.pub, t: st.nt.topic, u: opts.appUrl || "", g: st.nt.spub || undefined,
       c: opts.cust || undefined
