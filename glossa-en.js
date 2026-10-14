@@ -59,3 +59,5 @@ Object.assign(window.GL_EN,{"Ανοίγει ο κατάλογος…":"Opening c
 /* 1.72 */
 Object.assign(window.GL_EN,{"Τηλέφωνα":"Phones","Τηλέφωνα επικοινωνίας":"Contact phones","Κινητό":"Mobile","Σταθερό":"Landline","Με το ＋ προσθέτεις κι άλλο (π.χ. σταθερό). Ο πελάτης τα βλέπει όλα.":"Tap ＋ to add another (e.g. a landline). Customers see them all.","Γράψε όνομα και τηλέφωνο (10 ψηφία).":"Enter a name and a phone (10 digits)."});
 Object.assign(window.GL_EN,{"🛍 Κατάλογος όπως τον βλέπει ο πελάτης":"🛍 Catalogue as the customer sees it","ή διάλεξε από τη λίστα:":"or pick from the list:","🧩 Με επιλογές":"🧩 With options","🚨 Επείγουσα":"🚨 Urgent","χωρίς επιλογές":"no options"});
+/* 1.75 */
+Object.assign(window.GL_EN,{"🧩 Με επιλογές ή χωριστές γραμμές":"🧩 With options or separate lines","χωριστή γραμμή":"separate line","Δεν έχεις μαρκάρει κανένα κουμπί.":"No buttons selected."});

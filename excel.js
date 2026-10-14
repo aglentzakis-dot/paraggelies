@@ -250,7 +250,8 @@ const hdrKey = h => { const n = K.norm(h).replace(/\*/g, "").trim(); if (!n) ret
 const ynParse = (v, def) => { if (v === "" || v == null) return def; const n = K.norm(String(v)); if (/^(ναι|ν|yes|y|1|true|✓|x)$/.test(n) || v === 1 || v === true) return true; if (/^(οχι|ο|no|n|0|false)$/.test(n) || v === 0) return false; return def; };
 const sizeParse = v => { const n = K.norm(String(v || "")); if (!n) return ""; if (/^(s|μικρ)/.test(n)) return "s"; if (/^(l|μεγαλ)/.test(n)) return "l"; if (/^(w|φαρδ)/.test(n)) return "w"; if (/^(m|μεσα)/.test(n)) return "m"; return ""; };
 const numParse = v => typeof v === "number" ? v : K.parseNum(String(v || "").replace(/[€%]/g, ""));
-const splitPath = s => String(s || "").split(/\s*[>›\/]\s*/).map(x => x.trim()).filter(Boolean);
+/* υποκατηγορίες με «>» (ή «›»)· το «/» μένει μέσα στο όνομα (π.χ. «Χαρτιά/Σακούλες») */
+const splitPath = s => String(s || "").split(/\s*[>›]\s*/).map(x => x.trim()).filter(Boolean);
 
 function makePlan(sheets) {
   const main = sheets.find(s => /καταλογ/.test(K.norm(s.name))) || sheets[0];
@@ -268,13 +269,15 @@ function makePlan(sheets) {
     if (!name) { if (path && path.length) items.push({ line, onlyCat: true, path }); return; }
     const price = numParse(g(r, "price"));
     if (!isFinite(price) || price < 0) { errs.push(`Γραμμή ${line}: «${name}» χωρίς σωστή τιμή.`); return; }
+    /* στήλη που λείπει από το αρχείο = «μην το αλλάξεις» (undefined), όχι «σβήσ' το» */
+    const has = k => map[k] != null;
     let step = numParse(g(r, "step")); if (!isFinite(step) || step <= 0) step = 1;
     let vat = numParse(g(r, "vat")); if (isFinite(vat) && vat > 0 && vat < 1) vat = Math.round(vat * 100); if (!isFinite(vat)) vat = 13;
     if (![0, 6, 13, 24].includes(vat)) { warns.push(`Γραμμή ${line}: ΦΠΑ ${vat}% δεν υπάρχει· μπήκε 13%.`); vat = 13; }
-    const unit = String(g(r, "unit")).trim() || "τεμ.";
-    items.push({ line, path, id: String(g(r, "id")).trim(), name: name.slice(0, 60), price: K.round2(price), unit: unit.slice(0, 20), step: Math.round(step * 1000) / 1000, vat,
-      desc: String(g(r, "desc")).trim().slice(0, 80), av: ynParse(g(r, "av"), true), hid: ynParse(g(r, "hid"), false), per: ynParse(g(r, "per"), true),
-      emoji: String(g(r, "emoji")).trim().slice(0, 4), size: sizeParse(g(r, "size")), keys: String(g(r, "keys")).trim().slice(0, 100),
+    const unitS = String(g(r, "unit")).trim(), unit = has("unit") && unitS ? unitS.slice(0, 20) : undefined;
+    items.push({ line, path, id: String(g(r, "id")).trim(), name: name.slice(0, 60), price: K.round2(price), unit, step: has("step") ? Math.round(step * 1000) / 1000 : undefined, vat: has("vat") ? vat : undefined,
+      desc: has("desc") ? String(g(r, "desc")).trim().slice(0, 80) : undefined, av: has("av") ? ynParse(g(r, "av"), true) : undefined, hid: has("hid") ? ynParse(g(r, "hid"), false) : undefined, per: has("per") ? ynParse(g(r, "per"), true) : undefined,
+      emoji: String(g(r, "emoji")).trim().slice(0, 4), size: sizeParse(g(r, "size")), keys: has("keys") ? String(g(r, "keys")).trim().slice(0, 100) : undefined,
       color: map.color != null ? (() => { const c = colorParse(g(r, "color")); if (c === null) { warns.push(`Γραμμή ${line}: δεν κατάλαβα το χρώμα «${g(r, "color")}»· έμεινε το χρώμα του καταστήματος.`); return ""; } return c; })() : undefined,
       code: map.code != null ? String(g(r, "code")).trim().slice(0, 30) : undefined, min: map.min != null ? numParse(g(r, "min")) : undefined,
       stock: map.stock == null ? undefined : String(g(r, "stock")).trim() === "" ? null : numParse(g(r, "stock")), whole: map.whole != null ? numParse(g(r, "whole")) : undefined,
@@ -292,12 +295,13 @@ function makePlan(sheets) {
   const used = new Set(); let nNew = 0, nPrice = 0, nSame = 0;
   for (const it of items) { if (it.onlyCat) continue;
     let p = it.id && st.products[it.id] && !st.products[it.id].del ? st.products[it.id] : null;
-    if (p && used.has(p.id)) p = null;
+    /* ίδιο προϊόν σε δεύτερη κατηγορία («και εδώ»): μόνο θέση στο μενού, όχι νέο προϊόν */
+    if (p && used.has(p.id)) { it.pid = p.id; it.placeOnly = true; continue; }
     if (!p && it.code) { const q = live.find(x => x.code && K.norm(x.code) === K.norm(it.code) && !used.has(x.id)); if (q) p = q; }
-    if (!p) { const q = byKey[K.norm(it.name) + "|" + K.norm(it.unit)]; if (q && !used.has(q.id)) p = q; }
+    if (!p) { const q = it.unit !== undefined ? byKey[K.norm(it.name) + "|" + K.norm(it.unit)] : live.find(x => K.norm(x.name) === K.norm(it.name) && !used.has(x.id)); if (q && !used.has(q.id)) p = q; }
     if (p) { used.add(p.id); it.pid = p.id; if (Math.abs((+p.price || 0) - it.price) > 0.004) { nPrice++; it.oldPrice = +p.price || 0; } else nSame++; }
     else nNew++; }
-  const prods = items.filter(x => !x.onlyCat);
+  const prods = items.filter(x => !x.onlyCat && !x.placeOnly);
   /* χρονική στιγμή εξαγωγής (για σωστό απόθεμα όταν ξαναανεβαίνει ο κατάλογός μου) */
   let expAt = 0; for (const sh of sheets) if (/οδηγι/.test(K.norm(sh.name))) for (const r of sh.rows) for (const c of r || []) { const m = /#(\d{13})\b/.exec(String(c == null ? "" : c)); if (m) expAt = +m[1]; }
   const willDraft = it => !(it.price > 0) || (it.pid && st.products[it.pid] && st.products[it.pid].draft && it.hid);
@@ -317,19 +321,22 @@ function applyPlan(plan, delMissing) {
   const menu = [], catIdx = {};
   const getCat = path => { let L = menu, key = [];
     for (const nm of path) { key.push(K.norm(nm)); const k = key.join(">");
-      if (!catIdx[k]) { const o = oldCat[k] || {}; const c = { id: o.id || "n" + K.uid(5), t: "c", name: nm.slice(0, 40), emoji: o.emoji || "", size: o.size || "m", color: o.color || "", kids: [] }; if (o.photo) c.photo = o.photo; L.push(c); catIdx[k] = c; }
+      if (!catIdx[k]) { const o = oldCat[k] || {}; const c = { id: o.id || "n" + K.uid(5), t: "c", name: nm.slice(0, 40), emoji: o.emoji || "", size: o.size || "m", color: o.color || "", kids: [] }; if (o.photo) c.photo = o.photo; if (o.aic) c.aic = o.aic; L.push(c); catIdx[k] = c; }
       L = catIdx[k].kids; }
     return L; };
   for (const it of plan.items) {
     if (it.onlyCat) { getCat(it.path); continue; }
     let p = it.pid ? st.products[it.pid] : null;
+    if (it.placeOnly && p) { if (it.path) { const L = it.path.length ? getCat(it.path) : menu; if (!L.some(n => n.t === "p" && n.pid === p.id)) L.push({ id: "n" + K.uid(5), t: "p", pid: p.id, size: it.size || "m", color: it.color || "" }); } continue; }
+    const isNew = !p;
     if (!p) { const id = "p" + K.uid(5); p = st.products[id] = { id, hist: [], created: now }; it.pid = id; }
     if (!p.hist) p.hist = [];
     if (!p.hist.length || Math.abs(p.hist[p.hist.length - 1][1] - it.price) > 0.004) p.hist.push([now, it.price]);
-    Object.assign(p, { name: it.name, unit: it.unit, price: it.price, step: it.step, vat: it.vat, desc: it.desc, soldout: !it.av, hidden: it.hid, perish: it.per, keys: it.keys });
+    const dv = (v, d) => v !== undefined ? v : isNew ? d : undefined;
+    for (const [k, v] of Object.entries({ name: it.name, unit: dv(it.unit, "τεμ."), price: it.price, step: dv(it.step, 1), vat: dv(it.vat, 13), desc: dv(it.desc, ""), soldout: it.av !== undefined ? !it.av : isNew ? false : undefined, hidden: dv(it.hid, false), perish: dv(it.per, true), keys: dv(it.keys, "") })) if (v !== undefined) p[k] = v;
     if (it.emoji) p.emoji = it.emoji;
     const wasDraft = !!p.draft;
-    delete p.hidBySo; delete p.del; delete p.draft;
+    if (!(p.hidBySo && p.hidden)) delete p.hidBySo; delete p.del; delete p.draft;
     if (!(it.price > 0) || (wasDraft && it.hid)) { p.draft = true; if (wasDraft && it.hid) p.hidden = false; }
     if (it.code !== undefined) { if (it.code) p.code = it.code; else delete p.code; }
     if (it.min !== undefined) { if (isFinite(it.min) && it.min > 0) p.min = it.min; else delete p.min; }
@@ -357,6 +364,7 @@ function applyPlan(plan, delMissing) {
   /* ίδια ταυτότητα κόμβου μόνο μία φορά */
   const seen = new Set(); const fix = L => { for (const n of L) { if (seen.has(n.id)) n.id = "n" + K.uid(5); seen.add(n.id); if (n.kids) fix(n.kids); } }; fix(menu);
   st.menu.splice(0, st.menu.length, ...menu);
+  if (st.ui) delete st.ui.lastPreset;
   A.save({ catalog: true });
 }
 

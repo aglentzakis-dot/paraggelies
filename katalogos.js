@@ -163,7 +163,7 @@
   };
 
   /* ---------- μορφοποίηση ---------- */
-  K.money = n => (Math.round((+n || 0) * 100) / 100).toLocaleString("el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  K.money = n => K.round2(n).toLocaleString("el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   K.num = n => { n = Math.round((+n || 0) * 1000) / 1000; return n.toLocaleString("el-GR", { maximumFractionDigits: 3 }); };
   K.round2 = n => Math.round((+n || 0) * 100 + 1e-9) / 100;
   K.UNITS = ["τεμ.", "κιλό", "γρ.", "λίτρο", "δωδεκάδα", "εξάδα", "δεκάδα", "θήκη 30", "βάζο", "μπουκάλι", "συσκευασία", "κιβώτιο", "τελάρο", "σακί", "παλέτα", "δοχείο", "φραντζόλα", "μερίδα", "ματσάκι", "ταψί", "άτομο", "σετ"];
@@ -276,7 +276,9 @@
     if (O.l.length > K.MAX_LINES) return { err: "Πάρα πολλά είδη." };
     let at = +O.at || now;
     if (at > now + 10 * 6e4 || at < now - 7 * 864e5) { warn.push("Η ώρα υποβολής δεν ήταν έγκυρη· μπήκαν οι σημερινές τιμές."); at = now; }
-    const lines = [], seen = new Set();
+    const lines = [], seen = new Set(), qSum = new Map(), stockWarned = new Set();
+    /* οι τιμές δεν πάνε πίσω στον χρόνο με την ώρα που στέλνει ο πελάτης: το πολύ μισή ώρα (π.χ. αργή αποστολή) */
+    const pAt = Math.max(at, now - 30 * 6e4);
     /* ειδικές τιμές μόνο με τον προσωπικό σύνδεσμο (κλειδί tk)· ποτέ μόνο από το τηλέφωνο που γράφει ο πελάτης */
     const ckey = phone.replace(/\D/g, "").slice(-10), C0 = st.customers || {};
     const special = c => !!c && (c.pl === "w" || (c.prices && Object.keys(c.prices).length) || Object.values(st.products || {}).some(p => p.only && (p.onlyFor || []).includes(c.key)));
@@ -290,7 +292,7 @@
     for (const row of O.l) {
       if (!Array.isArray(row)) continue;
       const [pid, qRaw, seenPrice] = row;
-      const p = st.products[pid];
+      const p = typeof pid === "string" && Object.prototype.hasOwnProperty.call(st.products, pid) ? st.products[pid] : null;
       if (!p || p.del) { warn.push("Ένα είδος δεν υπάρχει πια στον κατάλογο και παραλείφθηκε."); continue; }
       const opt = row[3] && typeof row[3] === "object" ? row[3] : null;
       const sk = pid + (opt ? "~" + JSON.stringify(opt) : ""); if (seen.has(sk)) continue; seen.add(sk);
@@ -301,21 +303,26 @@
       if (p.soldout) warn.push("Το «" + p.name + "» είναι σημειωμένο ως εξαντλημένο.");
       if (p.draft || p.hidden) warn.push("Το «" + p.name + "» δεν είναι ενεργό στον κατάλογό σας.");
       if (p.only && !(p.onlyFor || []).includes(allowKey)) warn.push("Το «" + p.name + "» είναι μόνο για επιλεγμένους πελάτες και αυτός δεν είναι ανάμεσά τους.");
-      if (+p.min > 0 && q < +p.min) warn.push("Στο «" + p.name + "» ζήτησε " + K.num(q) + ", λιγότερο από την ελάχιστη ποσότητα " + K.num(p.min) + ".");
       if (!K.inSeason(p, new Date(at))) warn.push("Το «" + p.name + "» είναι εκτός εποχής.");
+      const qTot = Math.round(((qSum.get(pid) || 0) + q) * 1000) / 1000; qSum.set(pid, qTot);
       const av = K.avail(p, st.orders);
-      if (av !== Infinity && q > av + 1e-9) warn.push("Το «" + p.name + "» ξεπερνά το απόθεμα: ζήτησε " + K.num(q) + ", υπάρχουν " + K.num(Math.max(0, av)) + ".");
+      if (av !== Infinity && qTot > av + 1e-9 && !stockWarned.has(pid)) { stockWarned.add(pid); warn.push("Το «" + p.name + "» ξεπερνά το απόθεμα: ζήτησε " + K.num(qTot) + ", υπάρχουν " + K.num(Math.max(0, av)) + "."); }
       const oc = K.optCheck(p.mods, st.mods || {}, opt && opt.o, opt && opt.n, !!p.nt);
       if (opt || (p.mods || []).some(g => (st.mods || {})[g] && st.mods[g].mn > 0)) oc.warn.forEach(w => warn.push("«" + p.name + "»: " + w));
-      const price = K.round2(K.priceFor(p, cu, q, at) + oc.x);
+      const price = K.round2(K.priceFor(p, cu, q, pAt) + oc.x);
       if (seenPrice != null && Math.abs(+seenPrice - price) > 0.004) warn.push("Ο πελάτης είδε άλλη τιμή στο «" + p.name + "» (" + K.money(seenPrice) + ")· γράφτηκε η δική σας " + K.money(price) + ". Στείλτε του τον νέο σύνδεσμο.");
       const sum = K.round2(q * price);
       total += sum;
       lines.push(Object.assign({ pid, name: p.name, unit: p.unit, q, price, vat: +p.vat || 0, sum }, oc.text ? { opt: oc.text } : {}, oc.note ? { note: oc.note } : {}));
     }
     if (!lines.length) return { err: "Κανένα έγκυρο είδος στην παραγγελία." };
+    for (const [pid, qq] of qSum) { const p = st.products[pid]; if (+p.min > 0 && qq < +p.min) warn.push("Στο «" + p.name + "» ζήτησε " + K.num(qq) + ", λιγότερο από την ελάχιστη ποσότητα " + K.num(p.min) + "."); }
     const w = O.w || {};
     const date = /^\d{4}-\d\d-\d\d$/.test(w.d || "") ? w.d : "";
+    { const dv = st.deliv || {}, today = K.ymd(new Date(now));
+      if (date && date < today) warn.push("Η ημέρα παράδοσης (" + date + ") έχει ήδη περάσει. Ελέγξτε την.");
+      else if (date && !w.x && K.closedDates(dv, 400, now).includes(date)) warn.push("Η ημέρα παράδοσης (" + date + ") είναι μέρα που το κατάστημα είναι κλειστό. Ελέγξτε την.");
+      if (+dv.minOrder > 0 && total < +dv.minOrder - 0.004) warn.push("Το σύνολο (" + K.money(total) + ") είναι κάτω από την ελάχιστη παραγγελία σας (" + K.money(dv.minOrder) + ")."); }
     { const zs = (st.deliv && st.deliv.zones) || [], z = c.ar && w.h !== "pick" && !w.x ? K.zoneFor(zs, c.ar) : null;
       if (z && date && !(z.d || []).includes(K.fromYmd(date).getDay())) warn.push("Η ημέρα παράδοσης δεν είναι από τις ημέρες της περιοχής «" + String(c.ar).slice(0, 60) + "». Ελέγξτε την."); }
     return {
@@ -330,7 +337,7 @@
     };
   };
   /* αποτύπωμα για εντοπισμό διπλών (ίδιο τηλέφωνο, ίδια είδη, ίδια ημέρα, μέσα σε 15 λεπτά) */
-  K.fingerprint = o => [String(o.cust.phone).replace(/\D/g, "").slice(-10), o.when.date, o.lines.map(l => l.pid + ":" + l.q).sort().join(",")].join("|");
+  K.fingerprint = o => [String(o.cust.phone).replace(/\D/g, "").slice(-10), o.when.date, o.lines.map(l => l.pid + ":" + l.q + ":" + (l.opt || "") + ":" + (l.note || "")).sort().join(",")].join("|");
 
   /* ---------- σύντομος σύνδεσμος (is.gd, χωρίς λογαριασμό) ----------
      Το Viber δείχνει ολόκληρο το κείμενο του συνδέσμου· με σύντομο σύνδεσμο το μήνυμα
@@ -409,7 +416,7 @@
       try { const m = JSON.parse(ln); if (m.event !== "message") continue; const o = JSON.parse(m.message); if (typeof o.d !== "string" || typeof o.g !== "string") continue; const d = JSON.parse(o.d); if (typeof d.ts === "number") cands.push({ d, raw: o.d, g: o.g }); } catch {} }
     cands.sort((a, b) => b.d.ts - a.d.ts);
     const now = Date.now();
-    for (const c of cands.slice(0, 40)) {
+    for (const c of cands.slice(0, 200)) {
       if (!(c.d.ts > (C.ts || 0)) || c.d.ts > now + 10 * 6e4 || now - c.d.ts > 13 * 36e5) continue;
       if (await K.liveVerify(C.g, c.raw, c.g)) return c.d.off ? null : c.d;
     }
@@ -436,10 +443,10 @@
     for (const ln of (await r.text()).split("\n")) { if (!ln.trim()) continue;
       try { const m = JSON.parse(ln); if (m.event !== "message") continue; const o = JSON.parse(m.message);
         if (o.v !== 2 || typeof o.id !== "number" || typeof o.c !== "string" || !(o.n > 0 && o.n <= 20) || !(o.i >= 0 && o.i < o.n)) continue;
-        const k = o.id + "|" + o.g; if (!sets.has(k)) sets.set(k, { id: o.id, n: o.n, g: o.g, parts: [] }); sets.get(k).parts[o.i] = o.c; } catch {} }
+        const k = o.id + "|" + o.g; if (!sets.has(k)) sets.set(k, { id: o.id, n: o.n, g: o.g, parts: [] }); { const ps = sets.get(k).parts; if (ps[o.i] == null) ps[o.i] = o.c; } } catch {} }
     const now = Date.now();
     const L = [...sets.values()].filter(x => x.id > (after || 0) && x.id < now + 10 * 6e4 && x.parts.filter(v => typeof v === "string").length === x.n).sort((a, b) => b.id - a.id);
-    for (const x of L.slice(0, 10)) {
+    for (const x of L.slice(0, 40)) {
       const pk = x.parts.join("");
       if (!(await K.liveVerify(C0.g, pk, x.g))) continue;
       try { const C = await K.unpack(pk); if (C && C.v === 1 && C.ts === x.id && C.k === C0.k && C.t === C0.t && C.g === C0.g) return { C, pk, g: x.g }; } catch {}
@@ -530,7 +537,8 @@
       for (const [w, n] of Object.entries(WDN)) {
         if (pre(w)) { let diff = (n - t0.getDay() + 7) % 7; if ((has("αλλη") || has("επομενη")) && diff === 0) diff = 7; res.date = addD(diff); break; }
       }
-      const dm = /(?:^|\s)(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?(?=\s|$)/.exec(all);
+      /* ημερομηνία: «5/11», «5-11» ή «5.11.2026»· το «1.5» είναι ποσότητα (ενάμισι), όχι ημερομηνία */
+      const dm = /(?:^|\s)(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?(?=\s|$)/.exec(all) || /(?:^|\s)(\d{1,2})\.(\d{1,2})\.(\d{2,4})(?=\s|$)/.exec(all);
       if (!res.date && dm) {
         let y = dm[3] ? +dm[3] : t0.getFullYear(); if (y < 100) y += 2000;
         const d = new Date(y, +dm[2] - 1, +dm[1], 12);
@@ -552,7 +560,7 @@
     if (best) res.cust = best;
     const prods = Object.values(st.products || {}).filter(p => !p.del && !p.draft);
     const pTok = prods.map(p => ({ p, toks: [...new Set(words(K.norm(p.name + " " + (p.keys || ""))).filter(w => w.length >= 3 && !/^\d/.test(w)).map(stem))] }));
-    const segs = String(text).split(/\n|(?<!\d),|,(?!\d)|;|\+/).flatMap(x => K.norm(x).split(/ και | κ /)).map(x => x.trim()).filter(Boolean);
+    const segs = String(text).split(/\n|(?<!\d),|,(?!\d)|;|\+/).flatMap(x => K.norm(x).replace(/(\S+) και (μισ\S*)/g, "$1 $2").split(/ και | κ /)).map(x => x.trim()).filter(Boolean);
     const used = new Map();
     for (const seg of segs) {
       const ws = words(seg);
@@ -563,17 +571,17 @@
         if (s > bs) { bs = s; bp = p; }
       }
       if (!bp || bs < 3) { if (seg.length > 2) res.rest.push(seg); continue; }
-      const clean = seg.replace(/(?:^|\s)\d{1,2}[/.-]\d{1,2}(?:[/.-]\d{2,4})?(?=\s|$)/g, " ").replace(/(69\d{8}|2\d{9})/g, " ");
+      const clean = seg.replace(/(?:^|\s)(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|\d{1,2}\.\d{1,2}\.\d{2,4})(?=\s|$)/g, " ").replace(/(69\d{8}|2\d{9})/g, " ");
       let q = null;
       const cw = words(clean);
       for (let i = 0; i < cw.length; i++) {
         const w = cw[i];
-        if (/^\d+$/.test(w)) { q = +w; break; }
+        if (/^\d+$/.test(w)) { q = +w; if (cw[i + 1] && /^μισ/.test(cw[i + 1])) q += 0.5; break; }
         if (w === "ενα" && cw[i + 1] && /^μισ/.test(cw[i + 1])) { q = 1.5; break; }
         if (WORDNUM[w] != null) { q = WORDNUM[w]; if (q >= 1 && q % 1 === 0 && cw[i + 1] && /^μισ/.test(cw[i + 1])) q += 0.5; break; }
       }
-      const dec = /(\d+)[.,](\d+)/.exec(clean.replace(/(?:^|\s)\d{1,2}[/.-]\d{1,2}(?=\s|$)/g, " "));
-      if (dec) q = K.parseNum(dec[1] + "." + dec[2]);
+      const dec = /(\d+)[.,](\d+)/.exec(clean);
+      if (dec) q = parseFloat(dec[1] + "." + dec[2]);
       if (q == null) q = 1;
       if (cw.some(w => /^γρ/.test(w)) && /κιλ/.test(K.norm(bp.unit)) && q >= 50) q = q / 1000;
       if (used.has(bp.id)) { used.get(bp.id).q += q; continue; }

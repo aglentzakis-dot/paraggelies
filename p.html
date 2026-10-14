@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.74">
+<meta name="app-version" content="1.75">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.74">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.74">
-<link rel="stylesheet" href="koino.css?v=1.74">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.75">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.75">
+<link rel="stylesheet" href="koino.css?v=1.75">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -96,7 +96,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 .sect::after{content:"";flex:1;height:2px;background:var(--c2);opacity:.6;border-radius:2px;margin-left:6px}
 .sect.d2{font-size:16.5px;margin-top:12px}.sect.d3{font-size:15px;opacity:.85}
 .home-add{display:block;margin:4px auto 0;border:0;background:transparent;color:var(--c1);font-weight:700;text-decoration:underline;cursor:pointer;padding:8px}
-/* 1.74 · πιο ζεστή, πιο «βιτρίνα» εμφάνιση για τον πελάτη (με τα χρώματα του πωλητή) */
+/* 1.75 · πιο ζεστή, πιο «βιτρίνα» εμφάνιση για τον πελάτη (με τα χρώματα του πωλητή) */
 html{background:color-mix(in srgb,var(--c1) 6%,var(--paper))}html,body{background:color-mix(in srgb,var(--c1) 6%,var(--paper))}
 .hdr{position:relative;overflow:hidden;background:linear-gradient(125deg,var(--c1),color-mix(in srgb,var(--c1) 70%,var(--c2)));border-radius:0 0 26px 26px;padding-bottom:22px;box-shadow:0 12px 28px -16px color-mix(in srgb,var(--c1) 90%,transparent)}
 .hdr::before,.hdr::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
@@ -123,7 +123,7 @@ input.t,textarea.t{transition:border-color .15s,box-shadow .15s}input.t:focus,te
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.74"></script>
+<script src="katalogos.js?v=1.75"></script>
 <script>
 (function(){
 "use strict";
@@ -178,9 +178,10 @@ function mergeLive(L){
   const catPh={};(function w(ns){for(const n of ns||[]){if(n.k){if(n.f)catPh[n.i]=n.f;w(n.k)}}})(C0.m);
   (function w(ns){for(const n of ns||[]){if(n.k){if(!n.f&&catPh[n.i])n.f=catPh[n.i];w(n.k)}}})(L.m);
   if(C0.c){
-    const pp=C0.c.pp||{};for(const[id,r]of Object.entries(pp))if(L.p[id]){L.p[id].r=r;delete L.p[id].tq}
+    const pp=C0.c.pp||{};for(const[id,r]of Object.entries(pp))if(L.p[id]){L.p[id].r=r;const t0=(C0.p[id]||{}).tq;if(t0)L.p[id].tq=t0;else delete L.p[id].tq}
     const parentOf={};(function w(ns,par){for(const n of ns||[]){if(n.k)w(n.k,n.i);else if(n.p)parentOf[n.p]={node:n,par}}})(C0.m,null);
     const catById={};(function w(ns){for(const n of ns||[]){if(n.k){catById[n.i]=n;w(n.k)}}})(L.m);
+    if(C0.og)L.og=Object.assign({},C0.og,L.og||{});
     for(const[id,o]of Object.entries(C0.p||{}))if(o.xo&&!L.p[id]){L.p[id]=o;const x=parentOf[id];if(x){(x.par&&catById[x.par]?catById[x.par].k:L.m).push(x.node)}}
   }
   return L;
@@ -190,6 +191,7 @@ async function liveCatalog(){
   if(!r)return false;
   store.set(SK+":live",{ts:r.C.ts,pk:r.pk,g:r.g});
   C=mergeLive(r.C);const ex=K.expandCatalog(C);P=ex.products;M=ex.menu;GR=ex.groups||{};liveTs=0;
+  if(OS&&(!P[OS.pid]||!hasOpts(P[OS.pid]))){OS=null;closeModal()}
   cartClean();
   const ok=ids=>{let L=M;for(const id of ids){const n=L.find(x=>x.id===id&&x.t==="c");if(!n)return false;L=n.kids}return true};
   if(!ok(view))view=[];
@@ -208,7 +210,10 @@ async function liveUpdate(){
   for(const p of Object.values(P)){const e=d.s&&d.s[p.id],off=!act.has(p.id);
     p.soldout=off||!!(e&&e[0]);p.oos=!off&&!!(e&&e[0]===2);p.max=!off&&e&&e[0]===0&&e[1]!=null?+e[1]:null;
     if(d.r&&!C.c&&d.r[p.id]!=null)p.price=+d.r[p.id];
-    const q=qty(p.id);if(q&&(p.soldout||(p.max!=null&&q>p.max))){gone++;setQ(p.id,p.soldout?0:p.max)}}
+    const q=qty(p.id);if(q&&(p.soldout||(p.max!=null&&q>p.max))){gone++;
+      if(p.soldout){for(const k of keysOf(p.id)){delete cart[k];delete copt[k]}}
+      else{let left=p.max;for(const k of keysOf(p.id)){const st=p.step||1,v=Math.min(cart[k],Math.floor(Math.max(0,left)/st+1e-9)*st);if(v>0&&!(p.min>0&&v<p.min)){cart[k]=Math.round(v*1000)/1000;left-=cart[k]}else{delete cart[k];delete copt[k]}}}
+      store.set(SK+":cart",cart);store.set(SK+":copt",copt)}}
   if(stage==="shop"||stage==="check")keepInputs(render);
   if(gone)toastMsg("Ενημερώθηκε η διαθεσιμότητα· άλλαξαν "+gone+" είδη στο καλάθι σου.");
 }
@@ -248,14 +253,17 @@ function makeIcons(logo,c1,name){
 /* κάθε γραμμή του καλαθιού έχει κλειδί: σκέτο το προϊόν, ή «προϊόν~επιλογές» όταν ο πελάτης διάλεξε ζάχαρη, γάλα, ψήσιμο κ.λπ. */
 const pidOf=k=>String(k).split("~")[0];
 const hasOpts=p=>!!p&&((p.mods||[]).some(g=>GR[g])||p.nt);
-function cartClean(){for(const k of Object.keys(cart)){const p=P[pidOf(k)];if(!p||p.soldout){delete cart[k];delete copt[k]}}for(const k of Object.keys(copt))if(!cart[k])delete copt[k];store.set(SK+":cart",cart);store.set(SK+":copt",copt)}
+function cartClean(){for(const k of Object.keys(cart)){const p=P[pidOf(k)];if(!p||p.soldout){delete cart[k];delete copt[k]}}for(const k of Object.keys(copt))if(!cart[k])delete copt[k];
+  /* οι επιλογές ξαναϋπολογίζονται με τον τρέχοντα κατάλογο (αν άλλαξε η επιπλέον τιμή) */
+  for(const[k,c]of Object.entries(copt)){const p=P[pidOf(k)];if(!p)continue;const r=K.optCheck(p.mods,GR,c.o,c.n,p.nt);c.x=r.x;c.t=r.text}store.set(SK+":cart",cart);store.set(SK+":copt",copt)}
 const lineUnit=(k,q)=>{const p=P[pidOf(k)];return K.round2(K.unitPrice(p,q)+((copt[k]||{}).x||0))};
 const qty=id=>{let s=0;for(const[k,q]of Object.entries(cart))if(pidOf(k)===id)s+=q;return Math.round(s*1000)/1000};
 const keysOf=id=>Object.keys(cart).filter(k=>pidOf(k)===id);
 function setQ(id,q,dir){const p=P[pidOf(id)];if(!p)return;q=Math.max(0,Math.min(K.MAX_QTY,Math.round(q*1000)/1000));
   const st=p.step||1;
   if(p.min>0&&q>0&&q<p.min){if(dir>0){q=Math.ceil(p.min/st-1e-9)*st;q=Math.round(q*1000)/1000}else q=0}
-  if(p.max!=null&&q>p.max){q=Math.floor(p.max/st+1e-9)*st;q=Math.round(q*1000)/1000;if(p.min>0&&q<p.min)q=0;toastMsg(q>0?"Από το «"+p.name+"» έμειναν μόνο "+K.num(p.max)+" ("+p.unit+").":"😔 Το «"+p.name+"» δεν φτάνει για την ελάχιστη ποσότητα ή τελείωσε.")}
+  {const others=Math.round((qty(p.id)-(cart[id]||0))*1000)/1000,room=p.max!=null?Math.max(0,p.max-others):null;
+  if(room!=null&&q>room){q=Math.floor(room/st+1e-9)*st;q=Math.round(q*1000)/1000;if(p.min>0&&q<p.min)q=0;toastMsg(q>0?"Από το «"+p.name+"» έμειναν μόνο "+K.num(p.max)+" ("+p.unit+").":"😔 Το «"+p.name+"» δεν φτάνει για την ελάχιστη ποσότητα ή τελείωσε.")}}
   if(q<=0){delete cart[id];delete copt[id]}else cart[id]=q;store.set(SK+":cart",cart);store.set(SK+":copt",copt)}
 function totals(){let n=0,t=0;for(const[k,q]of Object.entries(cart)){const p=P[pidOf(k)];if(!p)continue;n++;t+=K.round2(q*lineUnit(k,q))}return{n,t:K.round2(t)}}
 /* παράθυρο επιλογών: πατάς το προϊόν και διαλέγεις πώς το θέλεις */
@@ -342,7 +350,7 @@ function refreshTile(id){const q=qty(id);document.querySelectorAll(`[data-qv="${
   const again=document.querySelector(".again");if(again&&totals().n)again.remove()}
 
 /* ---------- ολοκλήρωση ---------- */
-const sentFor=d=>store.get(SK+":sent",[]).filter(x=>x.d===d);
+const sentFor=d=>store.get(SK+":sent",[]).filter(x=>x.d===d&&x.ok!==false);
 function sentBox(d){const L=sentFor(d);if(!L.length)return"";const tot=L.reduce((a,x)=>a+(+x.t||0),0);
   return`<div class="how" style="border-left-color:#e3a008;background:#fff8e1">📨 <b>Έχεις ήδη στείλει ${L.length===1?"παραγγελία":L.length+" παραγγελίες"} για ${esc(K.dayLabel(d).replace(/^(Σήμερα|Αύριο), .*/,m=>m.split(",")[0].toLowerCase()))}</b> (${L.map(x=>esc(x.c)).join(", ")} · ${K.money(tot)}).<br>Αν στείλεις κι αυτή, ο πωλητής θα την προσθέσει στην προηγούμενη και θα έρθουν μαζί.</div>`}
 /* προσωπικός σύνδεσμος πελάτη: οι ημέρες που περνάει ο πωλητής από εκείνον */
@@ -440,7 +448,8 @@ async function send(){
   if(sentFor(ch.d).length&&!confirm("Έχεις ήδη στείλει παραγγελία για "+K.dayLabel(ch.d)+".\n\nΝα σταλεί κι αυτή; Ο πωλητής θα την προσθέσει στην προηγούμενη."))return;
   if($("#crem").checked)store.set(SK+":me",{n,p,a});else{try{localStorage.removeItem(SK+":me")}catch{}}
   if(!orderId)orderId=K.uid(12);
-  const O={v:1,id:orderId,cv:C.ts,at:Date.now(),c:Object.assign({n,p,a,note},zoneOn()&&ch.ar?{ar:ch.ar===ZOTHER?"":ch.ar}:{}),w:Object.assign({d:ch.d,s:ch.s||"",h:ch.h||"del",x:extra?1:0},ch.u?{u:1}:{}),l:Object.entries(cart).filter(([id])=>P[pidOf(id)]).map(([id,q])=>copt[id]?[pidOf(id),q,lineUnit(id,q),{o:copt[id].o,n:copt[id].n||undefined}]:[id,q,K.unitPrice(P[id],q)]),cons:1,tk:C.c&&C.c.tk||undefined,inv:ch.inv==="i"?Object.assign({t:"i"},inv):{t:"r"}};
+  const O={v:1,id:orderId,cv:C.ts,at:Date.now(),c:Object.assign({n,p,a,note},zoneOn()&&ch.ar?{ar:ch.ar===ZOTHER?"":ch.ar}:{}),w:Object.assign({d:ch.d,s:ch.s||"",h:ch.h||"del",x:extra?1:0},ch.u?{u:1}:{}),l:Object.entries(cart).filter(([id])=>P[pidOf(id)]).map(([id,q])=>copt[id]?[pidOf(id),q,lineUnit(id,q),{o:copt[id].o,n:copt[id].n||undefined}]:[pidOf(id),q,lineUnit(id,q)]),cons:1,tk:C.c&&C.c.tk||undefined,inv:ch.inv==="i"?Object.assign({t:"i"},inv):{t:"r"}};
+  if(O.l.length>K.MAX_LINES)return err("Η παραγγελία έχει πάρα πολλές γραμμές ("+O.l.length+"). Το ανώτερο είναι "+K.MAX_LINES+": στείλε τα υπόλοιπα σε δεύτερη παραγγελία.");
   sending=true;$("#send").disabled=true;$("#send").textContent="Αποστολή…";
   let ct;
   try{ct=await K.seal(C.k,O)}catch{sending=false;render();return err("Το κινητό δεν μπόρεσε να κρυπτογραφήσει την παραγγελία. Δοκίμασε σε άλλον περιηγητή (π.χ. Chrome).")}
@@ -450,9 +459,9 @@ async function send(){
   try{await K.ntfySend(C.t,(ch.u?"🚨 Επείγουσα παραγγελία ":"🛒 Νέα παραγγελία ")+code,t.n+(t.n===1?" είδος":" είδη")+" · "+K.dayLabel(ch.d)+" — πάτα για να την ανοίξεις",click);ok=true}catch{}
   if(INFRAME){try{parent.postMessage({t:"paraggelia",ct},location.origin)}catch{}ok=true}
   sending=false;
-  {const c2=store.get(SK+":ck",{});if(c2.u){c2.u=0;store.set(SK+":ck",c2)}}
+  if(ok){const c2=store.get(SK+":ck",{});if(c2.u){c2.u=0;store.set(SK+":ck",c2)}}
   lastSent={form:{n,p,a,note},code,click,ok,day:ch.d,slot:ch.s,how:ch.h,total:t.t,lines:O.l.map(([id,q,pr,op])=>({name:P[id].name+(op?(()=>{const r=K.optCheck(P[id].mods,GR,op.o,op.n,P[id].nt);return r.text||r.note?" ("+[r.text,r.note?"«"+r.note+"»":""].filter(Boolean).join(" · ")+")":""})():""),unit:P[id].unit,q,price:pr}))};
-  {const sent=store.get(SK+":sent",[]).filter(x=>x.d>=K.ymd(new Date()));sent.push({d:ch.d,c:code,t:t.t,at:Date.now(),ok});store.set(SK+":sent",sent.slice(-20))}
+  {const sent=store.get(SK+":sent",[]).filter(x=>x.d>=K.ymd(new Date()));if(ok){const i=sent.findIndex(x=>x.c===code);const e={d:ch.d,c:code,t:t.t,at:Date.now(),ok};if(i>=0)sent[i]=e;else sent.push(e)}store.set(SK+":sent",sent.slice(-20))}
   if(ok){store.set(SK+":last",Object.assign({},cart));store.set(SK+":lastopt",Object.assign({},copt));cart={};copt={};store.set(SK+":cart",{});store.set(SK+":copt",{});const c2=store.get(SK+":ck",{});delete c2.note;store.set(SK+":ck",c2);orderId=null}
   stage="done";view=[];history.replaceState({v:[],s:"done"},"");render();window.scrollTo(0,0);
 }

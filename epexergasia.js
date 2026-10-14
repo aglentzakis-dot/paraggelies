@@ -21,7 +21,7 @@ function curList() {
   ed.path = ok;
   return L;
 }
-const curCat = () => ed.path.length ? K.findNode(S().menu, ed.path[ed.path.length - 1]).node : null;
+const curCat = () => { if (!ed.path.length) return null; const f = K.findNode(S().menu, ed.path[ed.path.length - 1]); if (!f) { ed.path = []; return null; } return f.node; };
 const newId = () => "n" + K.uid(5);
 function removeNodes(ids, list) {
   list = list || S().menu;
@@ -55,8 +55,9 @@ function activate(ids) {
 A.menuView = function (m) {
   const st = S();
   const seg = `<button type="button" class="sendcat" data-act="link">📤 Στείλε κατάλογο στους πελάτες</button><div class="seg"><button type="button" class="${ed.view === "menu" ? "on" : ""}" data-ev="menu">🧩 Μενού πελάτη</button><button type="button" class="${ed.view === "list" ? "on" : ""}" data-ev="list">📋 Προϊόντα και τιμές</button></div>`;
-  if (ed.view === "list") { m.innerHTML = seg + listHTML(); bindListDrag(m); return; }
+  if (ed.view === "list") { ed.marked.clear(); { const ab = $("#actbar"); if (ab) ab.remove(); } m.innerHTML = seg + listHTML(); bindListDrag(m); return; }
   const L = curList();
+  const path0 = ed.path.filter(id => K.findNode(st.menu, id)); if (path0.length !== ed.path.length) ed.path = path0;
   for (const id of [...ed.marked]) if (!L.some(n => n.id === id)) ed.marked.delete(id);
   const path = ed.path.map(id => K.findNode(st.menu, id).node);
   const crumbs = `<div class="crumbs"><button type="button" data-crumb="-1">🏠 Αρχική</button>${path.slice(0, -1).map((n, i) => `<span class="sep">›</span><button type="button" data-crumb="${i}">${esc(n.name || "Χωρίς όνομα")}</button>`).join("")}${path.length ? `<span class="sep">›</span>` : ""}</div>
@@ -911,6 +912,7 @@ function shift(dir) {
 }
 function delMarked() {
   const L = curList(), sel = L.filter(n => ed.marked.has(n.id));
+  if (!sel.length) { A.toast("Δεν έχεις μαρκάρει κανένα κουμπί."); return; }
   const cats = sel.filter(n => n.t === "c"), prods = sel.filter(n => n.t === "p");
   const pids = new Set(prods.map(n => n.pid)); let subc = 0;
   for (const c of cats) { const x = subtreeCount(c); subc += x.cats; x.pids.forEach(p => pids.add(p)); }
@@ -993,7 +995,7 @@ const EA = {
     if (!np && !nc) { A.toast("Ο κατάλογος είναι ήδη άδειος."); return; }
     if (!confirm("Είσαι σίγουρος; Θα αδειάσει ΟΛΟΣ ο κατάλογος:\n• " + nc + " κατηγορίες\n• " + np + " προϊόντα\n\nΚρατιέται αντίγραφο για αναίρεση και γράφεται αντίγραφο ασφαλείας. Οι παραγγελίες, οι πελάτες και το ταμείο δεν αλλάζουν.")) return;
     snapshot("Άδειασμα καταλόγου");
-    st.menu.splice(0); for (const k of Object.keys(st.products)) delete st.products[k]; ed.path = []; ed.marked.clear(); ed.view = "menu";
+    st.menu.splice(0); for (const k of Object.keys(st.products)) delete st.products[k]; ed.path = []; ed.marked.clear(); ed.view = "menu"; if (st.ui) delete st.ui.lastPreset;
     A.save({ catalog: true }); A.closeSheet && A.closeSheet(); A.render(); window.scrollTo(0, 0);
     A.toast("✓ Ο κατάλογος άδειασε. Διάλεξε επάγγελμα ή φτιάξε τον δικό σου. Αναίρεση: Προϊόντα και τιμές.", 6000);
   },
@@ -1006,6 +1008,7 @@ const EA = {
     n.size = "m"; n.color = ""; n.name = p.unit ? p.name + " · " + p.unit : ""; cat.kids.push(n);
     const path = K.pathTo(st.menu, cat.id); ed.path = path.map(x => x.id); ed.view = "menu"; ed.marked.clear();
     A.save({ catalog: true }); A.closeSheet(); A.render();
+    A._addTo = null;
     setTimeout(() => { prodSheet(null, null); const i = $("#pN"); if (i) { i.value = p.name + " "; i.focus(); } A.toast("Γράψε το νέο μέγεθος και την τιμή του", 3500); }, 120);
   },
   prodDel: () => {
