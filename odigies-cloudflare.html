@@ -1,0 +1,79 @@
+<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Σύντομοι σύνδεσμοι · στήσιμο</title>
+<style>:root{--c:#17324D;--a:#F2B632}body{margin:0;background:#F3F4F1;color:#1b2733;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px}h1{font-size:22px;margin:8px 0 4px;color:var(--c)}.card{background:#fff;border-radius:16px;padding:14px 16px;margin:12px 0;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+ol{padding-left:22px}li{margin:8px 0}b.k{background:#eef2f5;border-radius:6px;padding:1px 6px;font-family:ui-monospace,monospace;font-size:14px}
+button{font:inherit;font-weight:800;border:0;border-radius:12px;padding:12px 16px;background:var(--a);color:#17324D;width:100%;cursor:pointer}
+pre{background:#0f1b26;color:#d6e2ea;border-radius:12px;padding:12px;overflow:auto;font-size:12px;max-height:280px}.note{color:#5d6873;font-size:14px}.ok{color:#0B6E4F;font-weight:800}</style></head><body><main>
+<h1>🔗 Σύντομοι σύνδεσμοι καταλόγου</h1>
+<p class="note">Γίνεται μία φορά από τον διαχειριστή της GlenApps. Εξυπηρετεί όλους τους πωλητές της εφαρμογής «Παραγγελίες». Δωρεάν (έως 100.000 ανοίγματα την ημέρα).</p>
+<div class="card"><ol>
+<li>Μπες στο <b>dash.cloudflare.com</b> και κάνε δωρεάν εγγραφή με το email σου. <span class="note">Αν σου ζητήσει κάρτα, σταμάτα και πες το.</span></li>
+<li>Αριστερά: <b>Storage &amp; Databases → D1</b> (ή «Αποθήκευση και βάσεις δεδομένων») → <b>Create database</b>. Όνομα: <b class="k">glenapps</b> → Create.</li>
+<li>Αριστερά: <b>Workers &amp; Pages</b> → <b>Create</b> → <b>Create Worker</b> (ή «Start with Hello World»). Όνομα: <b class="k">glenapps-k</b> → <b>Deploy</b>.</li>
+<li>Πάτα <b>Edit code</b>. Σβήσε όλον τον κώδικα που υπάρχει, πάτα το κουμπί παρακάτω «📋 Αντιγραφή κώδικα» και επικόλλησε. Μετά <b>Deploy</b>.</li>
+<li>Γύρνα στο glenapps-k → <b>Settings → Bindings</b> → <b>Add</b> → <b>D1 database</b>. Variable name: <b class="k">DB</b> · Database: <b class="k">glenapps</b> → <b>Save</b> (ή Deploy).</li>
+<li>Άνοιξε τη διεύθυνση του glenapps-k (κάτι σαν <b class="k">https://glenapps-k.ΟΝΟΜΑ.workers.dev</b>). Πρέπει να γράφει <span class="ok">«λειτουργεί ✓»</span> χωρίς προειδοποίηση.</li>
+<li>Στείλε αυτή τη διεύθυνση στο Claude για να μπει στην εφαρμογή.</li>
+</ol></div>
+<div class="card"><button type="button" id="cp">📋 Αντιγραφή κώδικα</button><p class="note" id="st" style="text-align:center;margin:8px 0 0"></p><pre id="code">/* GlenApps · Παραγγελίες — σύντομοι σύνδεσμοι καταλόγου
+   Φυλάει τον (υπογεγραμμένο) κατάλογο κάθε πωλητή και δίνει έναν κωδικό 7 γραμμάτων.
+   Ο πελάτης ανοίγει «…/p.html#s=κωδικός» και η σελίδα φέρνει τον κατάλογο από εδώ.
+   Δεν περνούν ποτέ από εδώ στοιχεία πελατών ή παραγγελίες.
+   Χρειάζεται μία βάση D1 συνδεδεμένη με όνομα μεταβλητής DB. */
+const ALLOW = [&quot;https://aglentzakis-dot.github.io&quot;, &quot;http://localhost:8765&quot;];
+const AL = &quot;abcdefghijkmnpqrstuvwxyz23456789&quot;;
+const MAX = 400000;
+const H = { &quot;access-control-allow-origin&quot;: &quot;*&quot;, &quot;access-control-allow-methods&quot;: &quot;GET,POST,OPTIONS&quot;, &quot;access-control-allow-headers&quot;: &quot;content-type&quot;, &quot;access-control-max-age&quot;: &quot;86400&quot; };
+const J = (o, st = 200, x = {}) =&gt; new Response(JSON.stringify(o), { status: st, headers: { ...H, &quot;content-type&quot;: &quot;application/json; charset=utf-8&quot;, ...x } });
+const dec = t =&gt; { t = String(t).replace(/-/g, &quot;+&quot;).replace(/[_.]/g, &quot;/&quot;); while (t.length % 4) t += &quot;=&quot;; const s = atob(t), u = new Uint8Array(s.length); for (let i = 0; i &lt; s.length; i++) u[i] = s.charCodeAt(i); return u; };
+async function signed(sp, pk, g) {
+  try {
+    const k = await crypto.subtle.importKey(&quot;raw&quot;, dec(sp), { name: &quot;ECDSA&quot;, namedCurve: &quot;P-256&quot; }, false, [&quot;verify&quot;]);
+    return await crypto.subtle.verify({ name: &quot;ECDSA&quot;, hash: &quot;SHA-256&quot; }, k, dec(g), new TextEncoder().encode(pk));
+  } catch { return false; }
+}
+let ready = false;
+async function init(db) {
+  if (ready) return;
+  await db.prepare(&quot;CREATE TABLE IF NOT EXISTS cat (id TEXT PRIMARY KEY, sp TEXT NOT NULL, pk TEXT NOT NULL, g TEXT NOT NULL, ts INTEGER NOT NULL)&quot;).run();
+  ready = true;
+}
+const newId = () =&gt; [...crypto.getRandomValues(new Uint8Array(7))].map(x =&gt; AL[x % AL.length]).join(&quot;&quot;);
+export default {
+  async fetch(req, env) {
+    const u = new URL(req.url);
+    if (req.method === &quot;OPTIONS&quot;) return new Response(null, { headers: H });
+    if (u.pathname === &quot;/&quot;) return new Response(&quot;GlenApps · σύντομοι σύνδεσμοι καταλόγου: λειτουργεί ✓&quot; + (env.DB ? &quot;&quot; : &quot;\n⚠️ Λείπει η βάση D1 με όνομα DB&quot;), { headers: { ...H, &quot;content-type&quot;: &quot;text/plain; charset=utf-8&quot; } });
+    if (!env.DB) return J({ err: &quot;Λείπει η βάση D1 (DB)&quot; }, 500);
+    await init(env.DB);
+    const m = u.pathname.match(/^\/c\/([a-z0-9]{7})$/);
+    if (req.method === &quot;GET&quot; &amp;&amp; m) {
+      const r = await env.DB.prepare(&quot;SELECT pk, g, sp, ts FROM cat WHERE id = ?&quot;).bind(m[1]).first();
+      return r ? J(r, 200, { &quot;cache-control&quot;: &quot;public, max-age=30&quot; }) : J({ err: &quot;Δεν βρέθηκε&quot; }, 404);
+    }
+    if (req.method === &quot;POST&quot; &amp;&amp; u.pathname === &quot;/c&quot;) {
+      const o = req.headers.get(&quot;origin&quot;) || &quot;&quot;; if (o &amp;&amp; !ALLOW.includes(o)) return J({ err: &quot;Μη επιτρεπτή προέλευση&quot; }, 403);
+      if ((+req.headers.get(&quot;content-length&quot;) || 0) &gt; MAX + 2000) return J({ err: &quot;Πολύ μεγάλος&quot; }, 413);
+      let b; try { b = await req.json(); } catch { return J({ err: &quot;Λάθος δεδομένα&quot; }, 400); }
+      const { pk, g, sp } = b || {}; let id = b &amp;&amp; b.id;
+      if (typeof pk !== &quot;string&quot; || typeof g !== &quot;string&quot; || typeof sp !== &quot;string&quot; || pk.length &gt; MAX || sp.length &gt; 120 || g.length &gt; 200) return J({ err: &quot;Λάθος δεδομένα&quot; }, 400);
+      if (!(await signed(sp, pk, g))) return J({ err: &quot;Λάθος υπογραφή&quot; }, 403);
+      const now = Date.now();
+      if (typeof id === &quot;string&quot; &amp;&amp; /^[a-z0-9]{7}$/.test(id)) {
+        const r = await env.DB.prepare(&quot;SELECT sp FROM cat WHERE id = ?&quot;).bind(id).first();
+        if (r &amp;&amp; r.sp !== sp) return J({ err: &quot;Ο κωδικός ανήκει σε άλλον πωλητή&quot; }, 403);
+        if (r) { await env.DB.prepare(&quot;UPDATE cat SET pk = ?, g = ?, ts = ? WHERE id = ?&quot;).bind(pk, g, now, id).run(); return J({ id }); }
+      }
+      for (let i = 0; i &lt; 6; i++) {
+        id = newId();
+        try { await env.DB.prepare(&quot;INSERT INTO cat (id, sp, pk, g, ts) VALUES (?, ?, ?, ?, ?)&quot;).bind(id, sp, pk, g, now).run(); return J({ id }); } catch {}
+      }
+      return J({ err: &quot;Δεν δόθηκε κωδικός&quot; }, 500);
+    }
+    return J({ err: &quot;Δεν υπάρχει&quot; }, 404);
+  }
+};
+</pre></div>
+<p class="note">Στην υπηρεσία φυλάγεται μόνο ο κατάλογος κάθε πωλητή (στοιχεία καταστήματος, προϊόντα, τιμές), υπογεγραμμένος με το κλειδί του. Στοιχεία πελατών και παραγγελίες δεν περνούν ποτέ από εκεί.</p>
+</main><script>document.getElementById("cp").onclick=async()=>{const t=document.getElementById("code").textContent,st=document.getElementById("st");try{await navigator.clipboard.writeText(t);st.textContent="✓ Αντιγράφηκε ("+t.length+" χαρακτήρες). Επικόλλησέ τον στο Cloudflare."}catch{const r=document.createRange();r.selectNodeContents(document.getElementById("code"));const s=getSelection();s.removeAllRanges();s.addRange(r);st.textContent="Κράτα πατημένο πάνω στο επιλεγμένο κείμενο και πάτα «Αντιγραφή»."}};</script></body></html>

@@ -8,6 +8,12 @@
   "use strict";
   const K = {};
   K.NTFY = "https://ntfy.sh";
+  /* δική μας υπηρεσία σύντομων συνδέσμων (Cloudflare, δωρεάν)· κενό = δεν χρησιμοποιείται */
+  K.SHORT = "";
+  K.shortPut = async (body, ms) => { const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms || 8000);
+    try { const r = await fetch(K.SHORT + "/c", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: ac.signal }); const j = await r.json().catch(() => ({})); if (!r.ok || !j.id) throw new Error(j.err || "HTTP " + r.status); return j.id; } finally { clearTimeout(t); } };
+  K.shortGet = async (id, ms) => { const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms || 9000);
+    try { const r = await fetch(K.SHORT + "/c/" + id, { cache: "no-store", signal: ac.signal }); if (r.status === 404) return { miss: 1 }; if (!r.ok) return null; return await r.json(); } finally { clearTimeout(t); } };
   K.MAX_LINES = 60;
   K.MAX_QTY = 999;
 

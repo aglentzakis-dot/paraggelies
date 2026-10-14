@@ -54,3 +54,5 @@ Object.assign(window.GL_EN,{"🧭 Πλοήγηση":"🧭 Navigate","📇 Στι
 Object.assign(window.GL_EN,{"πελάτες στο ίδιο σημείο":"customers at the same spot","Διαδρομή για σήμερα":"Today's route","Διαδρομή για αύριο":"Tomorrow's route","σειρά στάσεων και πλοήγηση":"stop order and navigation"});
 Object.assign(window.GL_EN,{"⬇️ Ο κατάλογός μου σε Excel":"⬇️ My catalogue in Excel","Άλλα πρότυπα (για αρχή από την αρχή)":"Other templates (to start from scratch)","⬇️ Κενό πρότυπο (παράδειγμα με αυγά και μέλι)":"⬇️ Blank template (eggs and honey example)"});
 Object.assign(window.GL_EN,{"⬇️ Ο κατάλογός μου σε Excel":"⬇️ My catalogue in Excel","Άλλα πρότυπα (για αρχή από την αρχή)":"Other templates (to start from scratch)","⬇️ Κενό πρότυπο (παράδειγμα με αυγά και μέλι)":"⬇️ Blank template (eggs and honey example)"});
+/* 1.71 */
+Object.assign(window.GL_EN,{"Ανοίγει ο κατάλογος…":"Opening catalogue…"});

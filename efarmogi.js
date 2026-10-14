@@ -101,6 +101,7 @@ function catSoon(ms, force) {
     if (Math.ceil((await K.pack(C)).length / K.CHUNK) > 20) C = K.buildCatalog(S, { photos: false, logo: false, icons: false, appUrl: BASE });   /* πολύ μεγάλος: χωρίς τα εικονίδια, μένουν τα σύμβολα */
     const sig = JSON.stringify(Object.assign({}, C, { ts: 0 }));
     if (!force && sig === S.link.catSig) return;
+    if (sig !== S.link.catSig) ownRefresh();
     if (await K.catalogPublish(S, C)) { S.link.catSig = sig; S.link.catAt = Date.now(); S.link.dirty = false; clearTimeout(saveT); saveT = setTimeout(write, 250); if (tab === "orders" || tab === "more") render(); }
   } catch {} }, ms == null ? 8000 : ms);
 }
@@ -2682,7 +2683,20 @@ async function shortOf(url) {
   return { url: "", err: (err && err.message) || "άγνωστο", svc };
 }
 /* ο καλύτερος σύντομος σύνδεσμος: αν η υπηρεσία δεν δέχεται τόσο μεγάλο κατάλογο, ξαναδοκιμάζει χωρίς φωτογραφίες και μετά χωρίς λογότυπο */
+/* ο δικός μας σύντομος σύνδεσμος: «…/p.html#s=κωδικός» — ο κατάλογος φυλάγεται υπογεγραμμένος στην υπηρεσία μας */
+async function ownShort(cust, lo) {
+  if (!K.SHORT || S.link.noOwn) return "";
+  await ensureKeys(); await ensureLiveKeys(); if (!S.nt.spriv || !S.nt.spub) return "";
+  const long = await makeLink(cust, lo), pk = long.split("&k=")[1]; if (!pk) return "";
+  const slot = cust && cust.k ? cust.k : "*", ids = S.link.sids || (S.link.sids = {});
+  try { const id = await K.shortPut({ id: ids[slot], pk, g: await K.liveSign(S.nt.spriv, pk), sp: S.nt.spub });
+    ids[slot] = id; save(); return { long, short: BASE + "p.html#s=" + id + S.nt.spub.slice(2, 8) }; } catch { return ""; }
+}
+/* όταν αλλάζει ο κατάλογος, ενημερώνεται και ο γενικός σύντομος σύνδεσμος (για όσους τον ανοίξουν αργότερα) */
+let ownT = null;
+function ownRefresh() { if (!K.SHORT || !(S.link.sids || {})["*"]) return; clearTimeout(ownT); ownT = setTimeout(() => ownShort(null).catch(() => {}), 300); }
 async function shortLink(cust) {
+  { const o = await ownShort(cust); if (o) return { long: o.long, short: o.short, dropped: {}, full: o.long, own: 1 }; }
   const tries = [{}];
   if (S.link.photos && isPro()) tries.push({ noPhotos: 1 });
   const hasIc = Object.values(S.products).some(p => p.aic) || JSON.stringify(S.menu).includes('"aic"');

@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.70">
+<meta name="app-version" content="1.71">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.70">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.70">
-<link rel="stylesheet" href="koino.css?v=1.70">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.71">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.71">
+<link rel="stylesheet" href="koino.css?v=1.71">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -94,7 +94,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 .sect::after{content:"";flex:1;height:2px;background:var(--c2);opacity:.6;border-radius:2px;margin-left:6px}
 .sect.d2{font-size:16.5px;margin-top:12px}.sect.d3{font-size:15px;opacity:.85}
 .home-add{display:block;margin:4px auto 0;border:0;background:transparent;color:var(--c1);font-weight:700;text-decoration:underline;cursor:pointer;padding:8px}
-/* 1.70 · πιο ζεστή, πιο «βιτρίνα» εμφάνιση για τον πελάτη (με τα χρώματα του πωλητή) */
+/* 1.71 · πιο ζεστή, πιο «βιτρίνα» εμφάνιση για τον πελάτη (με τα χρώματα του πωλητή) */
 html{background:color-mix(in srgb,var(--c1) 6%,var(--paper))}html,body{background:color-mix(in srgb,var(--c1) 6%,var(--paper))}
 .hdr{position:relative;overflow:hidden;background:linear-gradient(125deg,var(--c1),color-mix(in srgb,var(--c1) 70%,var(--c2)));border-radius:0 0 26px 26px;padding-bottom:22px;box-shadow:0 12px 28px -16px color-mix(in srgb,var(--c1) 90%,transparent)}
 .hdr::before,.hdr::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
@@ -121,7 +121,7 @@ input.t,textarea.t{transition:border-color .15s,box-shadow .15s}input.t:focus,te
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.70"></script>
+<script src="katalogos.js?v=1.71"></script>
 <script>
 (function(){
 "use strict";
@@ -140,13 +140,21 @@ async function load(){
   const h0=new URLSearchParams(location.hash.slice(1)),h=h0.get("k")||h0.get("t")?h0:new URLSearchParams(location.search.slice(1));
   if(h.get("t")){const x=(h.get("x")||""),n=+h.get("n")||0,ok=x.length===n;
     $("#app").innerHTML=`<div class="bad"><div style="font-size:48px">${ok?"✅":"✂️"}</div><h2>Δοκιμή ${esc(h.get("t"))}: ${ok?"έφτασε ολόκληρος":"κόπηκε"}</h2><p style="font-size:20px"><b>${x.length}</b> από <b>${n}</b> χαρακτήρες</p><p class="note">Συνολικό μήκος διεύθυνσης: ${location.href.length}<br>Περιηγητής: ${esc(navigator.userAgent.slice(0,140))}</p><p class="note" style="word-break:break-all">Τέλος: …${esc(x.slice(-24))}</p></div>`;return}
-  const k=h.get("k");
+  let k=h.get("k"),SJ=null;
+  /* σύντομος σύνδεσμος: «#s=» + κωδικός 7 γραμμάτων + 6 χαρακτήρες από το κλειδί του πωλητή */
+  const sv=h0.get("s");
+  if(!k&&sv&&/^[a-z0-9]{7}/.test(sv)){const id=sv.slice(0,7),fp=sv.slice(7);
+    $("#app").innerHTML=`<div class="bad"><div style="font-size:42px">⏳</div><h2>Ανοίγει ο κατάλογος…</h2></div>`;
+    let j=null;if(K.SHORT){try{j=await K.shortGet(id)}catch{}}
+    if(!j||!j.pk){const c=store.get("ps:"+id,null);if(c&&c.pk)j=c;else{bad(j&&j.miss?"Ο κατάλογος δεν βρέθηκε. Ίσως ο σύνδεσμος γράφτηκε λάθος.":"Ο κατάλογος δεν άνοιξε: χρειάζεται σύνδεση στο διαδίκτυο την πρώτη φορά. Δοκίμασε ξανά σε λίγο.");return}}
+    if((fp&&String(j.sp).slice(2,8)!==fp)||!(await K.liveVerify(j.sp,j.pk,j.g))){bad("Ο σύνδεσμος δεν είναι έγκυρος.");return}
+    store.set("ps:"+id,{pk:j.pk,g:j.g,sp:j.sp,ts:j.ts});k=j.pk;SJ=j}
   if(!k){bad("Λείπει ο κατάλογος από τον σύνδεσμο.");return}
-  const want=+h.get("n")||0,got=K.cleanB64(k).length;
-  if(!want&&got<400){bad("Ο σύνδεσμος κόπηκε στη μεταφορά (έφτασαν μόνο "+got+" χαρακτήρες). Ζήτησε από τον πωλητή να σου στείλει νέο σύνδεσμο από την εφαρμογή του.");return}
+  const want=SJ?0:+h.get("n")||0,got=K.cleanB64(k).length;
+  if(!SJ&&!want&&got<400){bad("Ο σύνδεσμος κόπηκε στη μεταφορά (έφτασαν μόνο "+got+" χαρακτήρες). Ζήτησε από τον πωλητή να σου στείλει νέο σύνδεσμο από την εφαρμογή του.");return}
   if(want&&got<want){bad("Ο σύνδεσμος κόπηκε στη μεταφορά: έφτασαν "+got+" από "+want+" χαρακτήρες. Ζήτησε από τον πωλητή να τον στείλει με το κουμπί «Αντιγραφή» ή να βγάλει το λογότυπο από τον σύνδεσμο.");return}
   try{C=await K.unpack(k)}catch(e){bad("Ο σύνδεσμος δεν διαβάστηκε σε αυτόν τον περιηγητή. Δοκίμασε: τρεις τελείες ⋮ πάνω δεξιά → «Άνοιγμα σε Chrome». (Τεχνική ένδειξη: "+esc(String(e&&e.message||e))+", "+got+(want?"/"+want:"")+")");return}
-  if(!C||C.v!==1||!C.k||!C.t||!C.s||!C.s.n){bad("Ο σύνδεσμος δεν είναι έγκυρος.");return}
+  if(!C||C.v!==1||!C.k||!C.t||!C.s||!C.s.n||(SJ&&C.g!==SJ.sp)){bad("Ο σύνδεσμος δεν είναι έγκυρος.");return}
   C0=C;SK="par:"+C.k.slice(0,16);
   /* ο πιο πρόσφατος κατάλογος που είχε έρθει ζωντανά από τον πωλητή (αν είναι νεότερος από τον σύνδεσμο) */
   try{const L=store.get(SK+":live",null);if(L&&L.ts>C.ts&&L.pk&&L.g){const X=await K.verifyPacked(C0,L.pk,L.g);if(X&&X.ts===L.ts&&X.k===C0.k&&X.t===C0.t)C=mergeLive(X)}}catch{}
