@@ -323,7 +323,7 @@
       order: {
         id: O.id, at, rx: now,
         cust: { name, phone, addr: String(c.a || "").trim().slice(0, 160), note: String(c.note || "").trim().slice(0, 400), area: String(c.ar || "").trim().slice(0, 60) },
-        when: { date, slot: String(w.s || "").slice(0, 30), how: w.h === "pick" ? "pick" : "del", extra: !!w.x },
+        when: { date, slot: String(w.s || "").slice(0, 30), how: w.h === "pick" ? "pick" : "del", extra: !!w.x, urgent: !!w.u },
         lines, total: K.round2(total), cv: +O.cv || 0,
         inv: O.inv && O.inv.t === "i" ? { t: "i", n: String(O.inv.n || "").slice(0, 100), f: String(O.inv.f || "").replace(/\D/g, "").slice(0, 9), d: String(O.inv.d || "").slice(0, 60), j: String(O.inv.j || "").slice(0, 80), a: String(O.inv.a || "").slice(0, 140) } : { t: O.inv && O.inv.t === "r" ? "r" : "" }
       }
