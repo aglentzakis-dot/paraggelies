@@ -622,8 +622,8 @@ function openOrder(id) {
    ${(o.warn || []).map(w => `<div class="warnbox">⚠️ ${esc(w)}</div>`).join("")}
    <div class="card"><div class="row"><span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}<span class="grow"></span><span class="note" style="margin:0">Κωδικός ${code(o)}</span></div>
     <p style="margin:8px 0 2px"><b>${o.when.how === "pick" ? "🏪 Παραλαβή" : "🚚 Παράδοση"}</b> · ${esc(fmtWhen(o))}</p>
-    ${o.cust.addr ? `<p style="margin:2px 0">📍 ${esc(o.cust.addr)} <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.cust.addr)}" target="_blank" rel="noopener">χάρτης</a></p>` : ""}
-    <p style="margin:2px 0">📞 <a href="tel:${esc(phone)}">${esc(phone)}</a></p>
+    ${o.cust.addr || (c && c.addr) ? `<p class="olin">📍 <span class="grow">${esc(o.cust.addr || c.addr)}</span>${o.when.how === "pick" ? "" : `<a class="minib" href="${esc(navHref(o))}" target="_blank" rel="noopener">🧭 Πλοήγηση</a>`}</p>` : ""}
+    <p class="olin">📞 <a class="grow" href="tel:${esc(phone)}">${esc(phone)}</a>${c && c.inPh ? "" : `<button type="button" class="minib" data-act="ordVcf">📇 Στις επαφές</button>`}</p>
     ${o.cust.note ? `<div class="warnbox">📝 ${esc(o.cust.note)}</div>` : ""}
     ${o.when.extra ? `<div class="warnbox">⚡ Έκτακτη παραγγελία, εκτός από τις κανονικές ημέρες του πελάτη.</div>` : ""}
     ${o.merged && o.merged.length ? `<div class="okbox">🔗 Ο πελάτης έστειλε ${o.merged.length + 1} παραγγελίες για την ίδια ημέρα· ενώθηκαν σε αυτή. Τα είδη που προστέθηκαν έχουν σημάδι «＋».</div>` : ""}
@@ -636,7 +636,7 @@ function openOrder(id) {
    <h3 style="margin:4px 2px 6px;font-size:15px">Κατάσταση</h3>
    <div class="chips">${stBtn("new", "Νέα")}${stBtn("prep", "Ετοιμάζεται")}${stBtn("done", "Παραδόθηκε")}${stBtn("cancel", "Ακυρώθηκε")}</div>
    ${diffOf(o) ? `<div class="${diffOf(o) > 0 ? "errbox" : "warnbox"}"><b>${o.partial ? "Μερική εξόφληση." : "Η παραγγελία άλλαξε μετά την πληρωμή."}</b><br>Πληρώθηκαν ${K.money(paidOf(o))}, ${o.partial ? "" : "νέο "}σύνολο ${K.money(o.total)}.<br>${diffOf(o) > 0 ? "Ο πελάτης <b>χρωστά " + K.money(diffOf(o)) + "</b>." : "Του <b>επιστρέφεις " + K.money(-diffOf(o)) + "</b>."}<div style="margin-top:8px"><button type="button" class="btn sm ${diffOf(o) > 0 ? "green" : "amber"}" data-ordpaid="diff">${diffOf(o) > 0 ? "€ Πλήρωσε τη διαφορά " + K.money(diffOf(o)) : "↩ Επιστράφηκαν " + K.money(-diffOf(o))}</button></div></div>` : ""}
-   <div class="row" style="margin:0 0 12px">${o.paid ? `<span class="pill paid" style="font-size:14px;padding:8px 12px">✓ Πληρωμένη ${K.money(paidOf(o))}</span><button type="button" class="btn ghost grow" style="border-color:var(--bad);color:var(--bad)" data-ordpaid="0">✕ Σημείωσε απλήρωτη</button>` : `<button type="button" class="btn green grow" data-ordpaid="1">€ Πληρώθηκε ${K.money(o.total)}</button>`}</div>
+   <div class="row" style="margin:0 0 12px">${o.paid ? `<span class="pill paid" style="font-size:14px;padding:8px 12px">✓ Πληρωμένη ${K.money(paidOf(o))}${o.payVia ? " · " + payIc(o.payVia) + " " + esc(o.payVia) : ""}</span><button type="button" class="btn ghost grow" style="border-color:var(--bad);color:var(--bad)" data-ordpaid="0">✕ Σημείωσε απλήρωτη</button>` : `<button type="button" class="btn green grow" data-ordpaid="1">€ Πληρώθηκε ${K.money(o.total)}</button>`}</div>
    <div class="card" style="border-left:5px solid var(--accent)"><h3 style="margin:0 0 4px">💬 Ενημέρωση πελάτη</h3>
     <p class="note" style="margin:0 0 10px">Στέλνει στον πελάτη έτοιμο μήνυμα με την κατάσταση της παραγγελίας («${esc(ST[o.st])}»), τον κωδικό και το σύνολο.</p>
     ${ntfStatus(o)}<div class="row">${msgButtons(o)}</div></div>
@@ -648,6 +648,42 @@ function openOrder(id) {
   $("#shB").dataset.ord = o.id;
 }
 A.openOrder = openOrder;
+/* πλοήγηση κατευθείαν σε μία παραγγελία: με τη θέση του πελάτη αν την ξέρουμε, αλλιώς με τη διεύθυνση */
+function navHref(o) {
+  const k = custKey(o.cust.phone), c = S.customers[k] || {}, addr = o.cust.addr || c.addr || "", area = o.cust.area || c.area || "";
+  const pin = custPin(k), g = geoMem()[geoKey(addr, c.area || area)], loc = pin || (g && g.lat != null ? g : null);
+  return "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + (loc ? loc.lat.toFixed(6) + "," + loc.lng.toFixed(6) : encodeURIComponent([addr, area].filter(Boolean).join(", ")));
+}
+A.navHref = navHref;
+/* αποθήκευση πελάτη στις επαφές του κινητού: στο Android ανοίγει έτοιμη τη φόρμα «Νέα επαφή»,
+   στο iPhone και αλλού δίνει κάρτα επαφής (.vcf) που ανοίγει με «Δημιουργία νέας επαφής» */
+const vEsc = v => String(v || "").replace(/\\/g, "\\\\").replace(/([,;])/g, "\\$1").replace(/\r?\n/g, "\\n");
+const intlPh = p => { const d = String(p || "").replace(/[^\d+]/g, ""); return /^\d{10}$/.test(d) ? "+30" + d : d; };
+/* όνομα αρχείου με λατινικούς χαρακτήρες: κάποια κινητά χάνουν τα ελληνικά στο όνομα αρχείου */
+const GRL = { α: "a", β: "v", γ: "g", δ: "d", ε: "e", ζ: "z", η: "i", θ: "th", ι: "i", κ: "k", λ: "l", μ: "m", ν: "n", ξ: "x", ο: "o", π: "p", ρ: "r", σ: "s", ς: "s", τ: "t", υ: "y", φ: "f", χ: "ch", ψ: "ps", ω: "o" };
+const latinName = n => (String(n || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ου/g, "ou").replace(/αυ/g, "av").replace(/ευ/g, "ev").replace(/μπ/g, "b").replace(/ντ/g, "d").replace(/γκ/g, "g").split("").map(ch => GRL[ch] != null ? GRL[ch] : ch).join("").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/(^|-)([a-z])/g, (m, d, c) => d + c.toUpperCase()) || "Pelatis");
+function vcardOf(x) {
+  const parts = String(x.name || "").trim().split(/\s+/), last = parts.length > 1 ? parts.slice(1).join(" ") : "", first = parts[0] || "";
+  return ["BEGIN:VCARD", "VERSION:3.0", "N:" + vEsc(last) + ";" + vEsc(first) + ";;;", "FN:" + vEsc(x.name), "TEL;TYPE=CELL:" + intlPh(x.phone),
+    x.addr || x.area ? "ADR;TYPE=HOME:;;" + vEsc(x.addr) + ";" + vEsc(x.area) + ";;;Ελλάδα" : "", x.note ? "NOTE:" + vEsc(x.note) : "", "END:VCARD"].filter(Boolean).join("\r\n") + "\r\n";
+}
+async function saveToPhone(x, k) {
+  const note = "Πελάτης" + (S.shop.name ? " · " + S.shop.name : "");
+  const mark = () => { const c = k && S.customers[k]; if (c) { c.inPh = 1; save(); } };
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) {
+    const ex = [["name", x.name], ["phone", intlPh(x.phone)], ["postal", [x.addr, x.area].filter(Boolean).join(", ")], ["notes", note]].filter(([, v]) => v);
+    location.href = "intent:#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/raw_contact;" + ex.map(([a, v]) => "S." + a + "=" + encodeURIComponent(v)).join(";") + ";i.phone_type=2;end";
+    mark(); return "android";
+  }
+  const file = new File([vcardOf(Object.assign({ note }, x))], latinName(x.name) + ".vcf", { type: "text/vcard" });
+  if (/iPhone|iPad|Macintosh/i.test(ua) && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); mark(); return "share"; } catch (e) { if (e && e.name === "AbortError") return "cancel"; }
+  }
+  const u = URL.createObjectURL(file), a = document.createElement("a"); a.href = u; a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000);
+  mark(); toast("📇 Κατέβηκε η κάρτα επαφής «" + file.name + "». Άνοιξέ τη για να αποθηκευτεί στις επαφές.", 5000); return "file";
+}
+A.vcardOf = vcardOf; A.saveToPhone = saveToPhone;
 function statusText(o) {
   const n = S.shop.name || "";
   const base = { new: "λάβαμε την παραγγελία σας", prep: "ετοιμάζουμε την παραγγελία σας", done: "η παραγγελία σας παραδόθηκε. Ευχαριστούμε", cancel: "η παραγγελία σας ακυρώθηκε" }[o.st] || "";
@@ -858,7 +894,17 @@ const cashList = () => S.cash || (S.cash = []);
    Συγχρονισμός με την εφαρμογή «Ταμεία» μόνο αν ο χρήστης έχει το πακέτο GlenApps Full ή κλειδί Ταμείων, και αφού το εγκρίνει. */
 const EM_KEY = "paraggelies-tameio-v1", EMQ = "paraggelies-tameio-inbox";
 const TM_KEY = "tameia-v1", TM_INBOX = "glen-tameia-inbox";
-const PAYMAP = { "Μετρητά": "cash", "Κάρτα": "card", "Τράπεζα": "bank" };
+const PAYMAP = { "Μετρητά": "cash", "Κάρτα": "card", "Ηλεκτρονικά": "bank", "Τράπεζα": "bank" };
+/* τρόποι πληρωμής: [όνομα, εικονίδιο, εξήγηση] */
+const PAYS = [["Μετρητά", "💵", "στο χέρι"], ["Κάρτα", "💳", "πιστωτική ή χρεωστική, με τερματικό"], ["Ηλεκτρονικά", "📲", "IRIS, σύνδεσμος πληρωμής, ηλεκτρονικό πορτοφόλι"], ["Τράπεζα", "🏦", "κατάθεση ή μεταφορά σε λογαριασμό"]];
+const payIc = v => (PAYS.find(x => x[0] === v) || [, ""])[1];
+function paySheet(o) {
+  const last = S.ui.payVia || "";
+  sheet("€ Πληρώθηκε " + K.money(o.total), `<p class="note" style="margin-top:0">#${o.no} · ${esc(o.cust.name)}. Πώς πλήρωσε;</p>
+   <div class="bigopts">${PAYS.map(([v, ic, d]) => `<button type="button" class="bigopt${v === last ? " on" : ""}" data-payvia="${v}"><span class="e">${ic}</span><span class="t"><b>${v}</b><small>${d}</small></span><span class="g">›</span></button>`).join("")}</div>
+   <p class="note">Ο τρόπος πληρωμής γράφεται στην παραγγελία και περνά στο Ταμείο (μετρητά, κάρτα ή τράπεζα).</p>`,
+   `<button type="button" class="btn soft" data-act="payBack">← Πίσω</button>`, el => { el.dataset.ord = o.id; });
+}
 const SALES_KIND = { id: "ae73", emoji: "💶", name: "Πωλήσεις και υπηρεσίες", dir: "in", subs: ["Παροχή υπηρεσιών", "Πωλήσεις εμπορευμάτων", "Πωλήσεις προϊόντων"] };
 /* παλιές χειροκίνητες κινήσεις (έως 1.36) → κατηγορίες του βιβλίου Α.Ε. */
 const CK2AE = { sales: ["ae73", ""], cinother: ["ae75", ""], buy: ["ae20", ""], tax: ["ae63", ""], efka: ["ae60", "Εισφορές ΕΦΚΑ"], acct: ["ae61", "Λογιστής"], staff: ["ae60", ""], office: ["ae62", ""], repair: ["aerep", ""], vehicle: ["ae64", "Καύσιμα"], equip: ["ae14", ""], soft: ["ae64", "Συνδρομές"], ads: ["ae64", "Διαφήμιση"], bank: ["ae65", ""], insur: ["ae62", "Ασφάλιστρα"], cother: ["aeoth", ""] };
@@ -1148,7 +1194,7 @@ function collectCust(k, mode) {
     <div class="paysel"><button type="button" class="${mode === "full" ? "on" : ""}" data-colmode="full">✓ Ολική εξόφληση</button><button type="button" class="${mode === "part" ? "on" : ""}" data-colmode="part">½ Μερική</button></div>
     ${mode === "full" ? `<div class="card" style="margin-top:10px">${L.map(o => `<label class="ck" style="align-items:center"><input type="checkbox" data-colo="${o.id}" data-amt="${rem(o)}" checked><span style="flex:1"><b>#${o.no}</b> · ${esc(fmtWhen(o))}${o.partial ? " · υπόλοιπο" : o.paid ? " · διαφορά" : ""}</span><b>${K.money(rem(o))}</b></label>`).join("")}</div>`
     : `<div class="card" style="margin-top:10px"><label class="f" for="colAmt" style="margin-top:0">Πόσα έδωσε (€)</label><input class="t" id="colAmt" inputmode="decimal" placeholder="π.χ. 20" style="font-size:22px;font-weight:800"><p class="note" style="margin:6px 0 0">Εξοφλούνται πρώτα οι παλαιότερες παραγγελίες· ό,τι μείνει φαίνεται ως υπόλοιπο.</p></div>`}
-    <div class="card"><h3>Πώς πλήρωσε</h3><div class="chips">${["Μετρητά", "Κάρτα", "Τράπεζα"].map(v => `<button type="button" class="chip${v === via ? " on" : ""}" data-pv="${v}">${v === "Μετρητά" ? "💵" : v === "Κάρτα" ? "💳" : "🏦"} ${v}</button>`).join("")}</div></div>`,
+    <div class="card"><h3>Πώς πλήρωσε</h3><div class="chips">${PAYS.map(([v, ic]) => `<button type="button" class="chip${v === via ? " on" : ""}" data-pv="${v}">${ic} ${v}</button>`).join("")}</div></div>`,
     `<button type="button" class="btn soft" data-act="collectList">← Πίσω</button><button type="button" class="btn green" data-act="collectGo" id="colBtn">${mode === "full" ? "✓ Εισπράχθηκαν " + K.money(tot) : "✓ Καταχώριση πληρωμής"}</button>`,
     el => { el.dataset.cust = k; el.dataset.mode = mode; const i = el.querySelector("#colAmt"); if (i) setTimeout(() => i.focus(), 80); });
 }
@@ -1403,7 +1449,7 @@ function openCust(k) {
   const s = custStats(k);
   const gs = custGeoState(c);
   sheet(c.name, `<div class="cuacts3">${c.phone ? `<a href="tel:${esc(c.phone)}"><span class="e">📞</span><span>Κλήση</span></a><button type="button" data-cmsg="${esc(k)}"><span class="e">💬</span><span>Μήνυμα</span></button>` : ""}<button type="button" data-cpin="${esc(k)}"><span class="e">📍</span><span>Χάρτης</span></button></div>
-   <div class="cuacts2"><button type="button" class="btn amber" data-act="custNew">＋ Νέα παραγγελία</button>${s.list.length ? `<button type="button" class="btn soft" data-act="custRepeat">🔁 Επανάληψη παραγγελίας</button>` : ""}</div>
+   <div class="cuacts2"><button type="button" class="btn amber" data-act="custNew">＋ Νέα παραγγελία</button>${s.list.length ? `<button type="button" class="btn soft" data-act="custRepeat">🔁 Επανάληψη παραγγελίας</button>` : ""}</div>${c.phone && !c.inPh ? `<p class="olin" style="justify-content:center;margin:-4px 0 10px"><button type="button" class="minib" data-act="custVcf">📇 Αποθήκευση στις επαφές του κινητού</button></p>` : ""}
    ${custInfoHTML(k)}
    ${pendOf(k).length ? `<div class="heldbox"><b>⏳ Περιμένει με την επόμενη παραγγελία</b>${pendOf(k).map(x => `<div class="heldr"><span>${esc(x.name)} · ${K.num(x.q)} ${esc(x.unit)} <span class="note">(από #${x.no})</span></span></div>`).join("")}</div>` : ""}
    ${gs === "off" ? `<div class="errbox cugeobox"><b>⚠️ ΒΡΕΘΗΚΕ ΣΕ ΑΛΛΗ ΠΕΡΙΟΧΗ</b><br>Η «${esc(c.addr)}» βρέθηκε στη «${esc(geoMem()[geoKey(c.addr, c.area)].off)}», όχι «${esc(c.area || "")}». Μάλλον είναι ομώνυμος δρόμος. Διόρθωσε τη διεύθυνση, ή πάτα «🗺 Βάλ' το στον χάρτη».</div>` : gs === "amb" ? `<div class="errbox cugeobox"><b>❓ ΠΟΙΑ «${esc(c.addr)}»;</b><br>Υπάρχουν ίδιες διευθύνσεις σε ${(geoMem()[geoKey(c.addr, c.area)].amb || []).length} περιοχές. Διάλεξε τη σωστή, αλλιώς η διαδρομή μπορεί να σε πάει αλλού. <button type="button" class="btn sm amber" data-ambfor="${esc(k)}" style="margin-top:6px">Διάλεξε περιοχή ›</button></div>` : gs === "miss" ? `<div class="errbox cugeobox"><b>⚠️ ΔΕΝ ΒΡΕΘΗΚΕ Η ΔΙΕΥΘΥΝΣΗ ΣΤΟΝ ΧΑΡΤΗ</b><br>Ο πελάτης δεν φαίνεται στον χάρτη και στο δρομολόγιο. Διόρθωσε τη διεύθυνση ή την περιοχή παρακάτω (π.χ. ολόκληρο το όνομα του δρόμου), ή πάτα «📍 Είμαι εδώ» όταν βρίσκεσαι στο σημείο.</div>` : gs === "approx" ? `<div class="warnbox">≈ Στον χάρτη μπήκε <b>κατά προσέγγιση</b>, στο κέντρο της περιοχής. Σύρε την πινέζα στο σωστό σημείο ή πάτα «📍 Είμαι εδώ» όταν βρίσκεσαι εκεί.</div>` : ""}
@@ -2515,7 +2561,7 @@ async function importContacts() {
     const d = contactToCust(ct);
     const k = d.phone && custKey(d.phone); if (!k) { nophone++; continue; }
     if (S.customers[k]) { had++; continue; }
-    S.customers[k] = { key: k, name: d.name || d.phone, phone: d.phone, addr: d.addr, notes: "", first: Date.now() };
+    S.customers[k] = { key: k, name: d.name || d.phone, phone: d.phone, addr: d.addr, notes: "", first: Date.now(), inPh: 1 };
     if (d.area) { S.customers[k].area = d.area; S.customers[k].areaAuto = "c"; }
     added++;
   }
@@ -2869,11 +2915,11 @@ const ACT = {
   cashDel: () => { const id = $("#shB").dataset.cid; if (!confirm("Διαγραφή της κίνησης;")) return; S.cash = cashList().filter(c => c.id !== id); save(); closeSheet(); render(); },
   clAdd: () => { const v = $("#dvClAdd").value; if (!/^\d{4}-\d\d-\d\d$/.test(v)) { toast("Διάλεξε ημερομηνία."); return; } const d = S.deliv; d.closed = [...new Set((d.closed || []).concat(v))]; save({ catalog: true }); keepDeliv(); },
   rtLink: async () => { const c = delivSave(true); if (c) { await custLinkSheet(c.key); } },
-  ncSave: () => { const n = $("#ncN").value.trim(), p = $("#ncP").value.trim(); if (n.length < 2 || p.replace(/\D/g, "").length < 10) { $("#ncErr").innerHTML = `<div class="errbox">Γράψε όνομα και κινητό (10 ψηφία).</div>`; return; } const c = upsertCustomer({ name: n, phone: p, addr: $("#ncA").value.trim() }, Date.now()); { const ar = $("#ncAr") ? $("#ncAr").value.trim() : ""; if (ar) c.area = ar; } save(); const f = A._ncAfter; A._ncAfter = null; if (f) f(c.key); else { render(); openCust(c.key); } },
+  ncSave: () => { const n = $("#ncN").value.trim(), p = $("#ncP").value.trim(); if (n.length < 2 || p.replace(/\D/g, "").length < 10) { $("#ncErr").innerHTML = `<div class="errbox">Γράψε όνομα και κινητό (10 ψηφία).</div>`; return; } const c = upsertCustomer({ name: n, phone: p, addr: $("#ncA").value.trim() }, Date.now()); { const ar = $("#ncAr") ? $("#ncAr").value.trim() : ""; if (ar) c.area = ar; } if (A._ncPh && A._ncPh === c.key) c.inPh = 1; A._ncPh = null; save(); const f = A._ncAfter; A._ncAfter = null; if (f) f(c.key); else { render(); openCust(c.key); } },
   custNewBtn: () => newCustSheet(null),
   custContacts: () => importContacts(),
   ncMany: async () => { closeSheet(); await importContacts(); },
-  ncContact: async () => { const r = await pickContacts(false); if (!r) return; const d = contactToCust(r[0]); if ($("#ncN") && d.name) $("#ncN").value = d.name; if ($("#ncP") && d.phone) $("#ncP").value = d.phone; if ($("#ncA") && d.addr) $("#ncA").value = d.addr; if ($("#ncAr") && d.area) $("#ncAr").value = d.area; if (!d.phone) toast("Η επαφή δεν έχει κινητό.", 3000); },
+  ncContact: async () => { const r = await pickContacts(false); if (!r) return; const d = contactToCust(r[0]); if ($("#ncN") && d.name) $("#ncN").value = d.name; if ($("#ncP") && d.phone) $("#ncP").value = d.phone; if ($("#ncA") && d.addr) $("#ncA").value = d.addr; if ($("#ncAr") && d.area) $("#ncAr").value = d.area; if (!d.phone) toast("Η επαφή δεν έχει κινητό.", 3000); else A._ncPh = custKey(d.phone); },
   custRoute: () => delivSheet($("#shB").dataset.cust),
   custLink: () => custLinkSheet($("#shB").dataset.cust),
   efm: () => efmSheet(),
@@ -2909,6 +2955,10 @@ const ACT = {
   pasteClip: async () => { try { $("#ptxt").value = await navigator.clipboard.readText(); } catch { toast("Κράτα πατημένο το πλαίσιο και διάλεξε «Επικόλληση»."); } },
   pasteGo: () => { const t = $("#ptxt").value.trim(); if (!t) { toast("Επικόλλησε πρώτα το μήνυμα."); return; } A.importText(t); },
   ordEdit: () => { const o = curOrd(); if (!o) return; const q = {}, keep = {}; o.lines.forEach(l => { q[l.pid] = l.q; keep[l.pid] = l.price; }); orderForm({ id: o.id, name: o.cust.name, phone: o.cust.phone, addr: o.cust.addr, note: o.cust.note, date: o.when.date, slot: o.when.slot, how: o.when.how, q, keep }); },
+  ordVcf: async () => { const o = curOrd(); if (!o) return; const k = custKey(o.cust.phone), c = S.customers[k] || {};
+    await saveToPhone({ name: o.cust.name || c.name, phone: o.cust.phone, addr: o.cust.addr || c.addr, area: o.cust.area || c.area }, k); if (curOrd()) openOrder(o.id); },
+  custVcf: async () => { const k = $("#shB").dataset.cust, c = S.customers[k]; if (!c) return; await saveToPhone({ name: c.name, phone: c.phone, addr: c.addr, area: c.area }, k); },
+  payBack: () => { const o = curOrd(); if (o) openOrder(o.id); else closeSheet(); },
   ordPrint: () => { const o = curOrd(); if (!o) return; const f = $("#prFmt") ? $("#prFmt").value : "58"; S.ui.printFmt = f; save(); printOrder(o, f); },
   ordPrText: async () => { const o = curOrd(); if (!o) return; const t = printText(o, (S.ui.printFmt || "58") === "80" ? 42 : 32); try { await navigator.share({ text: t }); } catch (e) { if (!e || e.name !== "AbortError") { try { await navigator.clipboard.writeText(t); toast("✓ Αντιγράφηκε το κείμενο της παραγγελίας"); } catch {} } } },
   ordProof: () => { const o = curOrd(); if (o) proof(o); },
@@ -3054,7 +3104,8 @@ document.addEventListener("click", async e => {
   const od = t.closest("[data-oday]"); if (od) { ordFilter.day = od.dataset.oday; render(); return; }
   const td = t.closest("[data-tday]"); if (td) { totDay = td.dataset.tday; render(); return; }
   const ost = t.closest("[data-ordst]"); if (ost) { const o = curOrd(); if (o) { const done = setStatus(o, ost.dataset.ordst); render(); if (done) askNotify(o, ost.dataset.ordst); else openOrder(o.id); } return; }
-  const op = t.closest("[data-ordpaid]"); if (op) { const o = curOrd(); if (o) { setStatus(o, op.dataset.ordpaid === "1" ? "paid" : op.dataset.ordpaid === "diff" ? "paydiff" : "unpaid"); openOrder(o.id); render(); } return; }
+  const pyv = t.closest("[data-payvia]"); if (pyv) { const o = curOrd(); if (o) { o.payVia = S.ui.payVia = pyv.dataset.payvia; setStatus(o, "paid"); o.log[o.log.length - 1][1] += " · " + o.payVia; save(); openOrder(o.id); render(); toast("✓ Πληρώθηκε " + K.money(o.total) + " · " + payIc(o.payVia) + " " + o.payVia); } return; }
+  const op = t.closest("[data-ordpaid]"); if (op) { const o = curOrd(); if (o && op.dataset.ordpaid === "1") { paySheet(o); return; } if (o) { setStatus(o, op.dataset.ordpaid === "1" ? "paid" : op.dataset.ordpaid === "diff" ? "paydiff" : "unpaid"); openOrder(o.id); render(); } return; }
   const ds = t.closest("[data-diag-share]"); if (ds) { const u = $("#shB")._diag[+ds.dataset.diagShare]; try { await navigator.share({ text: u }); } catch (e) { if (!e || e.name !== "AbortError") { try { await navigator.clipboard.writeText(u); toast("Αντιγράφηκε"); } catch {} } } return; }
   const dc = t.closest("[data-diag-copy]"); if (dc) { try { await navigator.clipboard.writeText($("#shB")._diag[+dc.dataset.diagCopy]); toast("✓ Αντιγράφηκε. Επικόλλησέ το στο Viber."); } catch { toast("Δεν έγινε αντιγραφή."); } return; }
   const nf = t.closest("[data-ntf]"); if (nf) { const o = S.orders.find(x => x.id === nf.dataset.oid); if (o && nf.dataset.ntf !== "τηλέφωνο" || (o && nf.dataset.ntf === "τηλέφωνο")) { o.notified = o.notified || {}; o.notified[o.st] = { at: Date.now(), via: nf.dataset.ntf }; o.log.push([Date.now(), "Ενημέρωση πελάτη (" + nf.dataset.ntf + "): " + ST[o.st]]); save(); setTimeout(() => { if (isSheetOpen() && $("#shB").dataset.ord === o.id) openOrder(o.id); render(); }, 600); } }
