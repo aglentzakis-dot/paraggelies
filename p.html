@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.71">
+<meta name="app-version" content="1.72">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.71">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.71">
-<link rel="stylesheet" href="koino.css?v=1.71">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.72">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.72">
+<link rel="stylesheet" href="koino.css?v=1.72">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -121,7 +121,7 @@ input.t,textarea.t{transition:border-color .15s,box-shadow .15s}input.t:focus,te
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.71"></script>
+<script src="katalogos.js?v=1.72"></script>
 <script>
 (function(){
 "use strict";
@@ -288,7 +288,7 @@ function header(){const s=C.s;return`<header class="hdr">${s.lg?`<img src="${esc
 function footer(){const s=C.s;const perish=Object.values(P).some(p=>p.perish);
   return`<footer class="foot">
   <details class="seller"><summary>ℹ️ Στοιχεία πωλητή, τιμές και όροι</summary>
-  <div><b>${esc(s.l||s.n)}</b>${s.a?" · "+esc(s.a):""}${s.f?" · ΑΦΜ "+esc(s.f):""}${s.t?` · <a href="tel:${esc(s.t)}">${esc(s.t)}</a>`:""}${s.m?` · ${esc(s.m)}`:""}</div>
+  <div><b>${esc(s.l||s.n)}</b>${s.a?" · "+esc(s.a):""}${s.f?" · ΑΦΜ "+esc(s.f):""}${[s.t,...(s.t2||[])].filter(Boolean).map(x=>` · <a href="tel:${esc(x)}">${esc(x)}</a>`).join("")}${s.m?` · ${esc(s.m)}`:""}</div>
   <div>${s.vi?"Όλες οι τιμές περιλαμβάνουν ΦΠΑ.":"Οι τιμές δεν περιλαμβάνουν ΦΠΑ."} Οι τιμές και η διαθεσιμότητα επιβεβαιώνονται από τον πωλητή.</div>
   <div>Η επιβεβαίωση της παραγγελίας δεν αποτελεί φορολογικό παραστατικό. Το νόμιμο παραστατικό εκδίδεται από τον πωλητή.</div>
   ${perish?`<div>Για τρόφιμα που αλλοιώνονται γρήγορα δεν ισχύει το δικαίωμα υπαναχώρησης (ν. 2251/1994, άρθρο 3ιδ).</div>`:""}
@@ -459,7 +459,7 @@ function renderDone(){
    <p class="note">Τελικές είναι οι τιμές του πωλητή. Η επιβεβαίωση αυτή δεν αποτελεί φορολογικό παραστατικό.</p></div>
    ${L.ok?`<p class="okline">✓ Έφτασε στον πωλητή. Δεν χρειάζεται να κάνεις τίποτα άλλο.</p>`:`<p class="err" style="text-align:center">Δεν υπήρξε σύνδεση στο διαδίκτυο. Δοκίμασε ξανά ή στείλ' την στο Viber του πωλητή.</p><button type="button" class="btn wide" data-act="retry" style="margin-bottom:10px">Δοκίμασε ξανά</button>
    <button type="button" class="btn alt wide" style="margin-bottom:10px" data-act="vshare">💬 Στείλ' την στο Viber</button>`}
-   ${s.t?`<a class="btn ghost wide" style="display:block;text-align:center;text-decoration:none;margin-bottom:10px" href="tel:${esc(s.t)}">📞 Κάλεσε τον πωλητή</a>`:""}
+   ${[s.t,...(s.t2||[])].filter(Boolean).map((x,i,L)=>`<a class="btn ghost wide" style="display:block;text-align:center;text-decoration:none;margin-bottom:10px" href="tel:${esc(x)}">${/^(\+?30|0030)?2/.test(x.replace(/[^\d+]/g,""))?"☎️":"📞"} Κάλεσε τον πωλητή${L.length>1?" · "+esc(x):""}</a>`).join("")}
    <button type="button" class="btn wide" data-act="new">Νέα παραγγελία</button></main>`+footer();
 }
 

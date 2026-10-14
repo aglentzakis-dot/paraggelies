@@ -56,3 +56,5 @@ Object.assign(window.GL_EN,{"⬇️ Ο κατάλογός μου σε Excel":"�
 Object.assign(window.GL_EN,{"⬇️ Ο κατάλογός μου σε Excel":"⬇️ My catalogue in Excel","Άλλα πρότυπα (για αρχή από την αρχή)":"Other templates (to start from scratch)","⬇️ Κενό πρότυπο (παράδειγμα με αυγά και μέλι)":"⬇️ Blank template (eggs and honey example)"});
 /* 1.71 */
 Object.assign(window.GL_EN,{"Ανοίγει ο κατάλογος…":"Opening catalogue…"});
+/* 1.72 */
+Object.assign(window.GL_EN,{"Τηλέφωνα":"Phones","Τηλέφωνα επικοινωνίας":"Contact phones","Κινητό":"Mobile","Σταθερό":"Landline","Με το ＋ προσθέτεις κι άλλο (π.χ. σταθερό). Ο πελάτης τα βλέπει όλα.":"Tap ＋ to add another (e.g. a landline). Customers see them all.","Γράψε όνομα και τηλέφωνο (10 ψηφία).":"Enter a name and a phone (10 digits)."});

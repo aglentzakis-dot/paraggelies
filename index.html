@@ -8,7 +8,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.71">
+<meta name="app-version" content="1.72">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#17324D">
 <title>Παραγγελίες</title>
@@ -17,9 +17,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Παραγγελίες">
 <meta name="description" content="Οι πελάτες σου παραγγέλνουν από σύνδεσμο στο Viber, χωρίς τηλεφωνήματα.">
-<link rel="icon" href="eikonidia/icon-192.png?v=1.71">
-<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.71">
-<link rel="stylesheet" href="koino.css?v=1.71">
+<link rel="icon" href="eikonidia/icon-192.png?v=1.72">
+<link rel="apple-touch-icon" href="eikonidia/apple-touch-icon.png?v=1.72">
+<link rel="stylesheet" href="koino.css?v=1.72">
 <style>
 :root{--brand:#17324D;--onbrand:#fff;--accent:#F2B632;--onaccent:#17324D;--paper:#EDF1F2;--card:#fff;--ink:#16232f;--mute:#5d6873;--line:#d9dfe3;--ok:#1f7a3d;--bad:#b3261e;--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D}
 *{box-sizing:border-box}
@@ -84,6 +84,19 @@ nav.tabs .dot{position:absolute;top:4px;right:calc(50% - 22px);background:var(--
 .list .it .t span{font-size:13px;color:var(--mute)}
 .list .it .ic{font-size:22px;width:30px;text-align:center}
 label.f{display:block;font-weight:700;font-size:14px;margin:10px 0 4px}
+.phs .phr{display:flex;align-items:center;gap:8px;margin-top:8px}.phs label+.phr{margin-top:0}
+.phs .phw{position:relative;flex:1;min-width:0;display:block}
+.phs .phw input.t{padding-left:42px;padding-right:78px;font-size:17px;letter-spacing:.3px}
+.phs .phk{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:19px;pointer-events:none}
+.phs .phtag{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--mute);pointer-events:none}
+.phs .phadd,.phs .phdel{flex:0 0 44px;width:44px;height:44px;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;font-weight:900;cursor:pointer;padding:0}
+.phs .phadd{display:none;background:var(--accent);color:var(--onaccent);font-size:26px;line-height:1;box-shadow:0 6px 14px -6px color-mix(in srgb,var(--accent) 80%,#000);animation:phpop .25s ease}
+.phs .phr.can .phadd{display:flex}
+.phs .phdel{background:#fde8e6;color:var(--bad);font-size:16px}
+.phs .phr.new{animation:phin .25s ease}
+@keyframes phpop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes phin{from{transform:translateY(-6px);opacity:0}to{transform:none;opacity:1}}
+
 input.t,select.t,textarea.t{width:100%;border:2px solid var(--line);border-radius:11px;padding:10px 11px;background:#fff;color:var(--ink)}
 input.t:focus,select.t:focus,textarea.t:focus{outline:0;border-color:var(--brand)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
@@ -399,14 +412,14 @@ html[data-bg="pat"] .lkpv .ski{background-size:110px}html[data-bg="icon"] .lkpv 
 </nav>
 <div class="sheetbg" id="sheetbg"><div class="sheet"><div class="sh"><h2 id="shT"></h2><button type="button" class="x" data-act="shClose" aria-label="Κλείσιμο">✕</button></div><div class="sb" id="shB"></div><div class="sf" id="shF"></div></div></div>
 <div id="toast"></div>
-<script src="glossa-en.js?v=1.71"></script>
-<script src="glossa.js?v=1.71"></script>
-<script src="katalogos.js?v=1.71"></script>
-<script src="antigrafa.js?v=1.71"></script>
-<script src="efarmoges-mas.js?v=1.71"></script>
-<script src="protypa.js?v=1.71"></script>
-<script src="efarmogi.js?v=1.71"></script>
-<script src="epexergasia.js?v=1.71"></script>
-<script src="excel.js?v=1.71"></script>
+<script src="glossa-en.js?v=1.72"></script>
+<script src="glossa.js?v=1.72"></script>
+<script src="katalogos.js?v=1.72"></script>
+<script src="antigrafa.js?v=1.72"></script>
+<script src="efarmoges-mas.js?v=1.72"></script>
+<script src="protypa.js?v=1.72"></script>
+<script src="efarmogi.js?v=1.72"></script>
+<script src="epexergasia.js?v=1.72"></script>
+<script src="excel.js?v=1.72"></script>
 </body>
 </html>

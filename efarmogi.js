@@ -116,6 +116,7 @@ function sheet(title, body, foot, onOpen, onClose) {
   $("#shT").textContent = title; $("#shB").innerHTML = body; $("#shF").innerHTML = foot || ""; $("#shF").style.display = foot ? "" : "none";
   if (!isSheetOpen()) histPush({ sh: 1 });
   $("#sheetbg").classList.remove("peek"); $("#sheetbg").classList.add("open"); $("#shB").scrollTop = 0; shOnClose = onClose || null;
+  $("#shB").querySelectorAll("[data-phs]").forEach(phSync);
   if (onOpen) onOpen($("#shB"));
 }
 function hideSheet() { if (typeof PEEK !== "undefined" && PEEK.prev != null) PEEK.off(); $("#sheetbg").classList.remove("open", "peek"); const f = shOnClose; shOnClose = null; if (f) f(); }
@@ -635,7 +636,7 @@ function openOrder(id) {
    <div class="card"><div class="row"><span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}<span class="grow"></span><span class="note" style="margin:0">Κωδικός ${code(o)}</span></div>
     <p style="margin:8px 0 2px"><b>${o.when.how === "pick" ? "🏪 Παραλαβή" : "🚚 Παράδοση"}</b> · ${esc(fmtWhen(o))}</p>
     ${o.cust.addr || (c && c.addr) ? `<p class="olin">📍 <span class="grow">${esc(o.cust.addr || c.addr)}</span>${o.when.how === "pick" ? "" : `<a class="minib" href="${esc(navHref(o))}" target="_blank" rel="noopener">🧭 Πλοήγηση</a>`}</p>` : ""}
-    <p class="olin">📞 <a class="grow" href="tel:${esc(phone)}">${esc(phone)}</a>${c && c.inPh ? "" : `<button type="button" class="minib" data-act="ordVcf">📇 Στις επαφές</button>`}</p>
+    <p class="olin">📞 <a class="grow" href="tel:${esc(phone)}">${esc(phone)}</a>${c && c.phones ? c.phones.filter(p => phDig(p) !== phDig(phone)).map(p => `<a href="tel:${esc(p)}" style="margin-right:8px">${PHK[phKind(p)][0]} ${esc(p)}</a>`).join("") : ""}${c && c.inPh ? "" : `<button type="button" class="minib" data-act="ordVcf">📇 Στις επαφές</button>`}</p>
     ${o.cust.note ? `<div class="warnbox">📝 ${esc(o.cust.note)}</div>` : ""}
     ${o.when.extra ? `<div class="warnbox">⚡ Έκτακτη παραγγελία, εκτός από τις κανονικές ημέρες του πελάτη.</div>` : ""}
     ${o.merged && o.merged.length ? `<div class="okbox">🔗 Ο πελάτης έστειλε ${o.merged.length + 1} παραγγελίες για την ίδια ημέρα· ενώθηκαν σε αυτή. Τα είδη που προστέθηκαν έχουν σημάδι «＋».</div>` : ""}
@@ -676,7 +677,7 @@ const GRL = { α: "a", β: "v", γ: "g", δ: "d", ε: "e", ζ: "z", η: "i", θ:
 const latinName = n => (String(n || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ου/g, "ou").replace(/αυ/g, "av").replace(/ευ/g, "ev").replace(/μπ/g, "b").replace(/ντ/g, "d").replace(/γκ/g, "g").split("").map(ch => GRL[ch] != null ? GRL[ch] : ch).join("").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/(^|-)([a-z])/g, (m, d, c) => d + c.toUpperCase()) || "Pelatis");
 function vcardOf(x) {
   const parts = String(x.name || "").trim().split(/\s+/), last = parts.length > 1 ? parts.slice(1).join(" ") : "", first = parts[0] || "";
-  return ["BEGIN:VCARD", "VERSION:3.0", "N:" + vEsc(last) + ";" + vEsc(first) + ";;;", "FN:" + vEsc(x.name), "TEL;TYPE=CELL:" + intlPh(x.phone),
+  return ["BEGIN:VCARD", "VERSION:3.0", "N:" + vEsc(last) + ";" + vEsc(first) + ";;;", "FN:" + vEsc(x.name), "TEL;TYPE=CELL:" + intlPh(x.phone), ...(x.phones || []).map(p => "TEL;TYPE=" + (phKind(p) === "s" ? "HOME,VOICE" : "CELL") + ":" + intlPh(p)),
     x.addr || x.area ? "ADR;TYPE=HOME:;;" + vEsc(x.addr) + ";" + vEsc(x.area) + ";;;Ελλάδα" : "", x.note ? "NOTE:" + vEsc(x.note) : "", "END:VCARD"].filter(Boolean).join("\r\n") + "\r\n";
 }
 async function saveToPhone(x, k) {
@@ -730,7 +731,7 @@ function proof(o) {
   const s = S.shop;
   const html = `<!DOCTYPE html><html lang="el"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Βεβαίωση παραγγελίας ${code(o)}</title>
   <style>body{font:15px/1.45 system-ui,sans-serif;max-width:640px;margin:0 auto;padding:20px;color:#111}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin:14px 0}td,th{padding:6px 4px;border-bottom:1px solid #ccc;text-align:left}td.r,th.r{text-align:right}.big{font-size:18px;font-weight:800}.nf{border:2px solid #111;padding:8px;text-align:center;font-weight:800;margin:16px 0}.m{color:#555;font-size:13px}@media print{button{display:none}}</style></head><body>
-  <h1>${esc(s.legal || s.name)}</h1><div class="m">${esc(s.addr)}${s.afm ? " · ΑΦΜ " + esc(s.afm) : ""}${s.phone ? " · " + esc(s.phone) : ""}</div>
+  <h1>${esc(s.legal || s.name)}</h1><div class="m">${esc(s.addr)}${s.afm ? " · ΑΦΜ " + esc(s.afm) : ""}${s.phone ? " · " + esc(phAll(s).join(", ")) : ""}</div>
   <div class="nf">ΔΕΝ ΑΠΟΤΕΛΕΙ ΦΟΡΟΛΟΓΙΚΟ ΠΑΡΑΣΤΑΤΙΚΟ</div>
   <p><b>Βεβαίωση παραγγελίας #${o.no}</b> · κωδικός ${code(o)}<br>Υποβολή: ${fmtTime(o.at)}<br>${o.when.how === "pick" ? "Παραλαβή" : "Παράδοση"}: ${esc(fmtWhen(o))}</p>
   <p><b>${esc(o.cust.name)}</b><br>${esc(o.cust.phone)}${o.cust.addr ? "<br>" + esc(o.cust.addr) : ""}</p>
@@ -1315,7 +1316,7 @@ function custStats(k) {
   return { n: act.length, sum: K.round2(act.reduce((a, o) => a + o.total, 0)), owed, list: L.sort((a, b) => b.rx - a.rx) };
 }
 /* 📞 κλήση · 💬 μήνυμα · 📍 στον χάρτη, δίπλα σε κάθε πελάτη */
-const custActs = c => `<span class="cact">${c.phone ? `<a href="tel:${esc(c.phone)}" data-noprop="1" aria-label="Κλήση">📞</a><button type="button" data-cmsg="${esc(c.key)}" aria-label="Μήνυμα">💬</button>` : ""}<button type="button" data-cpin="${esc(c.key)}" aria-label="Στον χάρτη">📍</button></span>`;
+const custActs = c => `<span class="cact">${c.phone ? `${c.phones && c.phones.length ? `<button type="button" data-ccall="${esc(c.key)}" aria-label="Κλήση">📞</button>` : `<a href="tel:${esc(c.phone)}" data-noprop="1" aria-label="Κλήση">📞</a>`}<button type="button" data-cmsg="${esc(c.key)}" aria-label="Μήνυμα">💬</button>` : ""}<button type="button" data-cpin="${esc(c.key)}" aria-label="Στον χάρτη">📍</button></span>`;
 /* πού είναι ο πελάτης στον χάρτη: pin (σημείο που κράτησες) · ok · approx (μόνο η περιοχή) · miss (δεν βρέθηκε) · noad (χωρίς διεύθυνση) · "" (δεν έχει ψαχτεί ακόμα) */
 function custGeoState(c) {
   if (c.pin && c.pin.lat != null) return "pin";
@@ -1346,6 +1347,48 @@ const CU_COLS = ["#0B6E4F", "#17324D", "#8E3B46", "#B45309", "#5B3F8C", "#0E7490
 const custColor = k => { let h = 0; for (const ch of String(k)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CU_COLS[h % CU_COLS.length]; };
 const custInit = n => String(n || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase() || "?";
 const intlPhone = p => { let d = String(p || "").replace(/\D/g, ""); if (d.startsWith("00")) d = d.slice(2); if (d.length === 10) d = "30" + d; return d; };
+
+/* ---------- πολλά τηλέφωνα: το πρώτο μένει το κύριο (κλειδί πελάτη), τα υπόλοιπα στο .phones ---------- */
+const PH_MAX = 4;
+const phDig = p => { let d = String(p || "").replace(/\D/g, ""); if (d.startsWith("00")) d = d.slice(2); if (d.length === 12 && d.startsWith("30")) d = d.slice(2); return d; };
+const phKind = p => { const d = phDig(p); return d.length < 10 ? "" : /^69/.test(d) ? "m" : /^2/.test(d) ? "s" : "o"; };
+const PHK = { m: ["📱", "Κινητό"], s: ["☎️", "Σταθερό"], o: ["📞", "Τηλέφωνο"], "": ["📞", ""] };
+const phAll = c => [c && c.phone, ...((c && c.phones) || [])].filter(Boolean);
+function phRow(v, main, id) {
+  const k = PHK[phKind(v)];
+  return `<div class="phr${main ? " main" : ""}"><span class="phw"><span class="phk" aria-hidden="true">${k[0]}</span><input class="t" ${main ? `id="${id}"` : "data-phx"} type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc(v || "")}" placeholder="${main ? "π.χ. 69xxxxxxxx" : "κινητό ή σταθερό"}"><span class="phtag">${k[1]}</span></span>${main ? "" : `<button type="button" class="phdel" data-phdel aria-label="Αφαίρεση τηλεφώνου">✕</button>`}<button type="button" class="phadd" data-phadd aria-label="Πρόσθεσε κι άλλο τηλέφωνο" title="Κι άλλο τηλέφωνο">＋</button></div>`;
+}
+function phonesHTML(id, label, main, extra) {
+  return `<div class="phs" data-phs><label class="f" for="${id}">${label}</label>${phRow(main, true, id)}${(extra || []).map(x => phRow(x, false)).join("")}</div>`;
+}
+/* ενημέρωση εικονιδίου, ετικέτας και του «＋» (φαίνεται μόνο στην τελευταία συμπληρωμένη γραμμή) */
+function phSync(box) {
+  const rows = [...box.querySelectorAll(".phr")];
+  rows.forEach((r, i) => { const v = r.querySelector("input").value, k = PHK[phKind(v)]; r.querySelector(".phk").textContent = k[0]; r.querySelector(".phtag").textContent = k[1];
+    r.classList.toggle("can", i === rows.length - 1 && phDig(v).length >= 10 && rows.length < PH_MAX); });
+}
+function phonesRead(id) {
+  const box = ($("#" + id) || {}).closest ? $("#" + id).closest("[data-phs]") : null;
+  const main = $("#" + id) ? $("#" + id).value.trim() : "";
+  if (!box) return { main, extra: [] };
+  const seen = new Set([phDig(main)]), extra = [];
+  box.querySelectorAll("[data-phx]").forEach(i => { const v = i.value.trim(), d = phDig(v); if (d.length >= 10 && !seen.has(d)) { seen.add(d); extra.push(v); } });
+  return { main, extra };
+}
+/* επιλογή αριθμού για κλήση όταν ο πελάτης έχει πάνω από ένα τηλέφωνο */
+function custCall(k) {
+  const c = S.customers[k]; if (!c) return; const L = phAll(c);
+  if (L.length < 2) { location.href = "tel:" + L[0]; return; }
+  sheet("📞 " + c.name, `<div class="bigopts">${L.map(p => { const kk = PHK[phKind(p)]; return `<a class="bigopt" href="tel:${esc(p.replace(/[^\d+]/g, ""))}" style="text-decoration:none;color:inherit"><span class="e">${kk[0]}</span><span class="t"><b>${esc(p)}</b><small>${kk[1] || "Τηλέφωνο"}</small></span><span class="g">›</span></a>`; }).join("")}</div>`);
+}
+document.addEventListener("input", e => { const b = e.target.closest && e.target.closest("[data-phs]"); if (b) phSync(b); });
+document.addEventListener("click", e => {
+  const a = e.target.closest && e.target.closest("[data-phadd]");
+  if (a) { const box = a.closest("[data-phs]"), r = a.closest(".phr"); if (box.querySelectorAll(".phr").length >= PH_MAX) return;
+    r.insertAdjacentHTML("afterend", phRow("", false)); phSync(box); const n = r.nextElementSibling; n.classList.add("new"); n.querySelector("input").focus(); return; }
+  const d = e.target.closest && e.target.closest("[data-phdel]");
+  if (d) { const box = d.closest("[data-phs]"); d.closest(".phr").remove(); phSync(box); }
+});
 function custMsg(k) {
   const c = S.customers[k]; if (!c || !c.phone) return;
   const n = intlPhone(c.phone);
@@ -1460,12 +1503,12 @@ function openCust(k) {
   const c = S.customers[k]; if (!c) return;
   const s = custStats(k);
   const gs = custGeoState(c);
-  sheet(c.name, `<div class="cuacts3">${c.phone ? `<a href="tel:${esc(c.phone)}"><span class="e">📞</span><span>Κλήση</span></a><button type="button" data-cmsg="${esc(k)}"><span class="e">💬</span><span>Μήνυμα</span></button>` : ""}<button type="button" data-cpin="${esc(k)}"><span class="e">📍</span><span>Χάρτης</span></button></div>
+  sheet(c.name, `<div class="cuacts3">${c.phone ? `${c.phones && c.phones.length ? `<button type="button" data-ccall="${esc(k)}"><span class="e">📞</span><span>Κλήση</span></button>` : `<a href="tel:${esc(c.phone)}"><span class="e">📞</span><span>Κλήση</span></a>`}<button type="button" data-cmsg="${esc(k)}"><span class="e">💬</span><span>Μήνυμα</span></button>` : ""}<button type="button" data-cpin="${esc(k)}"><span class="e">📍</span><span>Χάρτης</span></button></div>
    <div class="cuacts2"><button type="button" class="btn amber" data-act="custNew">＋ Νέα παραγγελία</button>${s.list.length ? `<button type="button" class="btn soft" data-act="custRepeat">🔁 Επανάληψη παραγγελίας</button>` : ""}</div>${c.phone && !c.inPh ? `<p class="olin" style="justify-content:center;margin:-4px 0 10px"><button type="button" class="minib" data-act="custVcf">📇 Αποθήκευση στις επαφές του κινητού</button></p>` : ""}
    ${custInfoHTML(k)}
    ${pendOf(k).length ? `<div class="heldbox"><b>⏳ Περιμένει με την επόμενη παραγγελία</b>${pendOf(k).map(x => `<div class="heldr"><span>${esc(x.name)} · ${K.num(x.q)} ${esc(x.unit)} <span class="note">(από #${x.no})</span></span></div>`).join("")}</div>` : ""}
    ${gs === "off" ? `<div class="errbox cugeobox"><b>⚠️ ΒΡΕΘΗΚΕ ΣΕ ΑΛΛΗ ΠΕΡΙΟΧΗ</b><br>Η «${esc(c.addr)}» βρέθηκε στη «${esc(geoMem()[geoKey(c.addr, c.area)].off)}», όχι «${esc(c.area || "")}». Μάλλον είναι ομώνυμος δρόμος. Διόρθωσε τη διεύθυνση, ή πάτα «🗺 Βάλ' το στον χάρτη».</div>` : gs === "amb" ? `<div class="errbox cugeobox"><b>❓ ΠΟΙΑ «${esc(c.addr)}»;</b><br>Υπάρχουν ίδιες διευθύνσεις σε ${(geoMem()[geoKey(c.addr, c.area)].amb || []).length} περιοχές. Διάλεξε τη σωστή, αλλιώς η διαδρομή μπορεί να σε πάει αλλού. <button type="button" class="btn sm amber" data-ambfor="${esc(k)}" style="margin-top:6px">Διάλεξε περιοχή ›</button></div>` : gs === "miss" ? `<div class="errbox cugeobox"><b>⚠️ ΔΕΝ ΒΡΕΘΗΚΕ Η ΔΙΕΥΘΥΝΣΗ ΣΤΟΝ ΧΑΡΤΗ</b><br>Ο πελάτης δεν φαίνεται στον χάρτη και στο δρομολόγιο. Διόρθωσε τη διεύθυνση ή την περιοχή παρακάτω (π.χ. ολόκληρο το όνομα του δρόμου), ή πάτα «📍 Είμαι εδώ» όταν βρίσκεσαι στο σημείο.</div>` : gs === "approx" ? `<div class="warnbox">≈ Στον χάρτη μπήκε <b>κατά προσέγγιση</b>, στο κέντρο της περιοχής. Σύρε την πινέζα στο σωστό σημείο ή πάτα «📍 Είμαι εδώ» όταν βρίσκεσαι εκεί.</div>` : ""}
-   <div class="card"><label class="f" for="cuN">Όνομα</label><input class="t" id="cuN" value="${esc(c.name)}"><label class="f" for="cuP">Τηλέφωνο</label><input class="t" id="cuP" value="${esc(c.phone)}"><label class="f" for="cuA">Διεύθυνση</label><input class="t" id="cuA" value="${esc(c.addr || "")}"><div class="row" style="margin-top:6px"><button type="button" class="btn soft sm grow" data-act="custGeoCheck" style="flex:1 1 0">🔎 Έλεγχος</button><button type="button" class="btn soft sm grow" data-act="custPinHere" style="flex:1 1 0">📍 Είμαι εδώ</button></div><div id="cuGeoSt" class="cugeost">${custGeoLine(c)}</div><div class="row" style="margin-top:6px"><button type="button" class="btn ghost sm grow" data-act="custPick" style="flex:1 1 0">🗺 Βάλ' το στον χάρτη</button><button type="button" class="btn ghost sm grow" data-act="custGm" style="flex:1 1 0">🔗 Από Google Maps</button></div><label class="f" for="cuAr">Περιοχή (για την οργάνωση της διανομής)${c.areaAuto ? ` <span class="autoarl">· ${c.areaAuto === "c" ? "από τις επαφές" : "αυτόματα από τον χάρτη"} — έλεγξέ τη</span>` : ""}</label><input class="t${c.areaAuto ? " autoar" : ""}" id="cuAr" value="${esc(c.area || "")}" placeholder="π.χ. Κορωπί" list="areaL"><datalist id="areaL">${[...new Set(Object.values(S.customers).map(x => x.area).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join("")}</datalist><label class="f" for="cuNo">Σημειώσεις (μόνο για σένα)</label><input class="t" id="cuNo" value="${esc(c.notes || "")}"></div>
+   <div class="card"><label class="f" for="cuN">Όνομα</label><input class="t" id="cuN" value="${esc(c.name)}">${phonesHTML("cuP", "Τηλέφωνα", c.phone, c.phones)}<label class="f" for="cuA">Διεύθυνση</label><input class="t" id="cuA" value="${esc(c.addr || "")}"><div class="row" style="margin-top:6px"><button type="button" class="btn soft sm grow" data-act="custGeoCheck" style="flex:1 1 0">🔎 Έλεγχος</button><button type="button" class="btn soft sm grow" data-act="custPinHere" style="flex:1 1 0">📍 Είμαι εδώ</button></div><div id="cuGeoSt" class="cugeost">${custGeoLine(c)}</div><div class="row" style="margin-top:6px"><button type="button" class="btn ghost sm grow" data-act="custPick" style="flex:1 1 0">🗺 Βάλ' το στον χάρτη</button><button type="button" class="btn ghost sm grow" data-act="custGm" style="flex:1 1 0">🔗 Από Google Maps</button></div><label class="f" for="cuAr">Περιοχή (για την οργάνωση της διανομής)${c.areaAuto ? ` <span class="autoarl">· ${c.areaAuto === "c" ? "από τις επαφές" : "αυτόματα από τον χάρτη"} — έλεγξέ τη</span>` : ""}</label><input class="t${c.areaAuto ? " autoar" : ""}" id="cuAr" value="${esc(c.area || "")}" placeholder="π.χ. Κορωπί" list="areaL"><datalist id="areaL">${[...new Set(Object.values(S.customers).map(x => x.area).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join("")}</datalist><label class="f" for="cuNo">Σημειώσεις (μόνο για σένα)</label><input class="t" id="cuNo" value="${esc(c.notes || "")}"></div>
    ${custPriceCard(c)}
    <div class="card"><h3>🚚 Πότε περνάς</h3><p style="margin:0 0 8px">${c.route && c.route.days && c.route.days.length ? esc(c.route.days.map(x => K.WD[x]).join(", ")) + (c.route.slot ? " · " + esc(c.route.slot) : "") + (c.route.note ? " · " + esc(c.route.note) : "") + (c.route.ex !== false ? " · ⚡ δέχεται έκτακτη" : "") : `<span class="note">Δεν έχεις δηλώσει ημέρες· βλέπει τις γενικές.</span>`}</p>
     <div class="row"><button type="button" class="btn soft sm grow" data-act="custRoute">📅 Ημέρες</button><button type="button" class="btn amber sm grow" data-act="custLink">📤 Στείλε του τον κατάλογο</button></div></div>
@@ -2458,7 +2501,8 @@ function shopSheet() {
    <div class="card"><h3>Υποχρεωτικά στοιχεία πωλητή</h3><p class="note" style="margin-top:0">Εμφανίζονται στη σελίδα παραγγελίας, όπως απαιτεί η νομοθεσία για τις πωλήσεις από απόσταση.</p>
     <label class="f" for="shL">Επωνυμία (όπως στη ΔΟΥ)</label><input class="t" id="shL" value="${esc(s.legal)}" maxlength="90">
     <label class="f" for="shA">Διεύθυνση έδρας</label><input class="t" id="shA" value="${esc(s.addr)}" maxlength="140"><div class="row" style="margin-top:6px;align-items:center"><button type="button" class="btn soft sm" data-act="shopPinHere">📍 Είμαι στην έδρα</button><span class="note" style="margin:0;flex:1">${s.pin ? "✓ Έχει κρατηθεί ακριβής θέση της έδρας." : "Για σωστή αφετηρία στο Δρομολόγιο και στον χάρτη."}</span></div>
-    <div class="two"><div><label class="f" for="shAfm">ΑΦΜ</label><input class="t" id="shAfm" inputmode="numeric" value="${esc(s.afm)}" maxlength="9"></div><div><label class="f" for="shP">Τηλέφωνο</label><input class="t" id="shP" type="tel" value="${esc(s.phone)}" maxlength="20"></div></div>
+    <label class="f" for="shAfm">ΑΦΜ</label><input class="t" id="shAfm" inputmode="numeric" value="${esc(s.afm)}" maxlength="9">
+    ${phonesHTML("shP", "Τηλέφωνα επικοινωνίας", s.phone, s.phones)}<p class="note" style="margin:4px 0 0">Με το ＋ προσθέτεις κι άλλο (π.χ. σταθερό). Ο πελάτης τα βλέπει όλα.</p>
     <label class="f" for="shE">Ηλεκτρονικό ταχυδρομείο (προαιρετικά)</label><input class="t" id="shE" type="email" value="${esc(s.email)}" maxlength="80">
     <label class="ck"><input type="checkbox" id="shV"${s.vatIncl !== false ? " checked" : ""}><span>Οι τιμές μου περιλαμβάνουν ΦΠΑ (λιανική)</span></label></div>
    <div class="card"><h3>📜 Οι δικοί σου όροι πώλησης</h3><p class="note" style="margin-top:0">Προαιρετικά. Ο πελάτης τους βλέπει και τους αποδέχεται πριν στείλει. Γράψε απλά: χρέωση μεταφορικών, πώς πληρώνει, ως πότε ακυρώνει.</p>
@@ -2475,7 +2519,7 @@ function shopSave() {
   const s = S.shop, b = $("#shB"), v = id => $("#" + id).value.trim();
   const afm = v("shAfm").replace(/\D/g, "");
   if (afm && !afmOk(afm)) { $("#shErr").innerHTML = `<div class="errbox">Ο ΑΦΜ δεν είναι έγκυρος. Έλεγξε τα 9 ψηφία.</div>`; return; }
-  Object.assign(s, { name: v("shN"), legal: v("shL"), addr: v("shA"), afm, phone: v("shP"), email: v("shE"), welcome: v("shW"), terms: ($("#shTr").value || "").trim().slice(0, 600), c1: $("#shC1").value, c2: $("#shC2").value, vatIncl: $("#shV").checked });
+  Object.assign(s, { name: v("shN"), legal: v("shL"), addr: v("shA"), afm, phone: v("shP"), phones: phonesRead("shP").extra.slice(0, PH_MAX - 1), email: v("shE"), welcome: v("shW"), terms: ($("#shTr").value || "").trim().slice(0, 600), c1: $("#shC1").value, c2: $("#shC2").value, vatIncl: $("#shV").checked });
   if (b.dataset.logo) s.logo = b.dataset.logo;
   if (b.dataset.logoDel) s.logo = "";
   save({ catalog: true }); closeSheet(); toast("✓ Αποθηκεύτηκε"); render();
@@ -2595,7 +2639,7 @@ async function importContacts() {
 }
 function newCustSheet(after) {
   sheet("＋ Νέος πελάτης", `<div class="nccts"><button type="button" class="btn soft grow" data-act="ncContact">📇 Από τις επαφές<small>έναν, συμπληρώνει τη φόρμα</small></button><button type="button" class="btn soft grow" data-act="ncMany">👥 Πολλούς μαζί<small>διαλέγεις όσους θέλεις</small></button></div><div class="card"><label class="f" for="ncN">Ονοματεπώνυμο</label><input class="t" id="ncN" maxlength="80">
-   <label class="f" for="ncP">Κινητό</label><input class="t" id="ncP" type="tel" maxlength="20"><label class="f" for="ncA">Διεύθυνση</label><input class="t" id="ncA" maxlength="160"><label class="f" for="ncAr">Περιοχή</label><input class="t" id="ncAr" maxlength="60" placeholder="π.χ. Κορωπί"></div><div id="ncErr"></div>`,
+   ${phonesHTML("ncP", "Τηλέφωνο", "", [])}<label class="f" for="ncA">Διεύθυνση</label><input class="t" id="ncA" maxlength="160"><label class="f" for="ncAr">Περιοχή</label><input class="t" id="ncAr" maxlength="60" placeholder="π.χ. Κορωπί"></div><div id="ncErr"></div>`,
    `<button type="button" class="btn soft" data-act="shClose">Άκυρο</button><button type="button" class="btn amber" data-act="ncSave">Αποθήκευση</button>`);
   A._ncAfter = after;
 }
@@ -2954,11 +2998,11 @@ const ACT = {
   cashDel: () => { const id = $("#shB").dataset.cid; if (!confirm("Διαγραφή της κίνησης;")) return; S.cash = cashList().filter(c => c.id !== id); save(); closeSheet(); render(); },
   clAdd: () => { const v = $("#dvClAdd").value; if (!/^\d{4}-\d\d-\d\d$/.test(v)) { toast("Διάλεξε ημερομηνία."); return; } const d = S.deliv; d.closed = [...new Set((d.closed || []).concat(v))]; save({ catalog: true }); keepDeliv(); },
   rtLink: async () => { const c = delivSave(true); if (c) { await custLinkSheet(c.key); } },
-  ncSave: () => { const n = $("#ncN").value.trim(), p = $("#ncP").value.trim(); if (n.length < 2 || p.replace(/\D/g, "").length < 10) { $("#ncErr").innerHTML = `<div class="errbox">Γράψε όνομα και κινητό (10 ψηφία).</div>`; return; } const c = upsertCustomer({ name: n, phone: p, addr: $("#ncA").value.trim() }, Date.now()); { const ar = $("#ncAr") ? $("#ncAr").value.trim() : ""; if (ar) c.area = ar; } if (A._ncPh && A._ncPh === c.key) c.inPh = 1; A._ncPh = null; save(); const f = A._ncAfter; A._ncAfter = null; if (f) f(c.key); else { render(); openCust(c.key); } },
+  ncSave: () => { const n = $("#ncN").value.trim(), p = $("#ncP").value.trim(); if (n.length < 2 || p.replace(/\D/g, "").length < 10) { $("#ncErr").innerHTML = `<div class="errbox">Γράψε όνομα και τηλέφωνο (10 ψηφία).</div>`; return; } const c = upsertCustomer({ name: n, phone: p, addr: $("#ncA").value.trim() }, Date.now()); { const ex = phonesRead("ncP").extra.filter(x => phDig(x) !== phDig(c.phone)); if (ex.length) c.phones = [...new Set([...(c.phones || []), ...ex])].slice(0, PH_MAX - 1); } { const ar = $("#ncAr") ? $("#ncAr").value.trim() : ""; if (ar) c.area = ar; } if (A._ncPh && A._ncPh === c.key) c.inPh = 1; A._ncPh = null; save(); const f = A._ncAfter; A._ncAfter = null; if (f) f(c.key); else { render(); openCust(c.key); } },
   custNewBtn: () => newCustSheet(null),
   custContacts: () => importContacts(),
   ncMany: async () => { closeSheet(); await importContacts(); },
-  ncContact: async () => { const r = await pickContacts(false); if (!r) return; const d = contactToCust(r[0]); if ($("#ncN") && d.name) $("#ncN").value = d.name; if ($("#ncP") && d.phone) $("#ncP").value = d.phone; if ($("#ncA") && d.addr) $("#ncA").value = d.addr; if ($("#ncAr") && d.area) $("#ncAr").value = d.area; if (!d.phone) toast("Η επαφή δεν έχει κινητό.", 3000); else A._ncPh = custKey(d.phone); },
+  ncContact: async () => { const r = await pickContacts(false); if (!r) return; const d = contactToCust(r[0]); if ($("#ncN") && d.name) $("#ncN").value = d.name; if ($("#ncP") && d.phone) { $("#ncP").value = d.phone; phSync($("#ncP").closest("[data-phs]")); } if ($("#ncA") && d.addr) $("#ncA").value = d.addr; if ($("#ncAr") && d.area) $("#ncAr").value = d.area; if (!d.phone) toast("Η επαφή δεν έχει κινητό.", 3000); else A._ncPh = custKey(d.phone); },
   custRoute: () => delivSheet($("#shB").dataset.cust),
   custLink: () => custLinkSheet($("#shB").dataset.cust),
   efm: () => efmSheet(),
@@ -2995,8 +3039,8 @@ const ACT = {
   pasteGo: () => { const t = $("#ptxt").value.trim(); if (!t) { toast("Επικόλλησε πρώτα το μήνυμα."); return; } A.importText(t); },
   ordEdit: () => { const o = curOrd(); if (!o) return; const q = {}, keep = {}; o.lines.forEach(l => { q[l.pid] = l.q; keep[l.pid] = l.price; }); orderForm({ id: o.id, name: o.cust.name, phone: o.cust.phone, addr: o.cust.addr, note: o.cust.note, date: o.when.date, slot: o.when.slot, how: o.when.how, q, keep }); },
   ordVcf: async () => { const o = curOrd(); if (!o) return; const k = custKey(o.cust.phone), c = S.customers[k] || {};
-    await saveToPhone({ name: o.cust.name || c.name, phone: o.cust.phone, addr: o.cust.addr || c.addr, area: o.cust.area || c.area }, k); if (curOrd()) openOrder(o.id); },
-  custVcf: async () => { const k = $("#shB").dataset.cust, c = S.customers[k]; if (!c) return; await saveToPhone({ name: c.name, phone: c.phone, addr: c.addr, area: c.area }, k); },
+    await saveToPhone({ name: o.cust.name || c.name, phone: o.cust.phone, phones: c.phones, addr: o.cust.addr || c.addr, area: o.cust.area || c.area }, k); if (curOrd()) openOrder(o.id); },
+  custVcf: async () => { const k = $("#shB").dataset.cust, c = S.customers[k]; if (!c) return; await saveToPhone({ name: c.name, phone: c.phone, phones: c.phones, addr: c.addr, area: c.area }, k); },
   payBack: () => { const o = curOrd(); if (o) openOrder(o.id); else closeSheet(); },
   ordPrint: () => { const o = curOrd(); if (!o) return; const f = $("#prFmt") ? $("#prFmt").value : "58"; S.ui.printFmt = f; save(); printOrder(o, f); },
   ordPrText: async () => { const o = curOrd(); if (!o) return; const t = printText(o, (S.ui.printFmt || "58") === "80" ? 42 : 32); try { await navigator.share({ text: t }); } catch (e) { if (!e || e.name !== "AbortError") { try { await navigator.clipboard.writeText(t); toast("✓ Αντιγράφηκε το κείμενο της παραγγελίας"); } catch {} } } },
@@ -3042,7 +3086,8 @@ const ACT = {
         /* νέο κινητό: ο πελάτης μεταφέρεται στο νέο του κλειδί, μαζί με τις παραγγελίες του (αλλιώς η επόμενη παραγγελία θα έφτιαχνε δεύτερο πελάτη) */
         if (S.customers[ok]) { toast("Υπάρχει ήδη πελάτης με αυτό το κινητό (" + S.customers[ok].name + "). Δεν άλλαξε.", 4500); }
         else { for (const o of S.orders) if (custKey(o.cust.phone) === ok0) o.cust.phone = np; delete S.customers[ok0]; c.key = ok; S.customers[ok] = c; c.phone = np; $("#shB").dataset.cust = ok; }
-      } else if (np) c.phone = np; } const oldAd = (c.addr || "") + "|" + (c.area || ""); c.addr = $("#cuA").value.trim(); { const na = ($("#cuAr").value || "").trim(); if (na !== (c.area || "") || keep !== true) delete c.areaAuto; c.area = na; } const adCh = oldAd !== c.addr + "|" + c.area; if (c.pin && adCh && !c.pin.keep) delete c.pin; if (!c.area) delete c.area; if (adCh && keep !== true && (c.addr || "").trim()) setTimeout(() => custGeo(c).then(() => { save(); if (tab === "custs") render(); }).catch(() => {}), 50); c.notes = $("#cuNo").value.trim(); save(); if (keep === true) return; closeSheet(); render(); },
+      } else if (np) c.phone = np;
+      const ex = phonesRead("cuP").extra.filter(x => phDig(x) !== phDig(c.phone)); if (ex.length) c.phones = ex; else delete c.phones; } const oldAd = (c.addr || "") + "|" + (c.area || ""); c.addr = $("#cuA").value.trim(); { const na = ($("#cuAr").value || "").trim(); if (na !== (c.area || "") || keep !== true) delete c.areaAuto; c.area = na; } const adCh = oldAd !== c.addr + "|" + c.area; if (c.pin && adCh && !c.pin.keep) delete c.pin; if (!c.area) delete c.area; if (adCh && keep !== true && (c.addr || "").trim()) setTimeout(() => custGeo(c).then(() => { save(); if (tab === "custs") render(); }).catch(() => {}), 50); c.notes = $("#cuNo").value.trim(); save(); if (keep === true) return; closeSheet(); render(); },
   custNew: () => { const c = S.customers[$("#shB").dataset.cust]; if (c) orderForm({ name: c.name, phone: c.phone, addr: c.addr || "" }); },
   custRepeat: () => { const k = $("#shB").dataset.cust, s = custStats(k); const o = s.list.find(x => x.st !== "cancel") || s.list[0]; if (o) repeatOrder(o); },
   custPayAll: () => { const k = $("#shB").dataset.cust; S.orders.filter(o => custKey(o.cust.phone) === k && o.st !== "cancel" && o.st !== "dup").forEach(o => { if (o.st === "done" && !o.paid) setStatus(o, "paid"); else if (diffOf(o)) setStatus(o, "paydiff"); }); save(); openCust(k); render(); toast("✓ Πληρώθηκαν"); },
@@ -3100,6 +3145,7 @@ document.addEventListener("click", async e => {
   { const x = t.closest("[data-theme]"); if (x) { S.ui.look = Object.assign(lookOf(), { theme: x.dataset.theme }); save(); applyLook(); const y = $("#shB").scrollTop; lookSheet(); $("#shB").scrollTop = y; return; } }
   { const x = t.closest("[data-lkbg]"); if (x) { if (x.dataset.lkbg === "photo" && !lookOf().custom) { const f = $("#lkFile"); if (f) f.click(); return; } S.ui.look = Object.assign(lookOf(), { bg: x.dataset.lkbg }); save(); applyLook(); const y = $("#shB").scrollTop; lookSheet(); $("#shB").scrollTop = y; return; } }
   { const x = t.closest("[data-setlang]"); if (x) { if (window.Glossa) Glossa.set(x.dataset.setlang); return; } }
+  { const x = t.closest("[data-ccall]"); if (x) { e.stopPropagation(); custCall(x.dataset.ccall); return; } }
   { const x = t.closest("[data-cmsg]"); if (x) { e.stopPropagation(); custMsg(x.dataset.cmsg); return; } }
   { const x = t.closest("[data-cpin]"); if (x) { e.stopPropagation(); custPinGo(x.dataset.cpin); return; } }
   if (t.closest("[data-noprop]")) return;
