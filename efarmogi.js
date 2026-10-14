@@ -478,13 +478,24 @@ function ordersView() {
    <div class="efm-host" id="efmHost"></div>`;
 }
 /* καλωσόρισμα με τη μέρα σου με μια ματιά */
+/* τα τρία κουμπιά του καλωσορίσματος: το καθένα δείχνει ολόκληρη τη δική του λίστα */
+const heroOn = () => ordFilter.st === "new" && !ordFilter.day ? "new" : ordFilter.st === "all" && ordFilter.day === today() ? "today" : ordFilter.st === "all" && ordFilter.day === "fut" ? "fut" : "";
+function heroGo(k) { ordFilter = k === "new" ? { st: "new", day: "" } : k === "today" ? { st: "all", day: today() } : { st: "all", day: "fut" }; render(); }
+/* παραδόσεις μιας ημέρας που δεν έχουν γίνει ακόμα: για τη διαδρομή */
+function dayDels(d) { const sv = RT.day; RT.day = "all"; try { return rtCands().filter(x => x.kind === "del" && x.o.when.date === d); } finally { RT.day = sv; } }
+function dayRouteBar() {
+  const d = /^\d{4}-\d\d-\d\d$/.test(ordFilter.day || "") ? ordFilter.day : ""; if (!d) return "";
+  const L = dayDels(d); if (!L.length) return "";
+  const lbl = d === today() ? "σήμερα" : d === addDays(today(), 1) ? "αύριο" : K.dayLabel(d);
+  return `<button type="button" class="btn green wide drbar" data-act="dayRoute"><span class="e">🚐</span><span class="t"><b>Διαδρομή για ${esc(lbl)}</b><small>${L.length === 1 ? "1 παράδοση" : L.length + " παραδόσεις"} · σειρά στάσεων και πλοήγηση</small></span><span class="g">›</span></button>`;
+}
 function heroHTML() {
   const h = new Date().getHours(), gr = h < 5 ? "Καλό βράδυ" : h < 13 ? "Καλημέρα" : h < 21 ? "Καλησπέρα" : "Καλό βράδυ";
   const td = today(), act = S.orders.filter(o => o.st !== "cancel" && o.st !== "dup");
   const nT = act.filter(o => o.when && o.when.date === td).length, nN = S.orders.filter(o => o.st === "new").length, nF = act.filter(o => o.when && o.when.date > td).length;
   const zt = (S.deliv.zones || []).filter(z => (z.d || []).includes(new Date().getDay())).flatMap(z => z.a);
   return `<div class="hero"><div class="hh"><span class="hg">${gr} 👋</span><b>${esc(S.shop.name || "Καλώς ήρθες")}</b>${zt.length ? `<span class="hz">🚚 Σήμερα: ${esc(zt.join(", "))}</span>` : ""}</div>
-   <div class="hs"><button type="button" data-ost="new"><b>${nN}</b><small>${nN === 1 ? "νέα" : "νέες"}</small></button><button type="button" data-oday="${td}"><b>${nT}</b><small>για σήμερα</small></button><button type="button" data-act="heroFut"><b>${nF}</b><small>για τις επόμενες μέρες</small></button></div></div>`;
+   <div class="hs"><button type="button" data-hero="new"${heroOn() === "new" ? ' class="on"' : ""}><b>${nN}</b><small>${nN === 1 ? "νέα" : "νέες"}</small></button><button type="button" data-hero="today"${heroOn() === "today" ? ' class="on"' : ""}><b>${nT}</b><small>για σήμερα</small></button><button type="button" data-hero="fut"${heroOn() === "fut" ? ' class="on"' : ""}><b>${nF}</b><small>για τις επόμενες μέρες</small></button></div></div>` + dayRouteBar();
 }
 function ordEmpty() {
   const st = ordFilter.st;
@@ -2098,7 +2109,8 @@ function rtSumHTML() {
   const k = road ? road.km : e.km, m = road ? road.min + n * 4 : e.min;
   const leg = R.B ? `<div class="rtleg2"><span><i style="background:#0B6E4F"></i>Πήγαινε${road ? " " + rtFmtKm(road.km - road.backKm) + " · " + rtMin(road.min - road.backMin + n * 4) : ""}</span><span><i style="background:#E07A00"></i>Επιστροφή${road ? " " + rtFmtKm(road.backKm) + " · " + rtMin(road.backMin) : ""}</span></div>` : "";
   const tl = rtNoToll() ? (RT.tollWarn ? ` <span class="note" style="margin:0;color:#B45309">· η υπηρεσία δεν δέχτηκε «χωρίς διόδια», δείχνει κανονική διαδρομή</span>` : ` <span class="note" style="margin:0">· χωρίς διόδια</span>`) : "";
-  return leg + `<b>${n === 1 ? "1 στάση" : n + " στάσεις"}</b> · ${road ? "" : "περίπου "}${rtFmtKm(k)} · ${rtMin(m)}${tl}${road ? ` <span class="note" style="margin:0">(πραγματικός δρόμος, μαζί με 4 λεπτά ανά στάση)</span>` : rtPref().real && R.tried !== llq(rtLine()) ? ` <span class="note" style="margin:0">υπολογίζω πραγματικό δρόμο…</span>` : ` <span class="note" style="margin:0">εκτίμηση σε ευθεία</span>`}`;
+  const ppl = rtActive().reduce((a, p) => a + Math.max(1, rtPeople(p).length), 0);
+  return leg + `<b>${n === 1 ? "1 στάση" : n + " στάσεις"}</b>${ppl > n ? ` <span class="note" style="margin:0">(${ppl} πελάτες)</span>` : ""} · ${road ? "" : "περίπου "}${rtFmtKm(k)} · ${rtMin(m)}${tl}${road ? ` <span class="note" style="margin:0">(πραγματικός δρόμος, μαζί με 4 λεπτά ανά στάση)</span>` : rtPref().real && R.tried !== llq(rtLine()) ? ` <span class="note" style="margin:0">υπολογίζω πραγματικό δρόμο…</span>` : ` <span class="note" style="margin:0">εκτίμηση σε ευθεία</span>`}`;
 }
 const gmLL = p => p.lat.toFixed(6) + "," + p.lng.toFixed(6);
 function rtGmaps() {
@@ -2114,21 +2126,24 @@ function rtGmaps() {
   return out;
 }
 function rtResHTML() {
-  const R = RT.res, P = rtPref(); let n = 0, li = 0;
+  const R = RT.res, P = rtPref(), NM = rtNums(); let n = 0, li = 0;
   const legSpan = off => off ? "" : `<span class="rleg" data-rtleg="${li++}"></span>`;
   const node = p => { const off = RT.off.has(p.key); if (!off) n++;
-    const lines = p.items.map(x => {
+    const itm = x => {
       if (x.kind === "del") { const o = S.orders.find(y => y.id === x.o.id) || x.o; const doneNow = o.st === "done";
         return `<div class="rtit"><div><b>#${o.no}</b> ${esc(o.lines.map(l => K.num(l.q) + " " + l.unit + " " + l.name).join(" · "))}${o.when.slot ? ` · 🕘 ${esc(o.when.slot)}` : ""}</div>
          <div class="rtst">${doneNow ? `<span class="pill done">✓ Παραδόθηκε</span>` : `<span class="pill todo">🚚 Προς παράδοση</span>`}${!owes(o) ? `<span class="pill paid">✓ Πληρωμένη</span>` : `<span class="pill owe">💶 Να εισπραχθούν ${K.money(dueOf(o))}</span>`}</div>
          <div class="rtbtns">${doneNow ? "" : `<button type="button" class="btn sm green" data-rtdone="${o.id}">✓ Έγινε η παράδοση</button>`}${owes(o) ? `<button type="button" class="btn sm red" data-rtpaid="${o.id}">💶 Εισπράχθηκαν</button>` : ""}<button type="button" class="btn sm ghost" data-ord="${o.id}">Άνοιγμα</button></div></div>`; }
       if (x.kind === "vis") return `<div class="rtit">👋 Επίσκεψη <button type="button" class="btn sm ghost" data-rtcard="${esc(x.ck)}" style="margin-left:6px">📇 Καρτέλα</button></div>`;
       const owed = custStats(x.ck).owed;
-      return owed > 0 ? `<div class="rtit owe"><div class="rtowe">🔴 ΓΙΑ ΕΙΣΠΡΑΞΗ · χρωστά <b>${K.money(owed)}</b></div><div class="rtbtns"><button type="button" class="btn sm red" data-rtpay="${esc(x.ck)}">💶 Είσπραξη (ολική ή μερική)</button></div></div>` : `<div class="rtit"><span class="pill paid">✓ Εξοφλήθηκε</span></div>`; }).join("");
+      return owed > 0 ? `<div class="rtit owe"><div class="rtowe">🔴 ΓΙΑ ΕΙΣΠΡΑΞΗ · χρωστά <b>${K.money(owed)}</b></div><div class="rtbtns"><button type="button" class="btn sm red" data-rtpay="${esc(x.ck)}">💶 Είσπραξη (ολική ή μερική)</button></div></div>` : `<div class="rtit"><span class="pill paid">✓ Εξοφλήθηκε</span></div>`; };
+    const PP = rtPeople(p), rn = NM.get(p.key);
+    const lines = PP.length > 1 ? `<div class="rtmany">👥 ${PP.length} πελάτες στο ίδιο σημείο</div>` + PP.map((pp, j) => { const o0 = (pp.items.find(x => x.o) || {}).o, ph2 = o0 ? o0.cust.phone : (S.customers[pp.ck] || {}).phone;
+      return `<div class="rtper"><div class="rtph"><span class="rtpn">${off ? "–" : rn.a + j}</span><b class="grow">${esc(pp.name)}</b>${ph2 && !off ? `<a href="tel:${esc(ph2)}" aria-label="Κλήση">📞</a>` : ""}</div>${pp.items.map(itm).join("")}</div>`; }).join("") : p.items.map(itm).join("");
     const names = [...new Set(p.items.map(x => x.name))].join(", "), ph = p.items[0].o ? p.items[0].o.cust.phone : (S.customers[p.items[0].ck] || {}).phone;
     const payOnly = p.items.every(x => x.kind === "pay");
-    return `<div class="node${off ? " off" : ""}"><div class="rail"><div class="pin"${payOnly && !off ? ' style="background:#C8412B"' : ""}>${off ? "–" : n}</div></div><div class="body">${legSpan(off)}
-      <div class="rthead"><div class="title">${esc(names)}</div><span class="rtic">${off ? "" : `${ph ? `<a href="tel:${esc(ph)}" aria-label="Κλήση">📞</a>` : ""}<a href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${gmLL(p.loc)}" target="_blank" rel="noopener" aria-label="Πλοήγηση μόνο εδώ">🧭</a>`}<button type="button" data-rtoff="${esc(p.key)}" aria-label="${off ? "Βάλ' την ξανά" : "Παράλειψη στάσης"}" title="${off ? "Βάλ' την ξανά" : "Παράλειψη στάσης"}">${off ? "↩" : "⏭"}</button></span></div><div class="meta">📍 ${esc(p.addr)}</div>${off ? "" : lines}</div></div>`; };
+    return `<div class="node${off ? " off" : ""}"><div class="rail"><div class="pin${rn && rn.b > rn.a ? " multi" : ""}"${payOnly && !off ? ' style="background:#C8412B"' : ""}>${off ? "–" : rtLbl(rn)}</div></div><div class="body">${legSpan(off)}
+      <div class="rthead"><div class="title">${esc(names)}</div><span class="rtic">${off ? "" : `${ph && PP.length < 2 ? `<a href="tel:${esc(ph)}" aria-label="Κλήση">📞</a>` : ""}<a href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${gmLL(p.loc)}" target="_blank" rel="noopener" aria-label="Πλοήγηση μόνο εδώ">🧭</a>`}<button type="button" data-rtoff="${esc(p.key)}" aria-label="${off ? "Βάλ' την ξανά" : "Παράλειψη στάσης"}" title="${off ? "Βάλ' την ξανά" : "Παράλειψη στάσης"}">${off ? "↩" : "⏭"}</button></span></div><div class="meta">📍 ${esc(p.addr)}</div>${off ? "" : lines}</div></div>`; };
   const G = rtGmaps();
   return `<div class="row" style="margin:2px 2px 10px;align-items:center"><button type="button" class="btn soft sm" data-rt="back">‹ Στάσεις</button><h2 style="margin:0 0 0 6px;font-size:20px" class="grow">🚐 Διαδρομή</h2></div>
    ${TOLLS_ON ? `<div class="seg rtseg" style="margin-bottom:8px">${[[true, "🛣 Με διόδια"], [false, "🚫 Χωρίς διόδια"]].map(([k, l]) => `<button type="button" class="${(P.tolls !== false) === k ? "on" : ""}" data-rttoll="${k ? 1 : 0}">${l}</button>`).join("")}</div>` : ""}
@@ -2210,6 +2225,11 @@ function cmMatch(x, bigMin) {
   return true;
 }
 function cmColor(x) { return x.st.owed > 0 ? "#C8412B" : x.open.length ? "#2468B5" : x.n60 >= 3 ? "#0B8A4F" : x.last && x.days >= cm.idle ? "#8A8F98" : !x.st.n ? "#B08900" : "#17324D"; }
+/* στάση με πολλούς πελάτες στο ίδιο ακριβώς σημείο: κάθε πελάτης παίρνει δικό του αριθμό (π.χ. «3·4», «5–7») */
+const rtPeople = p => { const g = new Map(); for (const x of p.items) { const id = x.ck || x.name; if (!g.has(id)) g.set(id, { ck: x.ck, name: x.name, items: [] }); g.get(id).items.push(x); } return [...g.values()]; };
+function rtNums() { const m = new Map(); let n = 0; for (const p of rtActive()) { const k = Math.max(1, rtPeople(p).length); m.set(p.key, { a: n + 1, b: n + k }); n += k; } return m; }
+const rtLbl = r => !r ? "" : r.a === r.b ? String(r.a) : r.b === r.a + 1 ? r.a + "·" + r.b : r.a + "–" + r.b;
+const pinMulti = (col, txt, cnt) => `<svg viewBox="0 -3 32 33" width="45" height="46"><path d="M18 27S10 17.5 10 11A8 8 0 0126 11C26 17.5 18 27 18 27z" fill="${col}" opacity=".55" stroke="#fff" stroke-width="1.4"/><path d="M12 29S3 18.5 3 11.5A9 9 0 0121 11.5C21 18.5 12 29 12 29z" fill="${col}" stroke="#fff" stroke-width="1.6"/><text x="12" y="14.6" text-anchor="middle" font-size="${String(txt).length > 3 ? 5.6 : 7}" font-weight="800" fill="#fff" font-family="system-ui">${txt}</text><circle cx="25" cy="2.5" r="5.2" fill="#fff" stroke="${col}" stroke-width="1.4"/><text x="25" y="5" text-anchor="middle" font-size="6.6" font-weight="900" fill="${col}" font-family="system-ui">${cnt}</text></svg>`;
 const pinSvg = (col, txt) => `<svg viewBox="0 0 24 30" width="34" height="42"><path d="M12 29S3 18.5 3 11.5A9 9 0 0121 11.5C21 18.5 12 29 12 29z" fill="${col}" stroke="#fff" stroke-width="1.6"/>${txt != null ? `<text x="12" y="15" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" font-family="system-ui">${txt}</text>` : `<circle cx="12" cy="11.5" r="3.6" fill="#fff"/>`}</svg>`;
 function cmPopup(x) {
   const c = x.c, ph = c.phone || "", ad = c.addr || "";
@@ -2317,13 +2337,14 @@ async function routeMapFull() {
   $("#cmT").textContent = "🚐 Διαδρομή"; $("#cmF").innerHTML = ""; $("#cmBar").innerHTML = `<div class="grow">${rtSumHTML()}</div>`;
   rtDrawOn(Lf, cm.map, true);
 }
-function rtStopPopup(p, n) {
-  const names = [...new Set(p.items.map(x => x.name))].join(", "), k = p.items[0].ck, c = S.customers[k] || {}, ph = p.items[0].o ? p.items[0].o.cust.phone : c.phone;
-  const owed = custStats(k).owed;
-  return `<div class="jpop"><b>${n}. ${esc(names)}</b><div class="meta">${esc(p.addr)}</div>
-   ${p.items.filter(x => x.kind === "del").map(x => `<div class="meta">🚚 #${x.o.no} ${esc(x.o.lines.map(l => K.num(l.q) + " " + l.unit + " " + l.name).join(" · "))}${x.o.paid ? " · πληρωμένη" : " · <b>" + K.money(x.o.total) + "</b>"}</div>`).join("")}
-   ${owed > 0 ? `<div class="meta" style="color:#C8412B;font-weight:800">Χρωστά ${K.money(owed)}</div>` : ""}
-   <div class="row2">${S.customers[k] ? `<button type="button" data-mpc="${esc(k)}">📇 Καρτέλα</button>` : ""}${ph ? `<a href="tel:${esc(ph)}">📞 Κλήση</a>` : ""}${p.items[0].o ? `<button type="button" data-mpo="${p.items[0].o.id}">Άνοιγμα #${p.items[0].o.no}</button>` : ""}<a href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${gmLL(p.loc)}" target="_blank" rel="noopener">🧭 Πλοήγηση</a></div></div>`;
+function rtStopPopup(p, r) {
+  const PP = rtPeople(p), many = PP.length > 1, nav = `<a href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${gmLL(p.loc)}" target="_blank" rel="noopener">🧭 Πλοήγηση</a>`;
+  const per = (pp, j) => { const k = pp.ck, c = S.customers[k] || {}, o0 = (pp.items.find(x => x.o) || {}).o, ph = o0 ? o0.cust.phone : c.phone, owed = custStats(k).owed;
+    return `<div class="${many ? "jper" : ""}"><b>${many ? `<span class="jpn">${r.a + j}</span> ` : (typeof r === "object" ? r.a : r) + ". "}${esc(pp.name)}</b>${many ? "" : `<div class="meta">${esc(p.addr)}</div>`}
+     ${pp.items.filter(x => x.kind === "del").map(x => `<div class="meta">🚚 #${x.o.no} ${esc(x.o.lines.map(l => K.num(l.q) + " " + l.unit + " " + K.lnName(l)).join(" · "))}${x.o.paid ? " · πληρωμένη" : " · <b>" + K.money(x.o.total) + "</b>"}</div>`).join("")}
+     ${owed > 0 ? `<div class="meta" style="color:#C8412B;font-weight:800">Χρωστά ${K.money(owed)}</div>` : ""}
+     <div class="row2">${S.customers[k] ? `<button type="button" data-mpc="${esc(k)}">📇 Καρτέλα</button>` : ""}${ph ? `<a href="tel:${esc(ph)}">📞 Κλήση</a>` : ""}${pp.items.filter(x => x.o).map(x => `<button type="button" data-mpo="${x.o.id}">Άνοιγμα #${x.o.no}</button>`).join("")}${many ? "" : nav}</div></div>`; };
+  return `<div class="jpop">${many ? `<div class="jmany">👥 ${PP.length} πελάτες στο ίδιο σημείο</div>` : ""}${many ? `<div class="meta">📍 ${esc(p.addr)}</div>` : ""}${PP.map(per).join("")}${many ? `<div class="row2">${nav}</div>` : ""}</div>`;
 }
 function rtDrawOn(Lf, M, big) {
   const R = RT.res, act = rtActive(), pts = [[R.A.lat, R.A.lng]];
@@ -2331,7 +2352,10 @@ function rtDrawOn(Lf, M, big) {
   if (big) { if (cm.layer) cm.layer.remove(); cm.layer = lay; }
   const mk = (p, html) => Lf.marker([p.lat, p.lng], { icon: Lf.divIcon({ className: "jpin", iconSize: [34, 42], iconAnchor: [17, 41], html }) }).addTo(lay);
   mk(R.A, pinSvg("#17324D", "Α")).bindPopup(`<div class="jpop"><b>Αφετηρία</b><div class="meta">${esc(R.A.label)}</div></div>`);
-  act.forEach((p, i) => { mk(p.loc, pinSvg(p.items.every(x => x.kind === "pay") ? "#C8412B" : "#0B6E4F", i + 1)).bindPopup(rtStopPopup(p, i + 1), { maxWidth: 290 }); pts.push([p.loc.lat, p.loc.lng]); });
+  const NM = rtNums();
+  act.forEach(p => { const col = p.items.every(x => x.kind === "pay") ? "#C8412B" : "#0B6E4F", r = NM.get(p.key), many = r.b > r.a;
+    const m = many ? Lf.marker([p.loc.lat, p.loc.lng], { icon: Lf.divIcon({ className: "jpin", iconSize: [45, 46], iconAnchor: [17, 45], html: pinMulti(col, rtLbl(r), r.b - r.a + 1) }) }).addTo(lay) : mk(p.loc, pinSvg(col, r.a));
+    m.bindPopup(rtStopPopup(p, r), { maxWidth: 300 }); pts.push([p.loc.lat, p.loc.lng]); });
   if (R.B && (R.B.lat !== R.A.lat || R.B.lng !== R.A.lng)) { mk(R.B, pinSvg("#17324D", "Β")); pts.push([R.B.lat, R.B.lng]); }
   const road = R.road && R.road.sig === llq(rtLine()) ? R.road : null;
   /* πράσινο το «πήγαινε», πορτοκαλί η επιστροφή από την τελευταία παραγγελία */
@@ -2900,7 +2924,8 @@ const ACT = {
   holdNext: () => holdDo("next"), holdDay: () => holdDo("day"),
   holdBack: () => { const o = $("#shB").dataset.hdo; if (o) openOrder(o); else closeSheet(); },
   askToggle: () => { S.ui.noAsk = !S.ui.noAsk; save(); render(); toast(S.ui.noAsk ? "Η πρόταση ενημέρωσης πελάτη δεν θα βγαίνει. Το μήνυμα το στέλνεις από μέσα από την παραγγελία." : "✓ Η πρόταση ενημέρωσης πελάτη θα βγαίνει πάλι μετά από κάθε αλλαγή κατάστασης.", 4500); },
-  heroFut: () => { ordFilter = { st: "all", day: "fut" }; render(); },
+  heroFut: () => heroGo("fut"),
+  dayRoute: () => { const d = ordFilter.day, L = dayDels(d).map(x => x.key); if (!L.length) return; RT.visit = null; RT.day = "all"; rtOpen(L); setTimeout(() => { if (tab === "route" && RT.sel && RT.sel.size) rtGo(); }, 80); },
   zAdd: () => { const Z = zonesRead(); Z.push({ a: [], d: [] }); zonesPut(Z); const i = $(`[data-za="${Z.length - 1}"]`); if (i) i.focus(); },
   zEx: () => { const Z = zonesRead().filter(z => z.a.length || z.d.length); Z.push({ a: ["Εξάρχεια", "Αμπελόκηποι"], d: [1, 3, 5] }, { a: ["Κυψέλη", "Πατήσια"], d: [2, 4, 6] }); zonesPut(Z); toast("Άλλαξε τις περιοχές και τις ημέρες όπως θέλεις και πάτα «Αποθήκευση».", 4500); },
   lkPhoto: () => { const f = $("#lkFile"); if (f) f.click(); },
@@ -3096,6 +3121,7 @@ document.addEventListener("click", async e => {
   const fm = t.closest("[data-fm]"); if (fm) { formQty(fm.dataset.fm, -1); return; }
   const fp = t.closest("[data-fp]"); if (fp) { formQty(fp.dataset.fp, 1); return; }
   const nx = t.closest("[data-next]"); if (nx) { e.stopPropagation(); const o = S.orders.find(x => x.id === nx.dataset.next); if (o) { const done = setStatus(o, nx.dataset.to); render(); if (done) askNotify(o, nx.dataset.to); } return; }
+  const hro = t.closest("[data-hero]"); if (hro) { heroGo(hro.dataset.hero); return; }
   const os = t.closest("[data-ost]"); if (os) { ordFilter.st = os.dataset.ost; render(); return; }
   const hb = t.closest("[data-hold]"); if (hb) { const o = curOrd(); if (o) holdSheet(o, +hb.dataset.hold); return; }
   const uh = t.closest("[data-unhold]"); if (uh) { const o = curOrd(); if (o) unhold(o, uh.dataset.unhold); return; }

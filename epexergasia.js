@@ -339,6 +339,7 @@ function applyPreset(k) {
     return cat;
   };
   for (const [cn, ce, items] of P.c) { const cat = build(cn, ce, items); if (cat.kids.length) target.push(cat); }
+  (st.ui || (st.ui = {})).lastPreset = k;
   ed.view = "list"; ed.marked.clear(); ed.q = "";
   A.save({ catalog: true }); A.closeSheet(); A.render(); window.scrollTo(0, 0);
   A.toast("✓ Μπήκαν " + count + " ενδεικτικά προϊόντα. Δεν τα βλέπουν οι πελάτες μέχρι να ελέγξεις τιμές και να πατήσεις «Ενεργοποίηση»." + (withOpt ? " Σε " + withOpt + " μπήκαν και επιλογές για τον πελάτη (🧩 Επιλογές)." : ""), 6000);
