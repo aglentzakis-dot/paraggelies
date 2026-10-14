@@ -59,6 +59,7 @@ function migrate(s) {
   const d = defaults();
   for (const k of Object.keys(d)) if (s[k] == null) s[k] = d[k];
   for (const k of ["shop", "deliv", "nt", "link", "lic", "meta"]) s[k] = Object.assign({}, d[k], s[k]);
+  if (s.mods) K.modUpgrade(s.mods);
   return s;
 }
 let writing = false, again = false;

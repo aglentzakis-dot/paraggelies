@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.67">
+<meta name="app-version" content="1.68">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,14 +18,18 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.67">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.67">
-<link rel="stylesheet" href="koino.css?v=1.67">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.68">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.68">
+<link rel="stylesheet" href="koino.css?v=1.68">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
 .optsh .og{margin:10px 0 4px}.optsh .ogh{display:flex;justify-content:space-between;gap:8px;align-items:baseline;font-weight:700}.optsh .ogh small{font-weight:400;color:var(--mute);font-size:12.5px}
 .optsh .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.chip.off{opacity:.45;text-decoration:line-through}
+.oreq{display:inline-block;font-size:11px;font-weight:800;color:#b42318;background:#fde8e6;border-radius:999px;padding:1px 8px;vertical-align:2px;margin-left:4px}
+.optsh .og{border-radius:14px;padding:4px 6px;margin-left:-6px;margin-right:-6px;transition:background .2s}.optsh .og.miss{background:#fde8e6;box-shadow:inset 0 0 0 2px #e5484d}
+.tile.prod[data-pid]{cursor:pointer}
+#oadd.wait{filter:saturate(.35);opacity:.8}
 .lopt{display:block;font-style:normal;font-size:12.5px;color:var(--mute);margin:1px 0}
 .oqty{display:flex;align-items:center;gap:10px;justify-content:center;margin:12px 0}
 html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -90,7 +94,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 .sect::after{content:"";flex:1;height:2px;background:var(--c2);opacity:.6;border-radius:2px;margin-left:6px}
 .sect.d2{font-size:16.5px;margin-top:12px}.sect.d3{font-size:15px;opacity:.85}
 .home-add{display:block;margin:4px auto 0;border:0;background:transparent;color:var(--c1);font-weight:700;text-decoration:underline;cursor:pointer;padding:8px}
-/* 1.67 · πιο ζεστή, πιο «βιτρίνα» εμφάνιση για τον πελάτη (με τα χρώματα του πωλητή) */
+/* 1.68 · πιο ζεστή, πιο «βιτρίνα» εμφάνιση για τον πελάτη (με τα χρώματα του πωλητή) */
 html{background:color-mix(in srgb,var(--c1) 6%,var(--paper))}html,body{background:color-mix(in srgb,var(--c1) 6%,var(--paper))}
 .hdr{position:relative;overflow:hidden;background:linear-gradient(125deg,var(--c1),color-mix(in srgb,var(--c1) 70%,var(--c2)));border-radius:0 0 26px 26px;padding-bottom:22px;box-shadow:0 12px 28px -16px color-mix(in srgb,var(--c1) 90%,transparent)}
 .hdr::before,.hdr::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
@@ -117,7 +121,7 @@ input.t,textarea.t{transition:border-color .15s,box-shadow .15s}input.t:focus,te
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.67"></script>
+<script src="katalogos.js?v=1.68"></script>
 <script>
 (function(){
 "use strict";
@@ -248,7 +252,7 @@ function optSheet(p){
   OS={pid:p.id,sel:{},q:p.min>0?Math.ceil(p.min/(p.step||1)-1e-9)*(p.step||1):(p.step||1)};
   for(const g of gs){OS.sel[g.id]=g.o.map((o,i)=>o.def&&!o.off?i:-1).filter(i=>i>=0);if(g.mx>0&&OS.sel[g.id].length>g.mx)OS.sel[g.id].length=g.mx}
   openModal(`<div class="optsh"><h3>${p.emoji&&!/^data:/.test(p.emoji)?esc(p.emoji)+" ":""}${esc(p.name)}</h3><p class="note" style="margin:0 0 6px">${K.money(p.price)} / ${esc(p.unit)}</p>
-   ${gs.map(g=>`<div class="og" data-g="${esc(g.id)}"><div class="ogh"><b>${esc(g.n)}</b><small>${esc(K.modRule(g))}</small></div><div class="chips">${g.o.map((o,i)=>`<button type="button" class="chip${o.off?" off":""}" data-oo="${esc(g.id)}|${i}"${o.off?" disabled":""}>${esc(o.n)}${o.p?` <small>+${K.money(o.p)}</small>`:""}${o.off?` <small>(δεν υπάρχει)</small>`:""}</button>`).join("")}</div></div>`).join("")}
+   ${gs.map(g=>`<div class="og" data-g="${esc(g.id)}"><div class="ogh"><b>${esc(g.n)}${g.mn>0?` <span class="oreq">υποχρεωτικό</span>`:""}</b><small>${esc(K.modRule(g).replace(/^Υποχρεωτικό · |^Προαιρετικό · /,""))}</small></div><div class="chips">${g.o.map((o,i)=>`<button type="button" class="chip${o.off?" off":""}" data-oo="${esc(g.id)}|${i}"${o.off?" disabled":""}>${esc(o.n)}${o.p?` <small>+${K.money(o.p)}</small>`:""}${o.off?` <small>(δεν υπάρχει)</small>`:""}</button>`).join("")}</div></div>`).join("")}
    ${p.nt?`<label class="f" for="onote">📝 Σχόλιο (προαιρετικά)</label><input class="t" id="onote" maxlength="120" placeholder="${esc(p.ntp||"π.χ. καλοψημένη, χωρίς κρεμμύδι")}">`:""}
    <div class="oqty"><span>Ποσότητα</span><div class="qty"><button type="button" class="qb" data-oq="-1">−</button><span class="qv" id="oqv"></span><button type="button" class="qb plus" data-oq="1">+</button></div></div>
    <p class="err" id="oerr"></p>
@@ -259,10 +263,11 @@ function optCalc(){const p=P[OS.pid];const r=K.optCheck(p.mods,GR,OS.sel,"",fals
 function optPaint(){if(!OS)return;const p=P[OS.pid];
   document.querySelectorAll("[data-oo]").forEach(b=>{const[g,i]=b.dataset.oo.split("|");b.classList.toggle("on",(OS.sel[g]||[]).includes(+i))});
   const v=$("#oqv");if(v)v.textContent=K.num(OS.q)+" "+p.unit;
-  const c=optCalc(),ad=$("#oadd");if(ad)ad.textContent="Προσθήκη · "+K.money(K.round2(OS.q*c.unit))}
+  const c=optCalc(),ad=$("#oadd"),miss=(p.mods||[]).map(g=>GR[g]).filter(g=>g&&(OS.sel[g.id]||[]).length<(g.mn||0));if(ad){ad.textContent=miss.length?"Διάλεξε: "+miss.map(g=>g.n).join(", "):"Προσθήκη · "+K.money(K.round2(OS.q*c.unit));ad.classList.toggle("wait",!!miss.length)}}
 function optAdd(){const p=P[OS.pid];
   const miss=(p.mods||[]).map(g=>GR[g]).filter(g=>g&&(OS.sel[g.id]||[]).length<(g.mn||0));
-  if(miss.length){$("#oerr").textContent="Διάλεξε: "+miss.map(g=>g.n).join(", ")+".";return}
+  document.querySelectorAll(".og.miss").forEach(x=>x.classList.remove("miss"));
+  if(miss.length){$("#oerr").textContent="👆 Διάλεξε πώς το θέλεις: "+miss.map(g=>g.n).join(", ")+".";miss.forEach(g=>{const el=document.querySelector(`.og[data-g="${g.id}"]`);if(el)el.classList.add("miss")});const f=document.querySelector(`.og[data-g="${miss[0].id}"]`);if(f)f.scrollIntoView({behavior:"smooth",block:"center"});return}
   const note=$("#onote")?$("#onote").value.trim().slice(0,120):"";
   const o={};for(const[g,L]of Object.entries(OS.sel))if(L.length)o[g]=L.slice().sort((a,b)=>a-b);
   const r=K.optCheck(p.mods,GR,o,note,p.nt);
@@ -461,17 +466,22 @@ async function homeAdd(){
    <p class="note">Το εικονίδιο θα έχει το όνομα «${esc(C.s.n)}». Δεν χρειάζεται εγκατάσταση από κατάστημα εφαρμογών.</p>
    <button type="button" class="btn wide" data-act="close">Εντάξει</button>`);
 }
-function openModal(h){$("#mbox").innerHTML=h;$("#modal").classList.add("open");history.pushState({v:view.slice(),s:stage,m:1},"")}
-function closeModal(){if($("#modal").classList.contains("open")){$("#modal").classList.remove("open");if(history.state&&history.state.m)history.back()}}
+/* το «πίσω» του κινητού κλείνει το παράθυρο. Όταν το κλείνουμε εμείς, περιμένουμε να ολοκληρωθεί το «πίσω»
+   πριν ανοίξει το επόμενο· αλλιώς ένα γρήγορο δεύτερο πάτημα έκλεινε το νέο παράθυρο χωρίς να μπει τίποτα στο καλάθι */
+let backPend=0,afterBack=null,backT=0;
+function backDone(){backPend=0;clearTimeout(backT);const f=afterBack;afterBack=null;if(f)f()}
+function openModal(h){$("#mbox").innerHTML=h;$("#modal").classList.add("open");const push=()=>history.pushState({v:view.slice(),s:stage,m:1},"");if(backPend)afterBack=push;else push()}
+function closeModal(){if($("#modal").classList.contains("open")){$("#modal").classList.remove("open");if(history.state&&history.state.m&&!backPend){backPend=1;afterBack=null;backT=setTimeout(backDone,700);history.back()}else if(backPend)afterBack=null}}
 
 /* ---------- πατήματα ---------- */
 document.addEventListener("click",e=>{
   const so=e.target.closest(".tile.prod.soldout");
   if(so&&stage==="shop"){const p=P[so.dataset.pid];toastMsg(p&&p.oos?"🍂 Το «"+p.name+"» είναι εκτός εποχής αυτή την περίοδο.":"😔 Το «"+(p?p.name:"")+"» έχει εξαντληθεί. Δοκίμασε ξανά αργότερα.");return}
+  {const tp=e.target.closest(".tile.prod[data-pid]");if(tp&&stage==="shop"&&!e.target.closest("button")){const p=P[tp.dataset.pid];if(p&&!p.soldout&&hasOpts(p)){optSheet(p);return}}}
   const b=e.target.closest("button,[data-open]");if(!b)return;
   if(b.dataset.oo){const[g,i]=b.dataset.oo.split("|");const G=GR[g];if(!G||!OS)return;let L=OS.sel[g]||[];const n=+i;
     if(L.includes(n)){if(!(G.mx===1&&G.mn>0))L=L.filter(x=>x!==n)}else if(G.mx===1)L=[n];else{if(G.mx>0&&L.length>=G.mx){toastMsg("Έως "+G.mx+" στο «"+G.n+"».");return}L=L.concat(n)}
-    OS.sel[g]=L;$("#oerr").textContent="";optPaint();return}
+    OS.sel[g]=L;$("#oerr").textContent="";const og=b.closest(".og");if(og&&(L.length>=(G.mn||0)))og.classList.remove("miss");optPaint();return}
   if(b.dataset.oq){if(!OS)return;const p=P[OS.pid],st=p.step||1;OS.q=Math.max(st,Math.round((OS.q+(+b.dataset.oq)*st)*1000)/1000);if(p.max!=null&&OS.q>p.max)OS.q=Math.max(st,p.max);optPaint();return}
   if(b.dataset.plus){const k=b.dataset.plus,p=P[pidOf(k)];if(!p)return;
     if(stage!=="check"&&hasOpts(p)){optSheet(p);return}
@@ -503,6 +513,7 @@ window.addEventListener("hashchange",()=>location.reload());
 /* ---------- κουμπί «πίσω» του κινητού: ένα βήμα πίσω, όχι έξοδος ---------- */
 function go(v,st){history.pushState({v:v.slice(),s:st},"");view=v.slice();stage=st;render();window.scrollTo(0,0)}
 window.addEventListener("popstate",e=>{
+  if(backPend){backDone();return}
   const st=e.state;
   if($("#modal").classList.contains("open")){$("#modal").classList.remove("open");if(st&&st.m)return}
   if(!st){

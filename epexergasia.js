@@ -702,7 +702,7 @@ function modsSheet(back) {
   A._modBack = back || null;
   const L = Object.values(MODS());
   A.sheet("🧩 Επιλογές για τον πελάτη", `<p class="note" style="margin-top:0">Ομάδες επιλογών που ο πελάτης διαλέγει όταν πατά ένα προϊόν: στον καφέ ζάχαρη και γάλα, στην τυρόπιτα ψήσιμο, στο κρέας κόψιμο. Μία ομάδα μπαίνει σε όσα προϊόντα θέλεις.</p>
-   ${L.length ? L.map(g => `<div class="mgrp"><div class="mh"><b>${esc(g.n)}</b><button type="button" class="btn sm soft" data-medit="${esc(g.id)}">✏️ Αλλαγή</button></div><div class="note">${esc(K.modRule(g))} · ${esc(modSum(g))}</div><div class="note">${(n => n ? "Σε " + n + (n === 1 ? " προϊόν" : " προϊόντα") : "⚠️ Δεν έχει μπει ακόμα σε κανένα προϊόν")(modUse(g.id))}</div></div>`).join("") : `<div class="card"><p class="note" style="margin:0">Καμία ομάδα ακόμα. Ξεκίνα από μια έτοιμη ή φτιάξε δική σου.</p></div>`}
+   ${L.length ? L.map(g => `<div class="mgrp"><div class="mh"><b>${esc(g.n)}${g.mn > 0 ? ` <span class="mreq">υποχρεωτικό</span>` : ""}</b><button type="button" class="btn sm soft" data-medit="${esc(g.id)}">✏️ Αλλαγή</button></div><div class="note">${esc(K.modRule(g))} · ${esc(modSum(g))}</div><div class="note">${(n => n ? "Σε " + n + (n === 1 ? " προϊόν" : " προϊόντα") : "⚠️ Δεν έχει μπει ακόμα σε κανένα προϊόν")(modUse(g.id))}</div></div>`).join("") : `<div class="card"><p class="note" style="margin:0">Καμία ομάδα ακόμα. Ξεκίνα από μια έτοιμη ή φτιάξε δική σου.</p></div>`}
    <button type="button" class="btn amber wide" data-medit="" style="margin:8px 0">＋ Νέα ομάδα επιλογών</button>
    <div class="card"><h3 style="margin-top:0">💡 Έτοιμες ομάδες</h3><p class="note" style="margin-top:0">Πάτα μία για να μπει στη λίστα σου· μετά διάλεξε σε ποια προϊόντα και άλλαξέ τη όπως θέλεις.</p>${tplChips("data-mtpl")}</div>`,
    back ? `<button type="button" class="btn amber" data-ea="modBack">← Πίσω στο προϊόν</button>` : `<button type="button" class="btn soft" data-act="shClose">Κλείσιμο</button>`);
@@ -724,7 +724,7 @@ function modEdit(gid) {
     <label class="f" for="mR">Πώς διαλέγει ο πελάτης</label><select class="t" id="mR">${RULES.map((r, i) => `<option value="${i}"${i === ri ? " selected" : ""}>${r[2]}</option>`).join("")}</select>
     <div id="mMaxB" style="${RULES[ri][1] ? "display:none" : ""}"><label class="f" for="mMax">Μέχρι πόσες; (κενό = χωρίς όριο)</label><input class="t" id="mMax" inputmode="numeric" value="${g.mx > 1 ? g.mx : ""}" placeholder="χωρίς όριο" style="width:150px"></div></div>
    <div class="card"><h3 style="margin-top:0">Επιλογές</h3><p class="note" style="margin-top:0">Γράψε τιμή μόνο αν η επιλογή κοστίζει επιπλέον (π.χ. φυτικό γάλα +0,30 €). «Προεπιλογή» = είναι ήδη διαλεγμένη όταν ανοίγει.</p>
-    <div id="mOL">${g.o.map(orow).join("")}</div><button type="button" class="btn soft sm wide" data-ea="mAddOpt" style="margin-top:8px">＋ Κι άλλη επιλογή</button></div>
+    <div id="mOL"${RULES[ri][0] ? ' class="req"' : ""}>${g.o.map(orow).join("")}</div><p class="note" id="mReqN" style="margin:6px 0 0;${RULES[ri][0] ? "" : "display:none"}">🔴 Υποχρεωτικό: ο πελάτης <b>πρέπει</b> να δηλώσει μόνος του πώς το θέλει (π.χ. σκέτος, μέτριος, γλυκός). Γι' αυτό εδώ δεν μπαίνει προεπιλογή.</p><button type="button" class="btn soft sm wide" data-ea="mAddOpt" style="margin-top:8px">＋ Κι άλλη επιλογή</button></div>
    <div class="card"><h3 style="margin-top:0">Σε ποια προϊόντα</h3>${CP.length ? CP.map((c, i) => { const n = c.ps.filter(pid => (S().products[pid].mods || []).includes(gid)).length; return `<details class="mcat"${n ? " open" : ""}><summary style="cursor:pointer;font-weight:700;padding:6px 0">${esc(c.lbl)} <span class="note">(${c.ps.length})</span></summary>
      <label class="ck"><input type="checkbox" data-mcat="${i}"${n === c.ps.length ? " checked" : ""}><span><b>Όλα τα προϊόντα της κατηγορίας</b></span></label>
      <div style="padding-left:22px">${c.ps.map(pid => `<label class="ck"><input type="checkbox" data-mp="${esc(pid)}" data-mc="${i}"${(S().products[pid].mods || []).includes(gid) ? " checked" : ""}><span>${esc(S().products[pid].name)}</span></label>`).join("")}</div></details>`; }).join("") : `<p class="note">Δεν έχεις ακόμα προϊόντα στο μενού.</p>`}</div>
@@ -752,6 +752,7 @@ const MEA = {
     if (!o.length) return err("Γράψε τουλάχιστον μία επιλογή.");
     if (o.every(x => x.off)) return err("Όλες οι επιλογές είναι «δεν υπάρχει τώρα». Άφησε τουλάχιστον μία διαθέσιμη.");
     const [mn, m1] = RULES[+$("#mR").value]; let mx = m1; if (!m1) { const v = parseInt($("#mMax").value, 10); if (v > 0) mx = v; }
+    if (mn) o.forEach(x => { delete x.def; });
     const defs = o.filter(x => x.def).length; if (mx && defs > mx) return err(mx === 1 ? "Ο πελάτης διαλέγει ένα· βάλε το πολύ μία προεπιλογή." : "Βάλε το πολύ " + mx + " προεπιλογές.");
     const id = gid0 || "m" + K.uid(5);
     MODS()[id] = { id, n, mn, mx, o };
@@ -1079,7 +1080,7 @@ document.addEventListener("change", e => {
   const t = e.target;
   if (t.id === "pStOn") { const b = $("#pStBox"); if (b) b.style.display = t.checked ? "" : "none"; if (t.checked) { const i = $("#pStock"); i && i.focus(); } return; }
   if (t.id === "pNt") { const i = $("#pNtp"); if (i) { i.style.display = t.checked ? "" : "none"; if (t.checked) i.focus(); } return; }
-  if (t.id === "mR") { const b = $("#mMaxB"); if (b) b.style.display = RULES[+t.value][1] ? "none" : ""; return; }
+  if (t.id === "mR") { const b = $("#mMaxB"); if (b) b.style.display = RULES[+t.value][1] ? "none" : ""; const rq = !!RULES[+t.value][0], ol = $("#mOL"), n = $("#mReqN"); if (ol) ol.classList.toggle("req", rq); if (n) n.style.display = rq ? "" : "none"; return; }
   if (t.matches("[data-mcat]")) { document.querySelectorAll(`[data-mc="${t.dataset.mcat}"]`).forEach(c => { c.checked = t.checked; }); return; }
   if (t.id === "pOnly") { const b = $("#pOnlyBox"); if (b) b.style.display = t.checked ? "" : "none"; return; }
   if (t.id === "pCat") { const i = $("#pCatNew"); if (i) { i.style.display = t.value === "+" ? "" : "none"; if (t.value === "+") i.focus(); } return; }
