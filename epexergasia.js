@@ -70,22 +70,25 @@ A.menuView = function (m) {
     `<div class="grid" id="edGrid" style="--c1:${esc(st.shop.c1)};--c2:${esc(st.shop.c2)};--on1:${K.contrast(st.shop.c1)};--on2:${K.contrast(st.shop.c2)}">${K.tilesHTML(L, { edit: true, marked: ed.marked, prod: id => st.products[id], root: ed.view === "menu" && !ed.path.length })}</div>
     <div class="card" style="margin:6px 0 12px;padding:12px"><div class="note" style="margin:0 0 8px">Προσθήκη ${ed.path.length ? "μέσα στο <b>«" + esc(curCat().name) + "»</b>" : "στην <b>αρχική</b>"}:</div>
      <div class="row"><button type="button" class="btn amber grow" data-ea="addProd">🛒 ＋ Προϊόν με τιμή</button><button type="button" class="btn grow" data-ea="addCat">📁 ＋ ${ed.path.length ? "Υποκατηγορία" : "Κατηγορία"}</button></div>
-     <div class="row" style="margin-top:8px"><button type="button" class="btn soft sm grow" data-ea="add">Άλλα…</button><button type="button" class="btn ghost sm" data-ea="preview">👁 Προεπισκόπηση</button></div></div>
+     <div class="row" style="margin-top:8px"><button type="button" class="btn soft sm grow" data-ea="add">Άλλα…</button><button type="button" class="btn soft sm" data-ea="mods">🧩 Επιλογές</button><button type="button" class="btn ghost sm" data-ea="preview">👁 Προεπισκόπηση</button></div></div>
     ${L.length ? `<p class="note">Σύνολο ${liveProducts().length} προϊόντα${A.isPro() ? "" : " · δωρεάν έως " + A.FREE_PRODUCTS}.</p>` : ""}`;
   actbar();
   bindDrag($("#edGrid"));
 };
+let actX = 0;   /* η μπάρα θυμάται πού την είχες σύρει: η επόμενη ίδια κίνηση είναι στο ίδιο σημείο */
 function actbar() {
-  const old = $("#actbar"); if (old) old.remove();
+  const old = $("#actbar"); if (old) { actX = old.scrollLeft; old.remove(); }
   if (!ed.marked.size || ed.view !== "menu") { document.body.classList.remove("editing"); return; }
   document.body.classList.add("editing");
   const one = ed.marked.size === 1;
   document.body.insertAdjacentHTML("beforeend", `<div class="actbar" id="actbar"><span class="cnt">${ed.marked.size} μαρκ.</span>
-   <button type="button" data-ea="mvL" aria-label="Πιο μπροστά">◀ Μπροστά</button><button type="button" data-ea="mvR" aria-label="Πιο πίσω">Πίσω ▶</button>
    <button type="button" data-ea="size">↔ Μέγεθος</button><button type="button" data-ea="color">🎨 Χρώμα</button>
    ${one ? `<button type="button" data-ea="rename">✏️ Όνομα</button>` : ""}
    <button type="button" data-ea="moveTo">📁 Μετακίνηση</button><button type="button" data-ea="all">Όλα</button>
-   <button type="button" class="red" data-ea="del">🗑 Διαγραφή</button><button type="button" data-ea="unmark">✕</button></div>`);
+   <button type="button" class="red" data-ea="del">🗑 Διαγραφή</button>
+   <button type="button" data-ea="mvL" aria-label="Πιο μπροστά">◀ Μπροστά</button><button type="button" data-ea="mvR" aria-label="Πιο πίσω">Πίσω ▶</button><button type="button" data-ea="unmark" aria-label="Τέλος μαρκαρίσματος">✕</button></div>`);
+  const nb = $("#actbar"); if (nb && actX) { nb.scrollLeft = actX; requestAnimationFrame(() => { nb.scrollLeft = actX; }); }
+  if (nb) nb.addEventListener("scroll", () => { actX = nb.scrollLeft; }, { passive: true });
 }
 function tagsHTML(p) {
   const st = S(), t = [];
@@ -320,7 +323,7 @@ function presetItemsHTML(items, d) {
 function applyPreset(k) {
   const st = S(), P = PRESETS[k]; if (!P) return;
   const target = ed.view === "menu" && ed.path.length ? curList() : st.menu;
-  let count = 0;
+  let count = 0, withOpt = 0;
   const build = (cn, ce, items) => {
     const cat = { id: newId(), t: "c", name: cn, emoji: ce, size: "m", kids: [] };
     for (const it of items) {
@@ -328,6 +331,8 @@ function applyPreset(k) {
       const [n, u, pr, step, o] = it, id = "p" + K.uid(5), op = o || {};
       st.products[id] = { id, name: n, unit: u, price: pr, step: step || 1, vat: op.v != null ? op.v : 13, perish: !op.np, emoji: ce, hist: [[Date.now(), pr]], created: Date.now(), draft: true };
       if (op.d) st.products[id].desc = op.d;
+      const cm = (P.m || {})[cn];
+      if (cm) { const ids = (cm.m || []).map(tplAdd).filter(Boolean).map(g => g.id); if (ids.length) st.products[id].mods = ids; if (cm.nt) { st.products[id].nt = 1; st.products[id].ntp = cm.nt; } withOpt++; }
       cat.kids.push({ id: newId(), t: "p", pid: id, size: "m" });
       count++;
     }
@@ -336,7 +341,7 @@ function applyPreset(k) {
   for (const [cn, ce, items] of P.c) { const cat = build(cn, ce, items); if (cat.kids.length) target.push(cat); }
   ed.view = "list"; ed.marked.clear(); ed.q = "";
   A.save({ catalog: true }); A.closeSheet(); A.render(); window.scrollTo(0, 0);
-  A.toast("✓ Μπήκαν " + count + " ενδεικτικά προϊόντα. Δεν τα βλέπουν οι πελάτες μέχρι να ελέγξεις τιμές και να πατήσεις «Ενεργοποίηση».", 6000);
+  A.toast("✓ Μπήκαν " + count + " ενδεικτικά προϊόντα. Δεν τα βλέπουν οι πελάτες μέχρι να ελέγξεις τιμές και να πατήσεις «Ενεργοποίηση»." + (withOpt ? " Σε " + withOpt + " μπήκαν και επιλογές για τον πελάτη (🧩 Επιλογές)." : ""), 6000);
 }
 
 /* ---------- σύρσιμο με το δάχτυλο για αλλαγή σειράς ---------- */
@@ -672,6 +677,88 @@ function moreHTML(x) {
     <div id="pOnlyBox" style="${x.only ? "" : "display:none"}">${custs.length ? custs.map(c => `<label class="ck"><input type="checkbox" data-onlyc="${esc(c.key)}"${(x.onlyFor || []).includes(c.key) ? " checked" : ""}><span>${esc(c.name || c.phone)}</span></label>`).join("") : `<p class="note">Δεν έχεις πελάτες ακόμα.</p>`}<p class="note" style="margin:4px 0 0">Οι επιλεγμένοι το βλέπουν στον προσωπικό τους σύνδεσμο (Πελάτες › πελάτης › «📤 Στείλε του τον κατάλογο»).</p></div>
   </details>`;
 }
+/* ---------- επιλογές για τον πελάτη: ζάχαρη, γάλα, ψήσιμο, κόψιμο… ---------- */
+const MODS = () => S().mods || (S().mods = {});
+const RULES = [[1, 1, "Υποχρεωτικό · διαλέγει ένα (π.χ. ζάχαρη)"], [0, 1, "Προαιρετικό · το πολύ ένα (π.χ. γάλα)"], [0, 0, "Προαιρετικό · όσα θέλει (π.χ. έξτρα υλικά)"], [1, 0, "Υποχρεωτικό · τουλάχιστον ένα"]];
+const ruleIx = g => { const i = RULES.findIndex(r => r[0] === (g.mn > 0 ? 1 : 0) && r[1] === (g.mx === 1 ? 1 : 0)); return i < 0 ? 2 : i; };
+const modUse = gid => Object.values(S().products).filter(p => !p.del && (p.mods || []).includes(gid)).length;
+const modSum = g => (g.o || []).map(o => o.n + (o.p ? " +" + K.money(o.p) : "") + (o.off ? " (δεν υπάρχει)" : "")).join(", ");
+const tplChips = attr => K.MOD_TPL.map(([cat, L]) => `<div class="note" style="margin:8px 0 2px;font-weight:700">${esc(cat)}</div><div class="tplc">${L.map(t => `<button type="button" class="chip${MODS()["m_" + t[0]] ? " on" : ""}" ${attr}="${t[0]}">${esc(t[1])}</button>`).join("")}</div>`).join("");
+const tplAdd = id => { const g = K.modFromTpl(id); if (!g) return null; if (!MODS()[g.id]) MODS()[g.id] = g; return MODS()[g.id]; };
+const pmodRow = (g, on) => `<label class="ck"><input type="checkbox" data-pmod="${esc(g.id)}"${on ? " checked" : ""}><span><b>${esc(g.n)}</b> <small class="note">${esc(K.modRule(g))}: ${esc(modSum(g))}</small></span></label>`;
+function pmodHTML(x) {
+  const on = new Set(x.mods || []), L = Object.values(MODS());
+  return `<details class="card" id="pModBox"${on.size || x.nt ? " open" : ""}><summary style="cursor:pointer;font-weight:800">🧩 Επιλογές για τον πελάτη (π.χ. ζάχαρη, γάλα, ψήσιμο)</summary>
+   <p class="note" style="margin:8px 0 4px">Όταν ο πελάτης πατήσει το προϊόν, διαλέγει πώς το θέλει. Ό,τι διαλέξει γράφεται στην παραγγελία σου.</p>
+   <div id="pModL">${L.map(g => pmodRow(g, on.has(g.id))).join("")}</div>
+   <details style="margin-top:6px"${L.length ? "" : " open"}><summary class="note" style="cursor:pointer;font-weight:700">💡 Πρόσθεσε έτοιμη ομάδα</summary>${tplChips("data-ptpl")}</details>
+   <h3 style="margin:12px 0 4px">📝 Σχόλιο του πελάτη</h3>
+   <label class="ck"><input type="checkbox" id="pNt"${x.nt ? " checked" : ""}><span>Ο πελάτης μπορεί να γράψει δικό του σχόλιο (π.χ. «καλοψημένη», «χωρίς κρεμμύδι»)</span></label>
+   <input class="t" id="pNtp" value="${esc(x.ntp || "")}" maxlength="60" placeholder="Τι να του προτείνεις; π.χ. καλοψημένη" style="${x.nt ? "" : "display:none"}">
+   <button type="button" class="btn soft sm wide" data-ea="modsFromProd" style="margin-top:10px">✏️ Φτιάξε δική σου ομάδα ή άλλαξε τις υπάρχουσες</button>
+  </details>`;
+}
+function modsSheet(back) {
+  A._modBack = back || null;
+  const L = Object.values(MODS());
+  A.sheet("🧩 Επιλογές για τον πελάτη", `<p class="note" style="margin-top:0">Ομάδες επιλογών που ο πελάτης διαλέγει όταν πατά ένα προϊόν: στον καφέ ζάχαρη και γάλα, στην τυρόπιτα ψήσιμο, στο κρέας κόψιμο. Μία ομάδα μπαίνει σε όσα προϊόντα θέλεις.</p>
+   ${L.length ? L.map(g => `<div class="mgrp"><div class="mh"><b>${esc(g.n)}</b><button type="button" class="btn sm soft" data-medit="${esc(g.id)}">✏️ Αλλαγή</button></div><div class="note">${esc(K.modRule(g))} · ${esc(modSum(g))}</div><div class="note">${(n => n ? "Σε " + n + (n === 1 ? " προϊόν" : " προϊόντα") : "⚠️ Δεν έχει μπει ακόμα σε κανένα προϊόν")(modUse(g.id))}</div></div>`).join("") : `<div class="card"><p class="note" style="margin:0">Καμία ομάδα ακόμα. Ξεκίνα από μια έτοιμη ή φτιάξε δική σου.</p></div>`}
+   <button type="button" class="btn amber wide" data-medit="" style="margin:8px 0">＋ Νέα ομάδα επιλογών</button>
+   <div class="card"><h3 style="margin-top:0">💡 Έτοιμες ομάδες</h3><p class="note" style="margin-top:0">Πάτα μία για να μπει στη λίστα σου· μετά διάλεξε σε ποια προϊόντα και άλλαξέ τη όπως θέλεις.</p>${tplChips("data-mtpl")}</div>`,
+   back ? `<button type="button" class="btn amber" data-ea="modBack">← Πίσω στο προϊόν</button>` : `<button type="button" class="btn soft" data-act="shClose">Κλείσιμο</button>`);
+}
+function catProds() {
+  const out = [], seen = new Set(), P = S().products;
+  (function w(L, lbl) {
+    const ps = L.filter(n => n.t === "p" && P[n.pid] && !P[n.pid].del && !seen.has(n.pid)).map(n => (seen.add(n.pid), n.pid));
+    if (ps.length) out.push({ lbl: lbl || "Αρχική", ps });
+    L.filter(n => n.t === "c").forEach(c => w(c.kids || [], (lbl ? lbl + " › " : "") + (c.name || "Κατηγορία")));
+  })(S().menu, "");
+  return out;
+}
+const orow = o => `<div class="morow"><input class="t" data-on value="${esc(o.n || "")}" maxlength="40" placeholder="π.χ. Μέτριος"><input class="t" data-op inputmode="decimal" value="${o.p ? K.num(o.p) : ""}" placeholder="+0,00 €"><button type="button" class="btn sm ghost" data-ea="mDelOpt" aria-label="Αφαίρεση επιλογής">✕</button><div class="mflags"><label><input type="checkbox" data-od${o.def ? " checked" : ""}>Προεπιλογή</label><label><input type="checkbox" data-ox${o.off ? " checked" : ""}>Δεν υπάρχει τώρα</label></div></div>`;
+function modEdit(gid) {
+  const g = gid ? MODS()[gid] : { n: "", mn: 0, mx: 1, o: [{}, {}, {}] }; if (!g) return;
+  const ri = ruleIx(g), CP = catProds();
+  A.sheet(gid ? "🧩 «" + g.n + "»" : "🧩 Νέα ομάδα επιλογών", `<div class="card" style="margin-top:0"><label class="f" for="mN">Όνομα ομάδας (το βλέπει ο πελάτης)</label><input class="t" id="mN" value="${esc(g.n)}" maxlength="40" placeholder="π.χ. Ζάχαρη, Ψήσιμο, Κόψιμο">
+    <label class="f" for="mR">Πώς διαλέγει ο πελάτης</label><select class="t" id="mR">${RULES.map((r, i) => `<option value="${i}"${i === ri ? " selected" : ""}>${r[2]}</option>`).join("")}</select>
+    <div id="mMaxB" style="${RULES[ri][1] ? "display:none" : ""}"><label class="f" for="mMax">Μέχρι πόσες; (κενό = χωρίς όριο)</label><input class="t" id="mMax" inputmode="numeric" value="${g.mx > 1 ? g.mx : ""}" placeholder="χωρίς όριο" style="width:150px"></div></div>
+   <div class="card"><h3 style="margin-top:0">Επιλογές</h3><p class="note" style="margin-top:0">Γράψε τιμή μόνο αν η επιλογή κοστίζει επιπλέον (π.χ. φυτικό γάλα +0,30 €). «Προεπιλογή» = είναι ήδη διαλεγμένη όταν ανοίγει.</p>
+    <div id="mOL">${g.o.map(orow).join("")}</div><button type="button" class="btn soft sm wide" data-ea="mAddOpt" style="margin-top:8px">＋ Κι άλλη επιλογή</button></div>
+   <div class="card"><h3 style="margin-top:0">Σε ποια προϊόντα</h3>${CP.length ? CP.map((c, i) => { const n = c.ps.filter(pid => (S().products[pid].mods || []).includes(gid)).length; return `<details class="mcat"${n ? " open" : ""}><summary style="cursor:pointer;font-weight:700;padding:6px 0">${esc(c.lbl)} <span class="note">(${c.ps.length})</span></summary>
+     <label class="ck"><input type="checkbox" data-mcat="${i}"${n === c.ps.length ? " checked" : ""}><span><b>Όλα τα προϊόντα της κατηγορίας</b></span></label>
+     <div style="padding-left:22px">${c.ps.map(pid => `<label class="ck"><input type="checkbox" data-mp="${esc(pid)}" data-mc="${i}"${(S().products[pid].mods || []).includes(gid) ? " checked" : ""}><span>${esc(S().products[pid].name)}</span></label>`).join("")}</div></details>`; }).join("") : `<p class="note">Δεν έχεις ακόμα προϊόντα στο μενού.</p>`}</div>
+   ${gid ? `<button type="button" class="btn red wide" data-ea="mDel">🗑 Διαγραφή ομάδας</button>` : ""}<div id="mErr"></div>`,
+   `<button type="button" class="btn soft" data-ea="modList">Άκυρο</button><button type="button" class="btn amber" data-ea="mSave">Αποθήκευση</button>`,
+   el => { el.dataset.gid = gid || ""; });
+}
+const MEA = {
+  mods: () => modsSheet(null),
+  modList: () => modsSheet(A._modBack),
+  modBack: () => { const b = A._modBack; A.closeSheet(); if (b) prodSheet(b[0], b[1] || null); },
+  modsFromProd: () => { const b = $("#shB"), node = b.dataset.node || null; const pid = prodSave(); if (!pid || $("#pN")) return; modsSheet([pid, node]); },
+  mAddOpt: () => { $("#mOL").insertAdjacentHTML("beforeend", orow({})); const r = $("#mOL").lastElementChild.querySelector("[data-on]"); r && r.focus(); },
+  mDelOpt: a => { const r = a.closest(".morow"); if (r) r.remove(); },
+  mDel: () => { const id = $("#shB").dataset.gid, g = MODS()[id]; if (!g) return;
+    const n = modUse(id); if (!confirm("Διαγραφή της ομάδας «" + g.n + "»;" + (n ? " Θα φύγει από " + n + (n === 1 ? " προϊόν." : " προϊόντα.") : "") + " Οι παλιές παραγγελίες δεν αλλάζουν.")) return;
+    delete MODS()[id]; for (const p of Object.values(S().products)) if (p.mods) { p.mods = p.mods.filter(x => x !== id); if (!p.mods.length) delete p.mods; }
+    A.save({ catalog: true }); modsSheet(A._modBack); A.toast("✓ Η ομάδα διαγράφηκε"); },
+  mSave: () => {
+    const gid0 = $("#shB").dataset.gid, n = $("#mN").value.trim();
+    const err = m => { $("#mErr").innerHTML = `<div class="errbox">${esc(m)}</div>`; };
+    if (!n) return err("Γράψε όνομα ομάδας, π.χ. «Ζάχαρη».");
+    const o = [...document.querySelectorAll("#mOL .morow")].map(r => { const nm = r.querySelector("[data-on]").value.trim(); if (!nm) return null; const pv = K.parseNum(r.querySelector("[data-op]").value);
+      return Object.assign({ n: nm }, isFinite(pv) && pv > 0 ? { p: K.round2(pv) } : {}, r.querySelector("[data-od]").checked ? { def: 1 } : {}, r.querySelector("[data-ox]").checked ? { off: 1 } : {}); }).filter(Boolean);
+    if (!o.length) return err("Γράψε τουλάχιστον μία επιλογή.");
+    if (o.every(x => x.off)) return err("Όλες οι επιλογές είναι «δεν υπάρχει τώρα». Άφησε τουλάχιστον μία διαθέσιμη.");
+    const [mn, m1] = RULES[+$("#mR").value]; let mx = m1; if (!m1) { const v = parseInt($("#mMax").value, 10); if (v > 0) mx = v; }
+    const defs = o.filter(x => x.def).length; if (mx && defs > mx) return err(mx === 1 ? "Ο πελάτης διαλέγει ένα· βάλε το πολύ μία προεπιλογή." : "Βάλε το πολύ " + mx + " προεπιλογές.");
+    const id = gid0 || "m" + K.uid(5);
+    MODS()[id] = { id, n, mn, mx, o };
+    document.querySelectorAll("[data-mp]").forEach(c => { const p = S().products[c.dataset.mp]; if (!p) return; const L = (p.mods || []).filter(x => x !== id); if (c.checked) L.push(id); if (L.length) p.mods = L; else delete p.mods; });
+    A.save({ catalog: true }); modsSheet(A._modBack); A.toast("✓ Αποθηκεύτηκε η ομάδα «" + n + "»");
+  }
+};
 function prodSheet(pid, nodeId) {
   const st = S(), p = pid ? st.products[pid] : null;
   if (!p && activeCount() >= A.FREE_PRODUCTS && !A.proGate("products")) return;
@@ -700,6 +787,7 @@ function prodSheet(pid, nodeId) {
     <div class="sw"><span>Κρυφό (δεν φαίνεται στον πελάτη)</span><label class="tog"><input type="checkbox" id="pHi"${x.hidden ? " checked" : ""}><span></span></label></div>
     <div class="sw"><span>Τρόφιμο που αλλοιώνεται γρήγορα</span><label class="tog g"><input type="checkbox" id="pPe"${x.perish !== false ? " checked" : ""}><span></span></label></div>
     <p class="note">Για τα ευπαθή τρόφιμα ο πελάτης ενημερώνεται ότι δεν ισχύει το δικαίωμα υπαναχώρησης.</p></div>
+   ${pmodHTML(x)}
    ${moreHTML(x)}
    ${node ? `<div class="card"><h3>Το κουμπί στο μενού</h3><label class="f" for="nName">Όνομα στο κουμπί (κενό = όνομα προϊόντος)</label><input class="t" id="nName" value="${esc(node.name || "")}" maxlength="40">
     <label class="f">Μέγεθος</label>${sizePicker(node.size)}<label class="f">Χρώμα</label>${colorPicker(node.color)}</div>` : ""}
@@ -738,6 +826,8 @@ function prodSave() {
   const old = p.price;
   Object.assign(p, { name, unit, price: K.round2(price), step: (() => { const v = K.parseNum($("#pS").value); return isFinite(v) && v > 0 ? Math.round(v * 1000) / 1000 : 1; })(), vat: +$("#pV").value, desc: $("#pD").value.trim(), emoji: $("#emFree").value.trim(), keys: $("#pK").value.trim(), soldout: !$("#pAv").checked, hidden: $("#pHi").checked, perish: $("#pPe").checked });
   if ($("#aiIc")) { if ($("#aiIc").value) p.aic = $("#aiIc").value; else delete p.aic; }
+  if ($("#pModBox")) { const ms = [...document.querySelectorAll("[data-pmod]:checked")].map(c => c.dataset.pmod).filter(g => MODS()[g]); if (ms.length) p.mods = ms; else delete p.mods;
+    if ($("#pNt").checked) { p.nt = 1; const t = $("#pNtp").value.trim(); if (t) p.ntp = t; else delete p.ntp; } else { delete p.nt; delete p.ntp; } }
   if (p.hidden && b.dataset.hidBySo === "1") p.hidBySo = true; else delete p.hidBySo;
   /* επιπλέον ρυθμίσεις */
   const num = id => { const e = $(id); if (!e) return NaN; return K.parseNum(e.value); };
@@ -776,6 +866,7 @@ function prodSave() {
     A._addTo = null;
   }
   ed.marked.clear(); A.save({ catalog: true }); A.closeSheet(); A.render(); A.toast("✓ Αποθηκεύτηκε");
+  return pid;
 }
 function setPrice(pid, v) {
   const p = S().products[pid]; const x = K.parseNum(v);
@@ -791,6 +882,7 @@ function addSheet() {
    <div class="it" data-ea="addCat"><div class="ic">📁</div><div class="t"><b>${ed.path.length ? "Υποκατηγορία μέσα στο «" + esc(curCat().name) + "»" : "Κατηγορία"}</b><span>Κουμπί που ανοίγει και έχει μέσα άλλα κουμπιά. Μπορείς να βάλεις υποκατηγορίες μέσα σε υποκατηγορίες, όσα επίπεδα θέλεις.</span></div></div>
    <div class="it" data-ea="addProd"><div class="ic">🛒</div><div class="t"><b>Νέο προϊόν</b><span>Με τιμή, μονάδα και κουμπιά − και +</span></div></div>
    <div class="it" data-xl="open"><div class="ic">📊</div><div class="t"><b>Όλος ο κατάλογος από Excel</b><span>Κατέβασε πρότυπο, γράψε κατηγορίες, προϊόντα και τιμές, ανέβασέ το</span></div></div>
+   <div class="it" data-ea="mods"><div class="ic">🧩</div><div class="t"><b>Επιλογές για τον πελάτη</b><span>Ζάχαρη, γάλα, ψήσιμο, κόψιμο… ό,τι διαλέγει ο πελάτης όταν πατά ένα προϊόν</span></div></div>
    <div class="it" data-act="presetsGo"><div class="ic">⚙️</div><div class="t"><b>Έτοιμο μενού από επάγγελμα</b><span>Μόνο από τις Ρυθμίσεις, για να μην αλλάξει κατά λάθος ο κατάλογος</span></div></div></div>
    ${others.length ? `<div class="card list"><h3>Υπάρχον προϊόν και εδώ</h3>${others.map(p => `<div class="it" data-addex="${p.id}"><div class="ic">${esc(p.emoji || "📦")}</div><div class="t"><b>${esc(p.name)}</b><span>${K.money(p.price)} / ${esc(p.unit)}${productInMenu(p.id) ? "" : " · δεν είναι στο μενού"}</span></div></div>`).join("")}</div>` : ""}`);
 }
@@ -928,6 +1020,7 @@ const EA = {
   sizeGo: () => { const z = picked("szPick") || "m", all = $("#szAll").checked; curList().forEach(n => { if (all || ed.marked.has(n.id)) n.size = z; }); ed.marked.clear(); A.save({ catalog: true }); A.closeSheet(); A.render(); },
   colorGo: () => { const c = picked("colPick"); curList().forEach(n => { if (ed.marked.has(n.id)) n.color = c; }); ed.marked.clear(); A.save({ catalog: true }); A.closeSheet(); A.render(); }
 };
+Object.assign(EA, MEA);
 document.addEventListener("click", e => {
   const t = e.target;
   if (Date.now() - suppressClick < 350 && t.closest("#edGrid")) { e.preventDefault(); e.stopPropagation(); return; }
@@ -975,11 +1068,19 @@ document.addEventListener("click", e => {
   const ax = t.closest("[data-addex]"); if (ax) { curList().push({ id: newId(), t: "p", pid: ax.dataset.addex, size: "m" }); A.save({ catalog: true }); A.closeSheet(); A.render(); return; }
   const mv = t.closest("[data-mvto]"); if (mv) { moveTo(mv.dataset.mvto); return; }
   { const ip = t.closest("[data-icpick]"); if (ip) { e.preventDefault(); icPick(+ip.dataset.icpick); return; } }
+  { const me = t.closest("[data-medit]"); if (me) { modEdit(me.dataset.medit); return; } }
+  { const mt = t.closest("[data-mtpl]"); if (mt) { const g = tplAdd(mt.dataset.mtpl); if (g) { A.save({ catalog: true }); modEdit(g.id); } return; } }
+  { const pt = t.closest("[data-ptpl]"); if (pt) { const had = !!MODS()["m_" + pt.dataset.ptpl], g = tplAdd(pt.dataset.ptpl); if (!g) return; pt.classList.add("on");
+      const c = document.querySelector(`[data-pmod="${g.id}"]`); if (c) c.checked = true; else $("#pModL").insertAdjacentHTML("beforeend", pmodRow(g, true));
+      if (!had) A.save({ catalog: true }); A.toast("✓ «" + g.n + "»: μπήκε σε αυτό το προϊόν. Πάτα «Αποθήκευση».", 3000); return; } }
   const a = t.closest("[data-ea]"); if (a && EA[a.dataset.ea]) { e.preventDefault(); EA[a.dataset.ea](a); }
 }, true);
 document.addEventListener("change", e => {
   const t = e.target;
   if (t.id === "pStOn") { const b = $("#pStBox"); if (b) b.style.display = t.checked ? "" : "none"; if (t.checked) { const i = $("#pStock"); i && i.focus(); } return; }
+  if (t.id === "pNt") { const i = $("#pNtp"); if (i) { i.style.display = t.checked ? "" : "none"; if (t.checked) i.focus(); } return; }
+  if (t.id === "mR") { const b = $("#mMaxB"); if (b) b.style.display = RULES[+t.value][1] ? "none" : ""; return; }
+  if (t.matches("[data-mcat]")) { document.querySelectorAll(`[data-mc="${t.dataset.mcat}"]`).forEach(c => { c.checked = t.checked; }); return; }
   if (t.id === "pOnly") { const b = $("#pOnlyBox"); if (b) b.style.display = t.checked ? "" : "none"; return; }
   if (t.id === "pCat") { const i = $("#pCatNew"); if (i) { i.style.display = t.value === "+" ? "" : "none"; if (t.value === "+") i.focus(); } return; }
   if (t.id === "pAv") { const l = $("#pAvL"); if (l) { l.textContent = t.checked ? "✅ Διαθέσιμο" : "❌ Εξαντλήθηκε"; l.style.color = t.checked ? "var(--ok)" : "var(--bad)"; }

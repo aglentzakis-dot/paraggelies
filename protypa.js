@@ -376,3 +376,25 @@ window.PROTYPA = {
   for (const k of Object.keys(all)) { O[k] = all[k]; if (k === "anapsyktirio") Object.assign(O, nw); }
   if (!O.anapsyktirio_pl) Object.assign(O, nw);
 })();
+/* ---------- επιλογές για τον πελάτη ανά κατηγορία (ζάχαρη, γάλα, ψήσιμο, κόψιμο…) ----------
+   m: έτοιμες ομάδες από το K.MOD_TPL, nt: πρόταση για το σχόλιο του πελάτη */
+(function () {
+  const O = window.PROTYPA;
+  const KR = { m: ["zachari", "glykantiko", "gala", "pagos"] }, ZE = { m: ["zachari", "glykantiko", "gala"] };
+  const SF = { m: ["zesto"], nt: "π.χ. καλοψημένη" }, SA = { nt: "π.χ. χωρίς κρεμμύδι" }, SN = { m: ["zesto"], nt: "π.χ. χωρίς ντομάτα" };
+  const M = {
+    anapsyktirio: { "Κρύοι καφέδες": KR, "Ζεστοί καφέδες": ZE, "Σφολιάτες": SF, "Σαλάτες": SA, "Σάντουιτς": SN },
+    anapsyktirio_pl: { "Κρύοι καφέδες": KR, "Ζεστοί καφέδες": ZE, "Σφολιατοειδή": SF, "Σαλάτες": SA, "Σάντουιτς": SN },
+    salates: { "Σαλάτες": SA, "Σάντουιτς": SN },
+    fournos: { "Ψωμί": { m: ["psomi"] }, "Σφολιατοειδή": SF },
+    kreas: { "Κρέατα": { m: ["kopsimo"], nt: "π.χ. χωρίς λίπος, για σχάρα" }, "Παρασκευάσματα": { nt: "π.χ. λιγότερο αλάτι" } },
+    psaras: { "Ψάρια": { m: ["katharisma"], nt: "π.χ. για σχάρα" }, "Θαλασσινά": { m: ["katharisma"] } },
+    louloudia: { "Λουλούδια": { m: ["doro"], nt: "Τι να γράφει η κάρτα;" }, "Συνθέσεις": { m: ["doro"], nt: "Τι να γράφει η κάρτα;" } },
+    agrotis: { "Φρούτα": { m: ["orimansi"] } },
+    frouta: { "Φρούτα εποχής": { m: ["orimansi"] } },
+    nera: { "Εμφιαλωμένο νερό": { m: ["thermokrasia"] } },
+    poulerika: { "Κοτόπουλο": { nt: "π.χ. κομμένο σε μερίδες" } },
+    fagito: { "Φαγητό ημέρας": { nt: "π.χ. λιγότερη σάλτσα" } }
+  };
+  for (const k of Object.keys(M)) if (O[k]) O[k].m = Object.assign({}, O[k].m || {}, M[k]);
+})();

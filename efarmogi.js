@@ -250,7 +250,7 @@ async function receive(ct, src) {
 function mergeInto(host, o) {
   const was = host.total;
   for (const l of o.lines) {
-    const same = host.lines.find(h => h.pid === l.pid && Math.abs(h.price - l.price) < 0.004);
+    const same = host.lines.find(h => h.pid === l.pid && Math.abs(h.price - l.price) < 0.004 && (h.opt || "") === (l.opt || "") && (h.note || "") === (l.note || ""));
     if (same) { same.q = Math.round((same.q + l.q) * 1000) / 1000; same.sum = K.round2(same.q * same.price); same.added = (same.added || 0) + l.q; }
     else host.lines.push(Object.assign({}, l, { added: l.q }));
   }
@@ -492,7 +492,7 @@ function ordEmpty() {
   return `<div class="emp sm"><div class="ee">${M[0]}</div><b>${M[1]}</b></div>`;
 }
 function ordCard(o) {
-  const items = o.lines.map(l => qtyTxt(l) + " " + l.name).join(" · ");
+  const items = o.lines.map(l => qtyTxt(l) + " " + K.lnName(l)).join(" · ");
   const next = o.st === "new" ? ["prep", "▶ Ετοιμάζεται"] : o.st === "prep" ? ["done", "✓ Παραδόθηκε"] : o.st === "done" && !o.paid ? ["paid", "€ Πληρώθηκε"] : o.st === "done" && owes(o) ? ["paydiff", "€ Υπόλοιπο " + K.money(dueOf(o))] : null;
   return `<div class="ord st-${o.st}${o.paid ? " paid" : ""}" data-ord="${o.id}">
    <div class="h"><b>#${o.no} · ${esc(o.cust.name)}</b><span class="tot">${K.money(o.total)}</span></div>
@@ -571,13 +571,13 @@ function holdDo(to) {
   let q = K.parseNum($("#hdQ").value); if (!isFinite(q) || q <= 0) { toast("Γράψε ποσότητα."); return; } q = Math.min(q, l.q);
   if (to === "day") { to = $("#hdD").value || $("#hdD2").value; if (!/^\d{4}-\d\d-\d\d$/.test(to || "")) { toast("Διάλεξε ημέρα."); return; } } else to = "";
   if (o.paid && o.paidAmt == null) o.paidAmt = o.total;
-  const was = o.total, h = { id: K.uid(8), pid: l.pid, name: l.name, unit: l.unit, q, price: l.price, vat: l.vat, to, at: Date.now() };
+  const was = o.total, h = Object.assign({ id: K.uid(8), pid: l.pid, name: l.name, unit: l.unit, q, price: l.price, vat: l.vat, to, at: Date.now() }, l.opt ? { opt: l.opt } : {}, l.note ? { note: l.note } : {});
   if (q >= l.q - 1e-9) o.lines.splice(i, 1); else { l.q = K.round2(l.q - q); l.sum = K.round2(l.q * l.price); }
   o.total = K.round2(o.lines.reduce((a, x) => a + x.sum, 0));
   if (to) {
     const n = { id: K.uid(12), no: ++S.seq, at: Date.now(), rx: Date.now(), cust: Object.assign({}, o.cust, { note: "" }), when: { date: to, slot: o.when.slot || "", how: o.when.how }, lines: [{ pid: h.pid, name: h.name, unit: h.unit, q, price: h.price, vat: h.vat, sum: K.round2(q * h.price), pend: o.no }], st: "new", seen: Date.now(), paid: false, src: "manual", warn: [], log: [[Date.now(), "Από την αναμονή της #" + o.no]] };
     n.total = n.lines[0].sum; S.orders.push(n); seenAdd(n.id); h.oid = n.id; h.doneNo = n.no;
-  } else (S.pend || (S.pend = [])).push({ k: custKey(o.cust.phone), from: o.id, no: o.no, hid: h.id, pid: h.pid, name: h.name, unit: h.unit, q, price: h.price, vat: h.vat, at: Date.now() });
+  } else (S.pend || (S.pend = [])).push({ k: custKey(o.cust.phone), from: o.id, no: o.no, hid: h.id, pid: h.pid, name: h.name, unit: h.unit, q, price: h.price, vat: h.vat, at: Date.now(), opt: h.opt, note: h.note });
   (o.held || (o.held = [])).push(h);
   o.log.push([Date.now(), "Σε αναμονή: " + K.num(q) + " " + h.unit + " " + h.name + " → " + (to ? K.dayLabel(to) : "επόμενη παραγγελία") + " (" + K.money(was) + " → " + K.money(o.total) + ")"]);
   save(); render(); openOrder(o.id);
@@ -599,8 +599,8 @@ function unhold(o, hid) {
 function applyPend(o) {
   const k = custKey(o.cust.phone), P = (S.pend || []).filter(x => x.k === k); if (!P.length || o.st === "dup" || o.st === "cancel") return;
   for (const x of P) {
-    const same = o.lines.find(l => l.pid === x.pid && Math.abs(l.price - x.price) < .004 && l.pend === x.no);
-    if (same) { same.q = K.round2(same.q + x.q); same.sum = K.round2(same.q * same.price); } else o.lines.push({ pid: x.pid, name: x.name, unit: x.unit, q: x.q, price: x.price, vat: x.vat, sum: K.round2(x.q * x.price), pend: x.no });
+    const same = o.lines.find(l => l.pid === x.pid && Math.abs(l.price - x.price) < .004 && l.pend === x.no && (l.opt || "") === (x.opt || "") && (l.note || "") === (x.note || ""));
+    if (same) { same.q = K.round2(same.q + x.q); same.sum = K.round2(same.q * same.price); } else o.lines.push(Object.assign({ pid: x.pid, name: x.name, unit: x.unit, q: x.q, price: x.price, vat: x.vat, sum: K.round2(x.q * x.price), pend: x.no }, x.opt ? { opt: x.opt } : {}, x.note ? { note: x.note } : {}));
     (o.warn || (o.warn = [])).push("⏳ Προστέθηκε από την αναμονή της #" + x.no + ": " + K.num(x.q) + " " + x.unit + " " + x.name + ".");
     o.log.push([Date.now(), "Προστέθηκε από την αναμονή της #" + x.no + ": " + x.name]);
     const src = S.orders.find(y => y.id === x.from), h = src && (src.held || []).find(y => y.id === x.hid); if (h) h.doneNo = o.no;
@@ -628,7 +628,7 @@ function openOrder(id) {
     ${o.merged && o.merged.length ? `<div class="okbox">🔗 Ο πελάτης έστειλε ${o.merged.length + 1} παραγγελίες για την ίδια ημέρα· ενώθηκαν σε αυτή. Τα είδη που προστέθηκαν έχουν σημάδι «＋».</div>` : ""}
     ${o.inv && o.inv.t === "i" ? `<div class="okbox"><b>📄 Θέλει τιμολόγιο</b><br>${esc(o.inv.n)}<br>ΑΦΜ ${esc(o.inv.f)}${o.inv.d ? " · ΔΟΥ " + esc(o.inv.d) : ""}${o.inv.j ? "<br>" + esc(o.inv.j) : ""}<br>${esc(o.inv.a)}</div>` : o.inv && o.inv.t === "r" ? `<p class="note">🧾 Θέλει απόδειξη</p>` : ""}
     ${c && c.notes ? `<p class="note">Σημείωση πελάτη: ${esc(c.notes)}</p>` : ""}</div>
-   <div class="card">${o.lines.map((l, i) => `<div class="qrow"><div class="qn"><b>${esc(l.name)}${l.added ? ` <span class="pill done">＋${K.num(l.added)}</span>` : ""}${l.pend ? ` <span class="pill warn">⏳ από #${esc(String(l.pend))}</span>` : ""}</b><span>${K.num(l.q)} ${esc(l.unit)} × ${K.money(l.price)}${l.vat != null ? " · ΦΠΑ " + l.vat + "%" : ""}</span></div><b>${K.money(l.sum)}</b>${o.st === "new" || o.st === "prep" || o.st === "dup" ? `<button type="button" class="holdb" data-hold="${i}" aria-label="Δεν το έχω: σε αναμονή" title="Δεν το έχω τώρα: σε αναμονή">⏳</button>` : ""}</div>`).join("")}
+   <div class="card">${o.lines.map((l, i) => `<div class="qrow"><div class="qn"><b>${esc(l.name)}${K.lnOpt(l) ? `<em class="lopt">${esc(K.lnOpt(l))}</em>` : ""}${l.added ? ` <span class="pill done">＋${K.num(l.added)}</span>` : ""}${l.pend ? ` <span class="pill warn">⏳ από #${esc(String(l.pend))}</span>` : ""}</b><span>${K.num(l.q)} ${esc(l.unit)} × ${K.money(l.price)}${l.vat != null ? " · ΦΠΑ " + l.vat + "%" : ""}</span></div><b>${K.money(l.sum)}</b>${o.st === "new" || o.st === "prep" || o.st === "dup" ? `<button type="button" class="holdb" data-hold="${i}" aria-label="Δεν το έχω: σε αναμονή" title="Δεν το έχω τώρα: σε αναμονή">⏳</button>` : ""}</div>`).join("")}
     ${heldHTML(o)}
     <div class="row" style="margin-top:8px"><b class="grow">Σύνολο</b><b class="big-num" style="font-size:20px">${K.money(o.total)}</b></div>
     <p class="note">Οι τιμές γράφτηκαν από τον δικό σου κατάλογο, όπως ίσχυαν ${fmtTime(o.at)}.${o.src === "link" ? " Ο πελάτης αποδέχθηκε τους όρους και την ενημέρωση απορρήτου πριν την αποστολή." : ""}</p></div>
@@ -686,7 +686,7 @@ function proof(o) {
   <p><b>Βεβαίωση παραγγελίας #${o.no}</b> · κωδικός ${code(o)}<br>Υποβολή: ${fmtTime(o.at)}<br>${o.when.how === "pick" ? "Παραλαβή" : "Παράδοση"}: ${esc(fmtWhen(o))}</p>
   <p><b>${esc(o.cust.name)}</b><br>${esc(o.cust.phone)}${o.cust.addr ? "<br>" + esc(o.cust.addr) : ""}</p>
   ${o.inv && o.inv.t === "i" ? `<p>Στοιχεία τιμολογίου: <b>${esc(o.inv.n)}</b> · ΑΦΜ ${esc(o.inv.f)}${o.inv.d ? " · ΔΟΥ " + esc(o.inv.d) : ""} · ${esc(o.inv.a)}</p>` : o.inv && o.inv.t === "r" ? `<p>Ζητήθηκε: απόδειξη</p>` : ""}
-  <table><tr><th>Είδος</th><th class="r">Ποσότητα</th><th class="r">Τιμή</th><th class="r">Ποσό</th></tr>${o.lines.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${K.num(l.q)} ${esc(l.unit)}</td><td class="r">${K.money(l.price)}</td><td class="r">${K.money(l.sum)}</td></tr>`).join("")}
+  <table><tr><th>Είδος</th><th class="r">Ποσότητα</th><th class="r">Τιμή</th><th class="r">Ποσό</th></tr>${o.lines.map(l => `<tr><td>${esc(K.lnName(l))}</td><td class="r">${K.num(l.q)} ${esc(l.unit)}</td><td class="r">${K.money(l.price)}</td><td class="r">${K.money(l.sum)}</td></tr>`).join("")}
   <tr><td colspan="3" class="big">Σύνολο</td><td class="r big">${K.money(o.total)}</td></tr></table>
   <div class="m">${s.vatIncl !== false ? "Οι τιμές περιλαμβάνουν ΦΠΑ." : "Οι τιμές δεν περιλαμβάνουν ΦΠΑ."} ${o.paid ? "Πληρωμένη." : "Δεν έχει πληρωθεί."}</div>
   <div class="nf">Η βεβαίωση αυτή δεν αποτελεί φορολογικό παραστατικό. Το νόμιμο παραστατικό εκδίδεται από τον πωλητή.</div>
@@ -704,7 +704,7 @@ function printText(o, w) {
   const L = [sh.name || "", "ΠΑΡΑΓΓΕΛΙΑ #" + o.no + "  (" + code(o) + ")", line,
     (o.when.how === "pick" ? "Παραλαβή: " : "Παράδοση: ") + fmtWhen(o), o.when.extra ? "*** ΕΚΤΑΚΤΗ ***" : "", line,
     o.cust.name, o.cust.phone, o.cust.addr || "", o.cust.note ? "Σημ.: " + o.cust.note : "", line];
-  for (const l of o.lines) { L.push(l.name); L.push(pad("  " + K.num(l.q) + " " + l.unit + " x " + K.money(l.price), K.money(l.sum))); }
+  for (const l of o.lines) { L.push(K.lnName(l)); L.push(pad("  " + K.num(l.q) + " " + l.unit + " x " + K.money(l.price), K.money(l.sum))); }
   L.push(line, pad("ΣΥΝΟΛΟ", K.money(o.total)), o.paid ? "ΠΛΗΡΩΜΕΝΗ" : "ΑΠΛΗΡΩΤΗ");
   if (o.inv && o.inv.t === "i") L.push(line, "ΤΙΜΟΛΟΓΙΟ:", o.inv.n, "ΑΦΜ " + o.inv.f + (o.inv.d ? " ΔΟΥ " + o.inv.d : ""), o.inv.a);
   else if (o.inv && o.inv.t === "r") L.push("Παραστατικό: απόδειξη");
@@ -1235,7 +1235,7 @@ function prepView() {
   const L = act.filter(o => o.when.date === totDay);
   const sum = K.round2(L.reduce((a, o) => a + o.total, 0)), paid = K.round2(L.filter(o => o.paid).reduce((a, o) => a + Math.min(o.total, paidOf(o)), 0));
   const per = {};
-  L.forEach(o => o.lines.forEach(l => { const x = per[l.pid] || (per[l.pid] = { name: l.name, unit: l.unit, q: 0, sum: 0, n: 0 }); x.q += l.q; x.sum = K.round2(x.sum + l.sum); x.n++; }));
+  L.forEach(o => o.lines.forEach(l => { const pk = l.pid + "|" + K.lnOpt(l), x = per[pk] || (per[pk] = { name: K.lnName(l), unit: l.unit, q: 0, sum: 0, n: 0 }); x.q += l.q; x.sum = K.round2(x.sum + l.sum); x.n++; }));
   const prep = Object.values(per).sort((a, b) => a.name.localeCompare(b.name, "el"));
   const del = L.filter(o => o.when.how !== "pick").sort((a, b) => (a.when.slot || "").localeCompare(b.when.slot || ""));
   const pick = L.filter(o => o.when.how === "pick");
@@ -2759,7 +2759,7 @@ const csv = rows => "﻿" + rows.map(r => r.map(csvCell).join(";")).join("\r\n")
 function xlsOrders(from, to) {
   const L = S.orders.filter(o => o.st !== "dup" && (!from || (o.when.date || "") >= from) && (!to || (o.when.date || "") <= to)).sort((a, b) => (a.when.date || "").localeCompare(b.when.date || "") || a.no - b.no);
   const rows = [["Αρ.", "Κωδικός", "Υποβολή", "Ημέρα", "Ώρα", "Τρόπος", "Πελάτης", "Τηλέφωνο", "Διεύθυνση", "Είδος", "Ποσότητα", "Μονάδα", "Τιμή", "ΦΠΑ %", "Ποσό", "Σύνολο παραγγελίας", "Κατάσταση", "Πληρωμένη", "Σημείωση", "Παραστατικό", "Επωνυμία", "ΑΦΜ", "ΔΟΥ", "Έκτακτη"]];
-  L.forEach(o => o.lines.forEach((l, i) => rows.push([o.no, code(o), fmtTime(o.at), o.when.date, o.when.slot, o.when.how === "pick" ? "Παραλαβή" : "Παράδοση", o.cust.name, o.cust.phone, o.cust.addr, l.name, l.q, l.unit, l.price, l.vat, l.sum, i === 0 ? o.total : "", ST[o.st], o.paid ? "Ναι" : "Όχι", i === 0 ? o.cust.note : "", i === 0 ? (o.inv && o.inv.t === "i" ? "Τιμολόγιο" : o.inv && o.inv.t === "r" ? "Απόδειξη" : "") : "", i === 0 && o.inv && o.inv.t === "i" ? o.inv.n : "", i === 0 && o.inv && o.inv.t === "i" ? o.inv.f : "", i === 0 && o.inv && o.inv.t === "i" ? o.inv.d : "", i === 0 && o.when.extra ? "Ναι" : ""])));
+  L.forEach(o => o.lines.forEach((l, i) => rows.push([o.no, code(o), fmtTime(o.at), o.when.date, o.when.slot, o.when.how === "pick" ? "Παραλαβή" : "Παράδοση", o.cust.name, o.cust.phone, o.cust.addr, K.lnName(l), l.q, l.unit, l.price, l.vat, l.sum, i === 0 ? o.total : "", ST[o.st], o.paid ? "Ναι" : "Όχι", i === 0 ? o.cust.note : "", i === 0 ? (o.inv && o.inv.t === "i" ? "Τιμολόγιο" : o.inv && o.inv.t === "r" ? "Απόδειξη" : "") : "", i === 0 && o.inv && o.inv.t === "i" ? o.inv.n : "", i === 0 && o.inv && o.inv.t === "i" ? o.inv.f : "", i === 0 && o.inv && o.inv.t === "i" ? o.inv.d : "", i === 0 && o.when.extra ? "Ναι" : ""])));
   return rows;
 }
 function xlsDay(day) {

@@ -286,7 +286,8 @@
       const [pid, qRaw, seenPrice] = row;
       const p = st.products[pid];
       if (!p || p.del) { warn.push("Ένα είδος δεν υπάρχει πια στον κατάλογο και παραλείφθηκε."); continue; }
-      if (seen.has(pid)) continue; seen.add(pid);
+      const opt = row[3] && typeof row[3] === "object" ? row[3] : null;
+      const sk = pid + (opt ? "~" + JSON.stringify(opt) : ""); if (seen.has(sk)) continue; seen.add(sk);
       let q = +qRaw;
       if (!isFinite(q) || q <= 0) continue;
       if (q > K.MAX_QTY) { q = K.MAX_QTY; warn.push("Πολύ μεγάλη ποσότητα στο «" + p.name + "»· ελέγξτε."); }
@@ -298,11 +299,13 @@
       if (!K.inSeason(p, new Date(at))) warn.push("Το «" + p.name + "» είναι εκτός εποχής.");
       const av = K.avail(p, st.orders);
       if (av !== Infinity && q > av + 1e-9) warn.push("Το «" + p.name + "» ξεπερνά το απόθεμα: ζήτησε " + K.num(q) + ", υπάρχουν " + K.num(Math.max(0, av)) + ".");
-      const price = K.priceFor(p, cu, q, at);
+      const oc = K.optCheck(p.mods, st.mods || {}, opt && opt.o, opt && opt.n, !!p.nt);
+      if (opt || (p.mods || []).some(g => (st.mods || {})[g] && st.mods[g].mn > 0)) oc.warn.forEach(w => warn.push("«" + p.name + "»: " + w));
+      const price = K.round2(K.priceFor(p, cu, q, at) + oc.x);
       if (seenPrice != null && Math.abs(+seenPrice - price) > 0.004) warn.push("Ο πελάτης είδε άλλη τιμή στο «" + p.name + "» (" + K.money(seenPrice) + ")· γράφτηκε η δική σας " + K.money(price) + ". Στείλτε του τον νέο σύνδεσμο.");
       const sum = K.round2(q * price);
       total += sum;
-      lines.push({ pid, name: p.name, unit: p.unit, q, price, vat: +p.vat || 0, sum });
+      lines.push(Object.assign({ pid, name: p.name, unit: p.unit, q, price, vat: +p.vat || 0, sum }, oc.text ? { opt: oc.text } : {}, oc.note ? { note: oc.note } : {}));
     }
     if (!lines.length) return { err: "Κανένα έγκυρο είδος στην παραγγελία." };
     const w = O.w || {};
@@ -458,6 +461,46 @@
   /* περιοχές: «Αμπελόκηποι» = «Αμπελοκήπους» = «αμπελοκηποι» (ίδια ρίζα, χωρίς τόνους) */
   K.areaEq = (a, b) => { a = K.norm(a); b = K.norm(b); if (!a || !b) return false; if (a === b) return true;
     const n = Math.min(a.length, b.length); if (n < 5) return false; let k = 0; while (k < n && a[k] === b[k]) k++; return k >= Math.max(5, n - 2); };
+  /* ---------- επιλογές προϊόντος (ζάχαρη, γάλα, πάγος, ψήσιμο…): ομάδες που μπαίνουν σε όσα προϊόντα θέλεις ---------- */
+  /* ομάδα: { id, n: όνομα, mn: ελάχιστες επιλογές (0 = προαιρετική), mx: μέγιστες (0 = όσες θέλει), o: [{ n, p: επιπλέον €, def: προεπιλογή, off: δεν υπάρχει τώρα }] } */
+  K.MOD_TPL = [
+    ["Καφές και ροφήματα", [
+      ["zachari", "Ζάχαρη", 1, 1, [["Σκέτος"], ["Μέτριος", 0, 1], ["Γλυκός"], ["Πολύ γλυκός"]]],
+      ["glykantiko", "Γλυκαντικό", 0, 1, [["Λευκή ζάχαρη"], ["Καστανή ζάχαρη"], ["Ζαχαρίνη"], ["Στέβια"], ["Μέλι", 0.2]]],
+      ["gala", "Γάλα", 0, 1, [["Φρέσκο γάλα"], ["Εβαπορέ"], ["Φυτικό γάλα", 0.3]]],
+      ["pagos", "Πάγος", 0, 1, [["Λίγος"], ["Πολύς"], ["Χωρίς πάγο"]]],
+      ["extra_kafe", "Επιπλέον", 0, 0, [["Διπλή δόση", 0.5], ["Σαντιγί", 0.4], ["Σιρόπι καραμέλα", 0.3], ["Σιρόπι βανίλια", 0.3], ["Κανέλα"]]],
+      ["megethos", "Μέγεθος", 1, 1, [["Κανονικό", 0, 1], ["Μεγάλο", 0.5]]]]],
+    ["Φαγητό", [
+      ["psisimo", "Ψήσιμο", 0, 1, [["Καλοψημένο"], ["Λίγο ψημένο"]]],
+      ["zesto", "Ζέσταμα", 0, 1, [["Ζεστό", 0, 1], ["Κρύο"]]],
+      ["saltses", "Σάλτσες", 0, 0, [["Μαγιονέζα"], ["Μουστάρδα"], ["Κέτσαπ"], ["Χωρίς σάλτσα"]]],
+      ["psomi", "Ψωμί", 0, 1, [["Ολόκληρο", 0, 1], ["Κομμένο σε φέτες"]]]]],
+    ["Κρέας και ψάρι", [
+      ["kopsimo", "Κόψιμο", 1, 1, [["Ολόκληρο"], ["Σε μπριζόλες"], ["Σε κομμάτια"], ["Κιμάς"]]],
+      ["katharisma", "Καθάρισμα", 0, 1, [["Καθαρισμένο"], ["Φιλέτο", 1]]]]],
+    ["Άλλα", [
+      ["thermokrasia", "Θερμοκρασία", 0, 1, [["Κρύο", 0, 1], ["Θερμοκρασία δωματίου"]]],
+      ["orimansi", "Ωρίμανση", 0, 1, [["Για σήμερα", 0, 1], ["Για σε 2–3 ημέρες"]]],
+      ["doro", "Συσκευασία δώρου", 0, 1, [["Ναι, σε συσκευασία δώρου", 2]]]]]
+  ];
+  K.modFromTpl = id => { for (const [, L] of K.MOD_TPL) for (const t of L) if (t[0] === id) return { id: "m_" + id, n: t[1], mn: t[2], mx: t[3], o: t[4].map(([n, p, d]) => Object.assign({ n }, p ? { p } : {}, d ? { def: 1 } : {})) }; return null; };
+  K.modRule = g => g.mn > 0 ? (g.mx === 1 ? "Υποχρεωτικό · διάλεξε 1" : g.mx > 1 ? "Υποχρεωτικό · " + g.mn + " έως " + g.mx : "Υποχρεωτικό · τουλάχιστον " + g.mn) : (g.mx === 1 ? "Προαιρετικό · έως 1" : g.mx > 1 ? "Προαιρετικό · έως " + g.mx : "Προαιρετικό · όσα θέλεις");
+  /* το «πώς το θέλει» μιας γραμμής παραγγελίας σε κείμενο */
+  K.lnOpt = l => [l && l.opt, l && l.note ? "«" + l.note + "»" : ""].filter(Boolean).join(" · ");
+  K.lnName = l => l.name + (K.lnOpt(l) ? " (" + K.lnOpt(l) + ")" : "");
+  /* έλεγχος επιλογών: { o: { gid: [δείκτες] }, n: σχόλιο } → κείμενο, επιπλέον τιμή, προβλήματα */
+  K.optCheck = (gids, groups, sel, note, allowNote) => {
+    const out = [], warn = []; let x = 0; sel = sel && typeof sel === "object" ? sel : {};
+    for (const gid of gids || []) { const g = groups[gid]; if (!g) continue;
+      const ix = [...new Set((Array.isArray(sel[gid]) ? sel[gid] : []).map(Number).filter(i => Number.isInteger(i) && g.o[i]))];
+      const ok = ix.filter(i => !g.o[i].off); if (ok.length < ix.length) warn.push("Επιλογή που δεν υπάρχει τώρα στο «" + g.n + "».");
+      if (g.mx > 0 && ok.length > g.mx) { warn.push("Πάρα πολλές επιλογές στο «" + g.n + "»."); ok.length = g.mx; }
+      if (ok.length < (g.mn || 0)) warn.push("Λείπει η επιλογή «" + g.n + "».");
+      if (ok.length) { out.push(ok.map(i => g.o[i].n).join(", ")); x += ok.reduce((a, i) => a + (+g.o[i].p || 0), 0); } }
+    const n = allowNote ? String(note || "").trim().slice(0, 120) : "";
+    return { text: out.join(" · "), x: Math.round(x * 100) / 100, note: n, warn };
+  };
   K.zoneFor = (zones, area) => (zones || []).find(z => (z.a || []).some(x => K.areaEq(x, area))) || null;
   const stem = w => w.length <= 3 ? w : w.slice(0, Math.max(3, w.length - 2));
   const WORDNUM = { ενα: 1, μια: 1, μιαν: 1, ενασ: 1, δυο: 2, τρια: 3, τρεισ: 3, τεσσερα: 4, τεσσερισ: 4, πεντε: 5, εξι: 6, επτα: 7, εφτα: 7, οκτω: 8, οχτω: 8, εννια: 9, εννεα: 9, δεκα: 10, εντεκα: 11, δωδεκα: 12, δεκαπεντε: 15, εικοσι: 20, τριαντα: 30, σαραντα: 40, πενηντα: 50, μισο: 0.5, μιση: 0.5, μισα: 0.5, μισοκιλο: 0.5, εναμισο: 1.5, εναμιση: 1.5, εναμισι: 1.5, μιαμισι: 1.5, ενασημισο: 1.5, μιαμιση: 1.5 };
@@ -622,7 +665,7 @@
       return o;
     }).filter(Boolean);
     const m = walk(st.menu);
-    const p = {};
+    const p = {}, usedG = new Set();
     for (const id of used) {
       const x = st.products[id];
       const kind = K.priceKind(x, cu);
@@ -640,6 +683,7 @@
       if (x.desc) o.d = x.desc;
       if (x.emoji) o.e = x.emoji;
       if (x.perish === false) o.np = 1;
+      { const gs = (x.mods || []).filter(g => (st.mods || {})[g]); if (gs.length) { o.g = gs; gs.forEach(g => usedG.add(g)); } if (x.nt) { o.nt = 1; if (x.ntp) o.ntp = String(x.ntp).slice(0, 60); } }
       if (opts.photos && x.photo) o.f = x.photo;
       if (opts.icons !== false && x.aic) o.ai = x.aic;
       p[id] = o;
@@ -649,7 +693,7 @@
       v: 1, ts: Date.now(),
       s: { n: sh.name || "", l: sh.legal || "", a: sh.addr || "", f: sh.afm || "", t: sh.phone || "", vb: sh.viber || "", m: sh.email || "", lg: opts.logo !== false ? sh.logo || "" : "", c1: sh.c1 || "#17324D", c2: sh.c2 || "#F2B632", w: sh.welcome || "", vi: sh.vatIncl !== false ? 1 : 0, lic: sh.lic || "", tr: sh.terms || "" },
       d: { h: d.how || "both", days: d.days || [1, 2, 3, 4, 5, 6], sl: d.slots || [], min: +d.min || 0, max: +d.max || 14, cut: d.cut || "", cl: K.closedDates(d, 70), ad: d.askAddr !== false ? 1 : 0, mo: +d.minOrder || 0, nt: d.note || "", z: (d.zones || []).filter(z => (z.a || []).length && (z.d || []).length).map(z => ({ a: z.a, d: z.d })), zo: d.zOther === "pick" ? 1 : 0 },
-      m, p,
+      m, p, og: usedG.size ? Object.fromEntries([...usedG].map(id => { const g = st.mods[id]; return [id, { n: g.n, mn: +g.mn || 0, mx: +g.mx || 0, o: (g.o || []).map(x => [x.n, +x.p || 0, x.def ? 1 : 0, x.off ? 1 : 0]) }]; })) : undefined,
       k: st.nt.pub, t: st.nt.topic, u: opts.appUrl || "", g: st.nt.spub || undefined,
       c: opts.cust || undefined
     };
@@ -657,9 +701,10 @@
   /* από τον συμπαγή κατάλογο σε κοινή μορφή για την απόδοση */
   K.expandCatalog = C => {
     const products = {};
-    for (const [id, o] of Object.entries(C.p || {})) products[id] = { id, name: o.n, unit: o.u, price: +o.r || 0, step: +o.s || 1, vat: o.v != null ? +o.v : 13, soldout: !!o.x || !!o.xs, oos: !!o.xs, desc: o.d || "", emoji: o.e || "", perish: !o.np, photo: o.f || "", tiers: Array.isArray(o.tq) ? o.tq : [], min: +o.mn || 0, max: o.mx != null ? +o.mx : null, aic: typeof o.ai === "string" ? o.ai : "" };
+    for (const [id, o] of Object.entries(C.p || {})) products[id] = { id, name: o.n, unit: o.u, price: +o.r || 0, step: +o.s || 1, vat: o.v != null ? +o.v : 13, soldout: !!o.x || !!o.xs, oos: !!o.xs, desc: o.d || "", emoji: o.e || "", perish: !o.np, photo: o.f || "", tiers: Array.isArray(o.tq) ? o.tq : [], min: +o.mn || 0, max: o.mx != null ? +o.mx : null, aic: typeof o.ai === "string" ? o.ai : "", mods: Array.isArray(o.g) ? o.g : [], nt: !!o.nt, ntp: o.ntp || "" };
     const walk = ns => (ns || []).map(o => o.p ? { id: o.i, t: "p", pid: o.p, name: o.n || (products[o.p] || {}).name || "", size: o.z || "m", emoji: o.e || "", color: o.c || "" } : { id: o.i, t: "c", name: o.n, size: o.z || "m", emoji: o.e || "", color: o.c || "", photo: o.f || "", aic: typeof o.ai === "string" ? o.ai : "", kids: walk(o.k) });
-    return { products, menu: walk(C.m) };
+    const groups = {}; for (const [id, g] of Object.entries(C.og || {})) groups[id] = { id, n: g.n, mn: +g.mn || 0, mx: +g.mx || 0, o: (g.o || []).map(a => ({ n: a[0], p: +a[1] || 0, def: !!a[2], off: !!a[3] })) };
+    return { products, menu: walk(C.m), groups };
   };
 
   window.Kat = K;
