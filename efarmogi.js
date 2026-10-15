@@ -470,7 +470,8 @@ function ordersView() {
   if (dups) tabsDef.unshift(["dup", "⚠️ Διπλές"]);
   const cnt = st => S.orders.filter(o => ordMatch(o, { st, day: ordFilter.day })).length;
   const days = [...new Set(S.orders.filter(o => o.st !== "cancel" && o.when.date && o.when.date >= addDays(today(), -1)).map(o => o.when.date))].sort().slice(0, 12);
-  const list = S.orders.filter(o => ordMatch(o, ordFilter)).sort((a, b) => (urgOn(b) - urgOn(a)) || (ordFilter.st === "all" || ordFilter.st === "paid" || ordFilter.st === "cancel" ? b.rx - a.rx : (a.when.date || "9").localeCompare(b.when.date || "9") || a.rx - b.rx));
+  const fsig = JSON.stringify(ordFilter);
+  const list = S.orders.filter(o => ordMatch(o, ordFilter) || movedNow(o, fsig)).sort((a, b) => (urgOn(b) - urgOn(a)) || (ordFilter.st === "all" || ordFilter.st === "paid" || ordFilter.st === "cancel" ? b.rx - a.rx : (a.when.date || "9").localeCompare(b.when.date || "9") || a.rx - b.rx));
   const lk = S.link.sentAt && !S.link.gSent ? `<div class="warnbox"><b>Στείλε μία τελευταία φορά τον κατάλογο στους πελάτες σου.</b> Από εκεί και πέρα κάθε αλλαγή σε προϊόντα, τιμές και ημέρες φτάνει μόνη της, χωρίς νέο σύνδεσμο. <button type="button" class="btn sm amber" data-act="link" style="margin-top:6px">Στείλε τον κατάλογο</button></div>` : "";
   const ntw = S.shop.name && !S.nt.on ? `<div class="warnbox">🔔 Οι ειδοποιήσεις δεν έχουν ενεργοποιηθεί ακόμα. <button type="button" class="btn sm amber" data-act="notif" style="margin-top:6px">Ενεργοποίηση</button></div>` : "";
   return heroHTML() + demoBanner() + updBanner() + installBanner() + (DEMO ? "" : onboarding()) + (DEMO ? "" : lk + ntw) + remindersHTML() + `
@@ -510,10 +511,19 @@ function ordEmpty() {
   const M = { prep: ["📦", "Τίποτα δεν ετοιμάζεται τώρα"], done: ["🚚", "Δεν υπάρχουν παραδομένες εδώ"], paid: ["💶", "Δεν υπάρχουν πληρωμένες εδώ"], cancel: ["🙌", "Καμία ακυρωμένη"], all: ["🧾", "Δεν υπάρχουν παραγγελίες εδώ."] }[st] || ["🧾", "Δεν υπάρχουν παραγγελίες εδώ."];
   return `<div class="emp sm"><div class="ee">${M[0]}</div><b>${M[1]}</b></div>`;
 }
+/* μόλις άλλαξε κατάσταση με το γρήγορο κουμπί: μένει λίγο στη λίστα με «↩ Αναίρεση», για να μη «χάνεται» */
+const MOVED = {};
+const movedNow = (o, fsig) => { const m = MOVED[o.id]; return !!m && m.f === fsig && Date.now() - m.at < 3 * 6e4 && !ordMatch(o, ordFilter); };
+const ST_TAB = { new: "Νέες", prep: "Ετοιμάζονται", done: "Παραδόθηκαν", paid: "Πληρώθηκαν", cancel: "Ακυρώθηκαν" };
+function movedHTML(o) {
+  const m = MOVED[o.id]; if (!m || !movedNow(o, JSON.stringify(ordFilter))) return "";
+  const tabK = o.st === "done" && !owes(o) ? "paid" : o.st;
+  return `<div class="movedbox">✓ Έγινε «${esc(ST[o.st] || o.st)}». Τη βρίσκεις στις <button type="button" class="lnk" data-ost="${tabK}">«${ST_TAB[tabK] || "Όλες"}»</button>${m.undo ? ` · <button type="button" class="lnk" data-undost="${o.id}">↩ Αναίρεση</button>` : ""}</div>`;
+}
 function ordCard(o) {
   const items = o.lines.map(l => qtyTxt(l) + " " + K.lnName(l)).join(" · ");
   const next = o.st === "new" ? ["prep", "▶ Ετοιμάζεται"] : o.st === "prep" ? ["done", "✓ Παραδόθηκε"] : o.st === "done" && !o.paid ? ["paid", "€ Πληρώθηκε"] : o.st === "done" && owes(o) ? ["paydiff", "€ Υπόλοιπο " + K.money(dueOf(o))] : null;
-  return `<div class="ord st-${o.st}${o.paid ? " paid" : ""}" data-ord="${o.id}">
+  return `<div class="ord st-${o.st}${o.paid ? " paid" : ""}${MOVED[o.id] && movedNow(o, JSON.stringify(ordFilter)) ? " moved" : ""}" data-ord="${o.id}">${movedHTML(o)}
    <div class="h"><b>#${o.no} · ${esc(o.cust.name)}</b><span class="tot">${K.money(o.total)}</span></div>
    <div class="m">${o.when.how === "pick" ? "🏪" : "🚚"} ${esc(fmtWhen(o))}${o.when.how !== "pick" && o.cust.addr ? " · " + esc(o.cust.addr) : ""}</div>
    <div class="it">${esc(items)}</div>
@@ -3226,7 +3236,12 @@ document.addEventListener("click", async e => {
   const olp = t.closest("[data-olp]"); if (olp) { olQty(+olp.dataset.olp, 1); return; }
   const fm = t.closest("[data-fm]"); if (fm) { formQty(fm.dataset.fm, -1); return; }
   const fp = t.closest("[data-fp]"); if (fp) { formQty(fp.dataset.fp, 1); return; }
-  const nx = t.closest("[data-next]"); if (nx) { e.stopPropagation(); const o = S.orders.find(x => x.id === nx.dataset.next); if (o) { const done = setStatus(o, nx.dataset.to); render(); if (done) askNotify(o, nx.dataset.to); } return; }
+  const nx = t.closest("[data-next]"); if (nx) { e.stopPropagation(); const o = S.orders.find(x => x.id === nx.dataset.next); if (o) {
+      if (nx.dataset.to === "paid") { paySheet(o); return; }
+      const from = o.st, fsig = JSON.stringify(ordFilter); const done = setStatus(o, nx.dataset.to);
+      if (done) { MOVED[o.id] = { at: Date.now(), f: fsig, from, undo: nx.dataset.to === "prep" || nx.dataset.to === "done" }; setTimeout(() => { if (tab === "orders" && !isSheetOpen()) render(); }, 3 * 6e4 + 500); }
+      render(); if (done) askNotify(o, nx.dataset.to); } return; }
+  const us = t.closest("[data-undost]"); if (us) { e.stopPropagation(); const o = S.orders.find(x => x.id === us.dataset.undost), m = o && MOVED[o.id]; if (o && m && m.undo) { o.log.push([Date.now(), "Αναίρεση: ξανά «" + ST[m.from] + "»"]); o.st = m.from; delete MOVED[o.id]; save(); render(); toast("↩ Η #" + o.no + " ξανά «" + ST[m.from] + "»"); } return; }
   const hro = t.closest("[data-hero]"); if (hro) { heroGo(hro.dataset.hero); return; }
   const os = t.closest("[data-ost]"); if (os) { ordFilter.st = os.dataset.ost; render(); return; }
   const hb = t.closest("[data-hold]"); if (hb) { const o = curOrd(); if (o) holdSheet(o, +hb.dataset.hold); return; }

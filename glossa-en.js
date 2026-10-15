@@ -61,3 +61,5 @@ Object.assign(window.GL_EN,{"Τηλέφωνα":"Phones","Τηλέφωνα επι
 Object.assign(window.GL_EN,{"🛍 Κατάλογος όπως τον βλέπει ο πελάτης":"🛍 Catalogue as the customer sees it","ή διάλεξε από τη λίστα:":"or pick from the list:","🧩 Με επιλογές":"🧩 With options","🚨 Επείγουσα":"🚨 Urgent","χωρίς επιλογές":"no options"});
 /* 1.75 */
 Object.assign(window.GL_EN,{"🧩 Με επιλογές ή χωριστές γραμμές":"🧩 With options or separate lines","χωριστή γραμμή":"separate line","Δεν έχεις μαρκάρει κανένα κουμπί.":"No buttons selected."});
+/* 1.76 */
+Object.assign(window.GL_EN,{"↩ Αναίρεση":"↩ Undo","Τη βρίσκεις στις":"Find it under"});
