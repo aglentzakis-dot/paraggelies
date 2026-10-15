@@ -63,3 +63,5 @@ Object.assign(window.GL_EN,{"🛍 Κατάλογος όπως τον βλέπε�
 Object.assign(window.GL_EN,{"🧩 Με επιλογές ή χωριστές γραμμές":"🧩 With options or separate lines","χωριστή γραμμή":"separate line","Δεν έχεις μαρκάρει κανένα κουμπί.":"No buttons selected."});
 /* 1.76 */
 Object.assign(window.GL_EN,{"↩ Αναίρεση":"↩ Undo","Τη βρίσκεις στις":"Find it under"});
+/* 1.77 */
+Object.assign(window.GL_EN,{"✕ Απλήρωτη":"✕ Unpaid"});

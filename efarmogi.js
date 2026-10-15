@@ -518,7 +518,7 @@ const ST_TAB = { new: "Νέες", prep: "Ετοιμάζονται", done: "Πα�
 function movedHTML(o) {
   const m = MOVED[o.id]; if (!m || !movedNow(o, JSON.stringify(ordFilter))) return "";
   const tabK = o.st === "done" && !owes(o) ? "paid" : o.st;
-  return `<div class="movedbox">✓ Έγινε «${esc(ST[o.st] || o.st)}». Τη βρίσκεις στις <button type="button" class="lnk" data-ost="${tabK}">«${ST_TAB[tabK] || "Όλες"}»</button>${m.undo ? ` · <button type="button" class="lnk" data-undost="${o.id}">↩ Αναίρεση</button>` : ""}</div>`;
+  return `<div class="movedbox">✓ ${m.paid ? "Πληρώθηκε" + (o.payVia ? " · " + payIc(o.payVia) + " " + esc(o.payVia) : "") : "Έγινε «" + esc(ST[o.st] || o.st) + "»"}. Τη βρίσκεις στις <button type="button" class="lnk" data-ost="${tabK}">«${ST_TAB[tabK] || "Όλες"}»</button>${m.undo ? ` · <button type="button" class="lnk" data-undost="${o.id}">↩ Αναίρεση</button>` : ""}</div>`;
 }
 function ordCard(o) {
   const items = o.lines.map(l => qtyTxt(l) + " " + K.lnName(l)).join(" · ");
@@ -665,7 +665,7 @@ function openOrder(id) {
    <h3 style="margin:4px 2px 6px;font-size:15px">Κατάσταση</h3>
    <div class="chips">${stBtn("new", "Νέα")}${stBtn("prep", "Ετοιμάζεται")}${stBtn("done", "Παραδόθηκε")}${stBtn("cancel", "Ακυρώθηκε")}</div>
    ${diffOf(o) ? `<div class="${diffOf(o) > 0 ? "errbox" : "warnbox"}"><b>${o.partial ? "Μερική εξόφληση." : "Η παραγγελία άλλαξε μετά την πληρωμή."}</b><br>Πληρώθηκαν ${K.money(paidOf(o))}, ${o.partial ? "" : "νέο "}σύνολο ${K.money(o.total)}.<br>${diffOf(o) > 0 ? "Ο πελάτης <b>χρωστά " + K.money(diffOf(o)) + "</b>." : "Του <b>επιστρέφεις " + K.money(-diffOf(o)) + "</b>."}<div style="margin-top:8px"><button type="button" class="btn sm ${diffOf(o) > 0 ? "green" : "amber"}" data-ordpaid="diff">${diffOf(o) > 0 ? "€ Πλήρωσε τη διαφορά " + K.money(diffOf(o)) : "↩ Επιστράφηκαν " + K.money(-diffOf(o))}</button></div></div>` : ""}
-   <div class="row" style="margin:0 0 12px">${o.paid ? `<span class="pill paid" style="font-size:14px;padding:8px 12px">✓ Πληρωμένη ${K.money(paidOf(o))}${o.payVia ? " · " + payIc(o.payVia) + " " + esc(o.payVia) : ""}</span><button type="button" class="btn ghost grow" style="border-color:var(--bad);color:var(--bad)" data-ordpaid="0">✕ Σημείωσε απλήρωτη</button>` : `<button type="button" class="btn green grow" data-ordpaid="1">€ Πληρώθηκε ${K.money(o.total)}</button>`}</div>
+   <div class="row payrow" style="margin:0 0 12px;flex-wrap:wrap">${o.paid ? `<span class="pill paid" style="font-size:14px;padding:8px 12px;flex:1 1 auto;min-width:0">✓ Πληρωμένη ${K.money(paidOf(o))}${o.payVia ? " · " + payIc(o.payVia) + " " + esc(o.payVia) : ""}</span><button type="button" class="btn ghost sm" style="border-color:var(--bad);color:var(--bad);flex:0 0 auto;white-space:nowrap" data-ordpaid="0">✕ Απλήρωτη</button>` : `<button type="button" class="btn green grow" data-ordpaid="1">€ Πληρώθηκε ${K.money(o.total)}</button>`}</div>
    <div class="card" style="border-left:5px solid var(--accent)"><h3 style="margin:0 0 4px">💬 Ενημέρωση πελάτη</h3>
     <p class="note" style="margin:0 0 10px">Στέλνει στον πελάτη έτοιμο μήνυμα με την κατάσταση της παραγγελίας («${esc(ST[o.st])}»), τον κωδικό και το σύνολο.</p>
     ${ntfStatus(o)}<div class="row">${msgButtons(o)}</div></div>
@@ -959,12 +959,12 @@ const PAYMAP = { "Μετρητά": "cash", "Κάρτα": "card", "Ηλεκτρο
 /* τρόποι πληρωμής: [όνομα, εικονίδιο, εξήγηση] */
 const PAYS = [["Μετρητά", "💵", "στο χέρι"], ["Κάρτα", "💳", "πιστωτική ή χρεωστική, με τερματικό"], ["Ηλεκτρονικά", "📲", "IRIS, σύνδεσμος πληρωμής, ηλεκτρονικό πορτοφόλι"], ["Τράπεζα", "🏦", "κατάθεση ή μεταφορά σε λογαριασμό"]];
 const payIc = v => (PAYS.find(x => x[0] === v) || [, ""])[1];
-function paySheet(o) {
+function paySheet(o, fromList) {
   const last = S.ui.payVia || "";
   sheet("€ Πληρώθηκε " + K.money(o.total), `<p class="note" style="margin-top:0">#${o.no} · ${esc(o.cust.name)}. Πώς πλήρωσε;</p>
    <div class="bigopts">${PAYS.map(([v, ic, d]) => `<button type="button" class="bigopt${v === last ? " on" : ""}" data-payvia="${v}"><span class="e">${ic}</span><span class="t"><b>${v}</b><small>${d}</small></span><span class="g">›</span></button>`).join("")}</div>
    <p class="note">Ο τρόπος πληρωμής γράφεται στην παραγγελία και περνά στο Ταμείο (μετρητά, κάρτα ή τράπεζα).</p>`,
-   `<button type="button" class="btn soft" data-act="payBack">← Πίσω</button>`, el => { el.dataset.ord = o.id; });
+   `<button type="button" class="btn soft" data-act="payBack">← Πίσω</button>`, el => { el.dataset.ord = o.id; if (fromList) { el.dataset.pfrom = "list"; el.dataset.fsig = JSON.stringify(ordFilter); } });
 }
 const SALES_KIND = { id: "ae73", emoji: "💶", name: "Πωλήσεις και υπηρεσίες", dir: "in", subs: ["Παροχή υπηρεσιών", "Πωλήσεις εμπορευμάτων", "Πωλήσεις προϊόντων"] };
 /* παλιές χειροκίνητες κινήσεις (έως 1.36) → κατηγορίες του βιβλίου Α.Ε. */
@@ -3090,7 +3090,7 @@ const ACT = {
   ordVcf: async () => { const o = curOrd(); if (!o) return; const k = custKey(o.cust.phone), c = S.customers[k] || {};
     await saveToPhone({ name: o.cust.name || c.name, phone: o.cust.phone, phones: c.phones, addr: o.cust.addr || c.addr, area: o.cust.area || c.area }, k); if (curOrd()) openOrder(o.id); },
   custVcf: async () => { const k = $("#shB").dataset.cust, c = S.customers[k]; if (!c) return; await saveToPhone({ name: c.name, phone: c.phone, phones: c.phones, addr: c.addr, area: c.area }, k); },
-  payBack: () => { const o = curOrd(); if (o) openOrder(o.id); else closeSheet(); },
+  payBack: () => { const o = curOrd(); if ($("#shB").dataset.pfrom === "list" || !o) closeSheet(); else openOrder(o.id); },
   ordPrint: () => { const o = curOrd(); if (!o) return; const f = $("#prFmt") ? $("#prFmt").value : "58"; S.ui.printFmt = f; save(); printOrder(o, f); },
   ordPrText: async () => { const o = curOrd(); if (!o) return; const t = printText(o, (S.ui.printFmt || "58") === "80" ? 42 : 32); try { await navigator.share({ text: t }); } catch (e) { if (!e || e.name !== "AbortError") { try { await navigator.clipboard.writeText(t); toast("✓ Αντιγράφηκε το κείμενο της παραγγελίας"); } catch {} } } },
   ordProof: () => { const o = curOrd(); if (o) proof(o); },
@@ -3237,7 +3237,7 @@ document.addEventListener("click", async e => {
   const fm = t.closest("[data-fm]"); if (fm) { formQty(fm.dataset.fm, -1); return; }
   const fp = t.closest("[data-fp]"); if (fp) { formQty(fp.dataset.fp, 1); return; }
   const nx = t.closest("[data-next]"); if (nx) { e.stopPropagation(); const o = S.orders.find(x => x.id === nx.dataset.next); if (o) {
-      if (nx.dataset.to === "paid") { paySheet(o); return; }
+      if (nx.dataset.to === "paid") { paySheet(o, true); return; }
       const from = o.st, fsig = JSON.stringify(ordFilter); const done = setStatus(o, nx.dataset.to);
       if (done) { MOVED[o.id] = { at: Date.now(), f: fsig, from, undo: nx.dataset.to === "prep" || nx.dataset.to === "done" }; setTimeout(() => { if (tab === "orders" && !isSheetOpen()) render(); }, 3 * 6e4 + 500); }
       render(); if (done) askNotify(o, nx.dataset.to); } return; }
@@ -3251,7 +3251,8 @@ document.addEventListener("click", async e => {
   const od = t.closest("[data-oday]"); if (od) { ordFilter.day = od.dataset.oday; render(); return; }
   const td = t.closest("[data-tday]"); if (td) { totDay = td.dataset.tday; render(); return; }
   const ost = t.closest("[data-ordst]"); if (ost) { const o = curOrd(); if (o) { const done = setStatus(o, ost.dataset.ordst); render(); if (done) askNotify(o, ost.dataset.ordst); else openOrder(o.id); } return; }
-  const pyv = t.closest("[data-payvia]"); if (pyv) { const o = curOrd(); if (o) { o.payVia = S.ui.payVia = pyv.dataset.payvia; setStatus(o, "paid"); o.log[o.log.length - 1][1] += " · " + o.payVia; save(); openOrder(o.id); render(); toast("✓ Πληρώθηκε " + K.money(o.total) + " · " + payIc(o.payVia) + " " + o.payVia); } return; }
+  const pyv = t.closest("[data-payvia]"); if (pyv) { const o = curOrd(); if (o) { o.payVia = S.ui.payVia = pyv.dataset.payvia; const b = $("#shB"), fromList = b.dataset.pfrom === "list", fsig = b.dataset.fsig, from = o.st; setStatus(o, "paid"); o.log[o.log.length - 1][1] += " · " + o.payVia; save();
+      if (fromList) { MOVED[o.id] = { at: Date.now(), f: fsig, from, undo: false, paid: 1 }; closeSheet(); setTimeout(() => { if (tab === "orders" && !isSheetOpen()) render(); }, 3 * 6e4 + 500); } else openOrder(o.id); render(); toast("✓ Πληρώθηκε " + K.money(o.total) + " · " + payIc(o.payVia) + " " + o.payVia); } return; }
   const op = t.closest("[data-ordpaid]"); if (op) { const o = curOrd(); if (o && op.dataset.ordpaid === "1") { paySheet(o); return; } if (o) { setStatus(o, op.dataset.ordpaid === "1" ? "paid" : op.dataset.ordpaid === "diff" ? "paydiff" : "unpaid"); openOrder(o.id); render(); } return; }
   const ds = t.closest("[data-diag-share]"); if (ds) { const u = $("#shB")._diag[+ds.dataset.diagShare]; try { await navigator.share({ text: u }); } catch (e) { if (!e || e.name !== "AbortError") { try { await navigator.clipboard.writeText(u); toast("Αντιγράφηκε"); } catch {} } } return; }
   const dc = t.closest("[data-diag-copy]"); if (dc) { try { await navigator.clipboard.writeText($("#shB")._diag[+dc.dataset.diagCopy]); toast("✓ Αντιγράφηκε. Επικόλλησέ το στο Viber."); } catch { toast("Δεν έγινε αντιγραφή."); } return; }
