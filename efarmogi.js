@@ -327,9 +327,58 @@ function announce(o) {
   try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch {}
   try {
     if ("Notification" in window && Notification.permission === "granted" && document.hidden && navigator.serviceWorker)
-      navigator.serviceWorker.ready.then(r => r.showNotification(o.when.urgent ? "🚨 Επείγουσα παραγγελία" : "🛒 Νέα παραγγελία", { body: o.cust.name + " · " + K.money(o.total), icon: "eikonidia/icon-192.png", tag: o.id }));
+      navigator.serviceWorker.ready.then(r => r.showNotification(o.when.urgent ? "🚨 Επείγουσα παραγγελία" : "🛒 Νέα παραγγελία", Object.assign({ body: "#" + o.no + " · " + o.cust.name + " · " + K.money(o.total), icon: "eikonidia/icon-192.png", tag: o.id, data: { id: o.id } },
+        o.st === "new" && ringMode() !== "off" ? { actions: [{ action: "acc", title: "✓ Αποδοχή" }, { action: "hold", title: "⏸ Αναμονή" }, { action: "rej", title: "✕ Απόρριψη" }], requireInteraction: ringMode() === "loop" } : {})));
   } catch {}
+  if (o.st === "new") ringAdd(o);
 }
+/* ---------- κουδούνι νέας παραγγελίας: χτυπά (μία φορά ή συνεχόμενα) μέχρι Αποδοχή, Αναμονή ή Απόρριψη ---------- */
+const RING = { q: [], t: null, ac: null, start: 0, n: 0 };
+const ringMode = () => (S && S.nt && S.nt.ring) || "once";
+function ringAc() { try { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; if (!RING.ac) RING.ac = new C(); if (RING.ac.state === "suspended") RING.ac.resume().catch(() => {}); return RING.ac; } catch { return null; } }
+document.addEventListener("pointerdown", () => { ringAc(); }, { capture: true, passive: true });
+function chime() {
+  const ac = ringAc();
+  if (ac) try { const t0 = ac.currentTime + 0.02; [[988, 0], [1319, 0.16], [1760, 0.32]].forEach(([f, d]) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = "triangle"; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0 + d); g.gain.exponentialRampToValueAtTime(0.6, t0 + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.55); o.connect(g); g.connect(ac.destination); o.start(t0 + d); o.stop(t0 + d + 0.6); }); } catch {}
+  try { navigator.vibrate && navigator.vibrate([250, 120, 250]); } catch {}
+}
+const ringOpen = () => RING.q.map(id => S.orders.find(x => x.id === id)).filter(o => o && o.st === "new" && !o.hold);
+function ringAdd(o) {
+  if (ringMode() === "off" || o.test && DEMO) return;
+  if (!RING.q.includes(o.id)) RING.q.push(o.id);
+  chime(); if (ringMode() === "loop") ringLoop(); else setTimeout(() => { if (!RING.t && RING.q.includes(o.id)) { RING.q = RING.q.filter(x => x !== o.id); ringBar(); } }, 6e4);
+  ringBar();
+}
+function ringLoop() {
+  if (RING.t) return; RING.start = Date.now(); RING.n = 0;
+  RING.t = setInterval(() => { RING.q = ringOpen().map(o => o.id); if (!RING.q.length) { ringStop(); return; }
+    RING.n++; const el = Date.now() - RING.start;
+    if (el < 10 * 6e4 || RING.n % 15 === 0) chime();   /* τα πρώτα 10 λεπτά κάθε 4΄΄, μετά μία φορά το λεπτό */
+    ringBar(); }, 4000);
+}
+function ringStop() { clearInterval(RING.t); RING.t = null; ringBar(); }
+function ringBar() {
+  const L = ringOpen(); RING.q = L.map(o => o.id);
+  let b = $("#ringBar"); if (!L.length) { if (b) b.remove(); if (RING.t) { clearInterval(RING.t); RING.t = null; } return; }
+  const o = L[0];
+  const html = `<div class="rbi" data-ringopen="${o.id}"><span class="rbe">${RING.t ? "🔔" : "🛒"}</span><span class="rbt"><b>${o.when.urgent ? "🚨 Επείγουσα" : "Νέα παραγγελία"} #${o.no} · ${esc(o.cust.name)}</b><small>${esc(fmtWhen(o))} · ${K.money(o.total)}${L.length > 1 ? " · <b>+" + (L.length - 1) + " ακόμα</b>" : ""}</small></span>${RING.t ? "" : `<button type="button" class="rbx" data-ring="dismiss" data-rid="${o.id}" aria-label="Κλείσιμο">✕</button>`}</div>
+    <div class="rbb"><button type="button" class="ok" data-ring="acc" data-rid="${o.id}">✓ Αποδοχή</button><button type="button" class="hold" data-ring="hold" data-rid="${o.id}">⏸ Αναμονή</button><button type="button" class="no" data-ring="rej" data-rid="${o.id}">✕ Απόρριψη</button></div>`;
+  if (!b) { document.body.insertAdjacentHTML("beforeend", `<div id="ringBar" role="alertdialog" aria-live="assertive"></div>`); b = $("#ringBar"); }
+  b.classList.toggle("loop", !!RING.t); b.innerHTML = html;
+}
+function ringAct(act, id) {
+  const o = S.orders.find(x => x.id === id); RING.q = RING.q.filter(x => x !== id);
+  if (!o) { ringBar(); return; }
+  if (act === "dismiss") { ringBar(); return; }
+  if (act === "open") { ringBar(); tab = "orders"; render(); openOrder(o.id); return; }
+  if (o.st !== "new") { ringBar(); toast("Η #" + o.no + " είναι ήδη «" + (ST[o.st] || o.st) + "»."); return; }
+  if (act === "acc") { setStatus(o, "prep"); delete o.hold; save(); ringBar(); render(); toast("✓ Αποδέχτηκες την #" + o.no + " · ετοιμάζεται"); askNotify(o, "prep"); }
+  else if (act === "hold") { o.hold = Date.now(); o.log.push([Date.now(), "Σε αναμονή (θα απαντήσεις αργότερα)"]); save(); ringBar(); render(); toast("⏸ Η #" + o.no + " σε αναμονή· μένει στις Νέες"); }
+  else if (act === "rej") { if (!confirm("Απόρριψη της παραγγελίας #" + o.no + " (" + o.cust.name + ", " + K.money(o.total) + ");\nΘα σημειωθεί «Ακυρώθηκε».")) { if (!RING.q.includes(id)) RING.q.unshift(id); ringBar(); return; }
+    setStatus(o, "cancel"); save(); ringBar(); render(); toast("✕ Η #" + o.no + " απορρίφθηκε"); askNotify(o, "cancel"); }
+}
+A.ringAct = ringAct; A.chime = chime; A.announce = announce;
+try { navigator.serviceWorker && navigator.serviceWorker.addEventListener("message", e => { const d = e.data || {}; if (d.nact && d.nid && S) ringAct(d.nact === "open" ? "open" : d.nact, d.nid); }); } catch {}
 async function handleHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const o = h.get("o");
@@ -342,6 +391,7 @@ async function handleHash() {
     else if (r.err === "open") toast("⚠️ Η παραγγελία δεν άνοιξε. Ίσως είναι για άλλον πωλητή ή άλλο κινητό.", 5000);
     else toast("⚠️ Η παραγγελία απορρίφθηκε: " + r.err, 5000);
   }
+  if (h.get("nact") && h.get("nid")) setTimeout(() => ringAct(h.get("nact"), h.get("nid")), 300);
   if (h.has("test")) { S.nt.on = true; save(); toast("✓ Οι ειδοποιήσεις δουλεύουν!", 4000); render(); }
   const txt = [q.get("title"), q.get("text"), q.get("url")].filter(Boolean).join("\n");
   if (txt) { tab = "orders"; render(); if (proGate("viber")) A.importText(txt); }
@@ -361,6 +411,7 @@ function render() {
   const ob = $('#tabs [data-tab="orders"]'); const d = ob.querySelector(".dot"); if (d) d.remove();
   if (nNew) ob.insertAdjacentHTML("beforeend", `<span class="dot">${nNew}</span>`);
   document.body.classList.remove("editing");
+  try { ringBar(); } catch {}
   if (tab !== "menu") { const ab = $("#actbar"); if (ab) ab.remove(); }
   const m = $("#main");
   tmShow(tab === "totals"); cmDock(tab === "map");
@@ -527,7 +578,7 @@ function ordCard(o) {
    <div class="h"><b>#${o.no} · ${esc(o.cust.name)}</b><span class="tot">${K.money(o.total)}</span></div>
    <div class="m">${o.when.how === "pick" ? "🏪" : "🚚"} ${esc(fmtWhen(o))}${o.when.how !== "pick" && o.cust.addr ? " · " + esc(o.cust.addr) : ""}</div>
    <div class="it">${esc(items)}</div>
-   <div class="row">${o.test ? `<span class="pill warn">🧪 Δοκιμή</span>` : ""}${o.when.urgent && (o.st === "new" || o.st === "prep") ? `<span class="pill urg">🚨 Επείγουσα</span>` : ""}${o.when.extra ? `<span class="pill new">⚡ Έκτακτη</span>` : ""}${o.merged && o.merged.length ? `<span class="pill done">🔗 ${o.merged.length + 1} σε μία</span>` : ""}${["prep", "done", "cancel"].includes(o.st) && !o.test ? (ntfOf(o) ? `<span class="pill paid">💬 ✓</span>` : `<span class="pill warn">💬 χωρίς ενημέρωση</span>`) : ""}${o.sib ? `<span class="pill warn">🔗 μαζί με άλλη</span>` : ""}${o.inv && o.inv.t === "i" ? `<span class="pill done">📄 Τιμολόγιο</span>` : ""}<span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}${diffOf(o) > 0 ? `<span class="pill new">χρωστά ${K.money(diffOf(o))}</span>` : diffOf(o) < 0 ? `<span class="pill warn">επιστροφή ${K.money(-diffOf(o))}</span>` : ""}${o.warn && o.warn.length ? `<span class="pill warn">⚠️ ${o.warn.length}</span>` : ""}${o.cust.note ? `<span class="pill">📝</span>` : ""}<span class="grow"></span>${next ? `<button type="button" class="btn sm ${next[0] === "paid" ? "green" : "amber"}" data-next="${o.id}" data-to="${next[0]}">${next[1]}</button>` : ""}</div></div>`;
+   <div class="row">${o.test ? `<span class="pill warn">🧪 Δοκιμή</span>` : ""}${o.when.urgent && (o.st === "new" || o.st === "prep") ? `<span class="pill urg">🚨 Επείγουσα</span>` : ""}${o.hold && o.st === "new" ? `<span class="pill warn">⏸ Σε αναμονή</span>` : ""}${o.when.extra ? `<span class="pill new">⚡ Έκτακτη</span>` : ""}${o.merged && o.merged.length ? `<span class="pill done">🔗 ${o.merged.length + 1} σε μία</span>` : ""}${["prep", "done", "cancel"].includes(o.st) && !o.test ? (ntfOf(o) ? `<span class="pill paid">💬 ✓</span>` : `<span class="pill warn">💬 χωρίς ενημέρωση</span>`) : ""}${o.sib ? `<span class="pill warn">🔗 μαζί με άλλη</span>` : ""}${o.inv && o.inv.t === "i" ? `<span class="pill done">📄 Τιμολόγιο</span>` : ""}<span class="pill ${o.st}">${ST[o.st]}</span>${o.paid ? `<span class="pill paid">Πληρωμένη</span>` : ""}${diffOf(o) > 0 ? `<span class="pill new">χρωστά ${K.money(diffOf(o))}</span>` : diffOf(o) < 0 ? `<span class="pill warn">επιστροφή ${K.money(-diffOf(o))}</span>` : ""}${o.warn && o.warn.length ? `<span class="pill warn">⚠️ ${o.warn.length}</span>` : ""}${o.cust.note ? `<span class="pill">📝</span>` : ""}<span class="grow"></span>${next ? `<button type="button" class="btn sm ${next[0] === "paid" ? "green" : "amber"}" data-next="${o.id}" data-to="${next[0]}">${next[1]}</button>` : ""}</div></div>`;
 }
 /* η κατάσταση πάει μόνο μπροστά: νέα → ετοιμάζεται → παραδόθηκε· κάθε βήμα με επιβεβαίωση */
 const RANK = { dup: -1, new: 0, prep: 1, done: 2, cancel: 3 };
@@ -2869,6 +2920,11 @@ async function notifSheet() {
     <div class="step"><div class="n">2</div><div class="t"><b>Σύνδεση με τις Παραγγελίες</b><p class="note" style="margin:2px 0 6px">Ανοίγει η ntfy με όλα συμπληρωμένα. Πάτα «Subscribe» (Εγγραφή) και γύρνα εδώ.</p><a class="btn sm amber" href="${esc(sub)}">Άνοιγμα στην ntfy</a>
      <details style="margin-top:8px"><summary class="note">Αν δεν άνοιξε η ntfy</summary><p class="note">Στην ntfy πάτα «+» και στο «Topic» επικόλλησε αυτό:</p><div class="lnkbox">${esc(S.nt.topic)}</div><button type="button" class="btn sm soft" data-act="ntCopy" style="margin-top:6px">Αντιγραφή</button></details></div></div>
     <div class="step"><div class="n">3</div><div class="t"><b>Δοκιμή</b><p class="note" style="margin:2px 0 6px">Στέλνει μια δοκιμαστική ειδοποίηση. Πάτησέ την όταν έρθει.</p><button type="button" class="btn sm amber" data-act="ntTest">Στείλε δοκιμή</button></div></div></div>
+   <div class="card"><h3>🔔 Ήχος για νέα παραγγελία</h3>
+    <div class="ringopts">${[["off", "🔕", "Χωρίς ήχο", "μόνο η ειδοποίηση"], ["once", "🔔", "Ένα καμπανάκι", "χτυπά μία φορά"], ["loop", "🔁", "Συνεχόμενα", "μέχρι Αποδοχή, Αναμονή ή Απόρριψη"]].map(([k, ic, t, d]) => `<button type="button" class="${ringMode() === k ? "on" : ""}" data-ringmode="${k}"><span>${ic}</span><b>${t}</b><small>${d}</small></button>`).join("")}</div>
+    <button type="button" class="btn sm soft" data-act="ringTest" style="margin-top:8px">▶ Άκου τον ήχο</button>
+    <p class="note" style="margin:8px 0 0">Όσο είναι ανοιχτές οι Παραγγελίες, βγαίνει πάνω πάνω μια μπάρα με <b>✓ Αποδοχή · ⏸ Αναμονή · ✕ Απόρριψη</b>· τα ίδια κουμπιά υπάρχουν και πάνω στην ειδοποίηση του κινητού.</p>
+    ${ringMode() === "loop" ? `<div class="warnbox" style="margin-top:8px">📲 <b>Και με κλειστή την εφαρμογή:</b> στην ntfy άνοιξε τη ροή «Παραγγελίες» → ⚙️ Ρυθμίσεις → άναψε το <b>«Keep alerting on highest priority»</b> (συνεχές χτύπημα για τις πιο σημαντικές). Οι παραγγελίες σου έρχονται πλέον με την υψηλότερη προτεραιότητα.</div>` : ""}</div>
    <div class="card"><h3>Και όταν η εφαρμογή είναι ανοιχτή</h3><button type="button" class="btn sm soft" data-act="ntPerm">Να εμφανίζονται ειδοποιήσεις και από εδώ</button>
     <p class="note">Η εφαρμογή ελέγχει για νέες παραγγελίες κάθε 30 δευτερόλεπτα όσο είναι ανοιχτή.</p></div>
    <p class="note">Οι παραγγελίες είναι κρυπτογραφημένες: τις διαβάζουν μόνο οι Παραγγελίες σε αυτό το κινητό, όχι η ntfy. Η ntfy είναι δωρεάν, χωρίς λογαριασμό και χωρίς κάρτα. Η υπηρεσία κρατά τα μηνύματα έως 12 ώρες· η ειδοποίηση όμως μένει στο κινητό σου και ανοίγει την παραγγελία όποτε την πατήσεις.</p>
@@ -3080,6 +3136,7 @@ const ACT = {
   ntCopy: async () => { try { await navigator.clipboard.writeText(S.nt.topic); toast("✓ Αντιγράφηκε"); } catch {} },
   ntTest: async () => { try { await K.ntfySend(S.nt.topic, "🔔 Δοκιμή — Παραγγελίες", "Πάτα εδώ για να ολοκληρωθεί η δοκιμή.", BASE + "#test=1"); toast("Στάλθηκε. Περίμενε την ειδοποίηση στο κινητό."); } catch { toast("Δεν στάλθηκε. Έλεγξε τη σύνδεση στο διαδίκτυο."); } },
   ntPerm: async () => { try { const p = await Notification.requestPermission(); toast(p === "granted" ? "✓ Ενεργοποιήθηκαν" : "Δεν δόθηκε άδεια."); } catch { toast("Ο περιηγητής δεν το υποστηρίζει."); } },
+  ringTest: () => { ringAc(); chime(); },
   ntDone: () => { S.nt.on = $("#ntOn").checked; save(); closeSheet(); render(); },
   shopSave, delivSave: () => delivSave(), licGo,
   logoDel: () => { $("#shB").dataset.logoDel = "1"; delete $("#shB").dataset.logo; $("#shLogoPrev").innerHTML = `<span class="note">Χωρίς λογότυπο</span>`; },
@@ -3242,6 +3299,9 @@ document.addEventListener("click", async e => {
       if (done) { MOVED[o.id] = { at: Date.now(), f: fsig, from, undo: nx.dataset.to === "prep" || nx.dataset.to === "done" }; setTimeout(() => { if (tab === "orders" && !isSheetOpen()) render(); }, 3 * 6e4 + 500); }
       render(); if (done) askNotify(o, nx.dataset.to); } return; }
   const us = t.closest("[data-undost]"); if (us) { e.stopPropagation(); const o = S.orders.find(x => x.id === us.dataset.undost), m = o && MOVED[o.id]; if (o && m && m.undo) { o.log.push([Date.now(), "Αναίρεση: ξανά «" + ST[m.from] + "»"]); o.st = m.from; delete MOVED[o.id]; save(); render(); toast("↩ Η #" + o.no + " ξανά «" + ST[m.from] + "»"); } return; }
+  const rgb = t.closest("[data-ring]"); if (rgb) { ringAct(rgb.dataset.ring, rgb.dataset.rid); return; }
+  const ro = t.closest("[data-ringopen]"); if (ro) { ringAct("open", ro.dataset.ringopen); return; }
+  const rm = t.closest("[data-ringmode]"); if (rm) { S.nt.ring = rm.dataset.ringmode; save({ catalog: true }); if (rm.dataset.ringmode !== "off") { ringAc(); chime(); } if (rm.dataset.ringmode !== "loop") { clearInterval(RING.t); RING.t = null; ringBar(); } notifSheet(); return; }
   const hro = t.closest("[data-hero]"); if (hro) { heroGo(hro.dataset.hero); return; }
   const os = t.closest("[data-ost]"); if (os) { ordFilter.st = os.dataset.ost; render(); return; }
   const hb = t.closest("[data-hold]"); if (hb) { const o = curOrd(); if (o) holdSheet(o, +hb.dataset.hold); return; }
