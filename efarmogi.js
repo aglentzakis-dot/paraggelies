@@ -2938,13 +2938,32 @@ async function notifSheet() {
 
 /* ---------- αντίγραφα ασφαλείας: Google Drive και φάκελος κινητού ---------- */
 function backupPayload() { let tm = null; try { tm = localStorage.getItem(EM_KEY); } catch {} return JSON.stringify({ app: "paraggelies", version: VERSION, at: new Date().toISOString(), state: Object.assign({}, S, { gdrive: undefined }), tameio: tm }); }
+/* πόσες εγγραφές έχει ένα αντίγραφο (για να μη γράφεται ποτέ άδειο πάνω σε γεμάτο) */
+function backupCount(txt) { try { const st = JSON.parse(txt).state || {}; return (st.orders || []).length + Object.keys(st.products || {}).length + Object.keys(st.customers || {}).length; } catch { return null; } }
+/* το αντίγραφο κλειδωμένο με τον κωδικό αντιγράφων (αν έχει μπει): περιέχει το ιδιωτικό κλειδί που ανοίγει τις παραγγελίες */
+async function backupLocked() { const t = backupPayload(); try { return window.GlenDrive && GlenDrive.lock ? await GlenDrive.lock(t) : t; } catch { return t; } }
+const hasBkPw = () => { try { return !!(window.GlenDrive && GlenDrive.hasPassword && GlenDrive.hasPassword()); } catch { return false; } };
+/* ερώτηση κωδικού για κλειδωμένο αντίγραφο από άλλο κινητό */
+let pwRes = null;
+function pwAsk(n) { return new Promise(res => { pwRes = res;
+  sheet("🔒 Κλειδωμένο αντίγραφο", `${n ? `<div class="errbox">Λάθος κωδικός. Δοκίμασε ξανά (${3 - n} ${3 - n === 1 ? "προσπάθεια" : "προσπάθειες"}).</div>` : ""}<p class="note" style="margin-top:0">Το αντίγραφο έχει κλειδωθεί με κωδικό. Γράψε τον κωδικό αντιγράφων.</p>
+   <label class="f" for="pwA">Κωδικός αντιγράφων</label><input type="password" id="pwA" autocomplete="current-password">`,
+   `<button type="button" class="btn soft" data-act="pwNo">Άκυρο</button><button type="button" class="btn amber grow" data-act="pwYes">Άνοιγμα</button>`,
+   el => { const i = el.querySelector("#pwA"); if (i) { setTimeout(() => i.focus(), 50); i.addEventListener("keydown", e => { if (e.key === "Enter") ACT.pwYes(); }); } }); }); }
+function pwSheet(mode) {
+  const old = mode !== "set" ? `<label class="f" for="pwO">Τωρινός κωδικός</label><input type="password" id="pwO" autocomplete="current-password">` : "";
+  const nw = mode !== "clear" ? `<label class="f" for="pw1">${mode === "change" ? "Νέος κωδικός" : "Κωδικός"} (τουλάχιστον 6 χαρακτήρες)</label><input type="password" id="pw1" autocomplete="new-password"><label class="f" for="pw2">Ξανά ο ίδιος</label><input type="password" id="pw2" autocomplete="new-password">` : "";
+  sheet(mode === "set" ? "🔒 Κωδικός αντιγράφων" : mode === "change" ? "🔒 Αλλαγή κωδικού" : "🔓 Αφαίρεση κωδικού", `<div id="pwErr"></div>${old}${nw}
+   <p class="note">${mode === "clear" ? "Χωρίς κωδικό τα αντίγραφα γράφονται σε απλό κείμενο, μαζί με το κλειδί που ανοίγει τις παραγγελίες σου." : "Γράψ' τον κάπου ασφαλές. Αν χαθεί το κινητό, χωρίς αυτόν τον κωδικό τα αντίγραφα δεν ανοίγουν. Σε αυτό το κινητό ανοίγουν χωρίς να τον ξαναγράψεις."}</p>`,
+   `<button type="button" class="btn soft" data-act="backup">Άκυρο</button><button type="button" class="btn ${mode === "clear" ? "red" : "amber"} grow" data-act="pwSave" data-pwm="${mode}">${mode === "clear" ? "Αφαίρεση" : "Αποθήκευση"}</button>`);
+}
 /* όταν αλλάζει κάτι μέσα στο Ταμείο, κρατιέται και στα αντίγραφα των Παραγγελιών */
 let tmChT = null;
 A.tameioChanged = () => { clearTimeout(tmChT); tmChT = setTimeout(() => { if (S) save(); }, 1200); };
 function gdInit() {
   if (DEMO) return;
   try {
-    window.GlenDrive && GlenDrive.init({ app: "paraggelies", folder: "Παραγγελίες", prefix: "paraggelies-antigrafo", payload: backupPayload, t: s => s, toast,
+    window.GlenDrive && GlenDrive.init({ app: "paraggelies", folder: "Παραγγελίες", prefix: "paraggelies-antigrafo", payload: backupPayload, t: s => s, toast, kodikos: true, count: backupCount,
       store: { get: () => S.gdrive || {}, set: t => { const was = (S.gdrive || {}).last || 0; S.gdrive = t; if ((t.last || 0) > was) S.meta.lastBackup = new Date().toISOString(); clearTimeout(saveT); saveT = setTimeout(write, 250); } },
       onState: () => { if (isSheetOpen() && $("#bkBox")) backupSheet(); } });
   } catch {}
@@ -2956,34 +2975,38 @@ const PH = {
   async get() { try { const db = await this.db(); return await new Promise(res => { const q = db.transaction("handles").objectStore("handles").get(this.key); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); } catch { return null; } },
   async set(h) { const db = await this.db(); return new Promise(res => { const t = db.transaction("handles", "readwrite"); h ? t.objectStore("handles").put(h, this.key) : t.objectStore("handles").delete(this.key); t.oncomplete = () => res(); }); },
   async dir(h, ask) { if (!h) return null; const o = { mode: "readwrite" }; let p = await h.queryPermission(o); if (p !== "granted" && ask) p = await h.requestPermission(o); if (p !== "granted") return null; const g = await h.getDirectoryHandle("GlenApps", { create: true }); return g.getDirectoryHandle("Παραγγελίες", { create: true }); },
-  async write(ask) { const d = await this.dir(await this.get(), ask); if (!d) return false; const f = await d.getFileHandle("paraggelies-antigrafo-" + today() + ".json", { create: true }); const w = await f.createWritable(); await w.write(backupPayload()); await w.close(); S.phone = { last: Date.now() }; S.meta.lastBackup = new Date().toISOString(); clearTimeout(saveT); saveT = setTimeout(write, 250); return true; },
+  async write(ask) { if (backupCount(backupPayload()) === 0) return false; const d = await this.dir(await this.get(), ask); if (!d) return false; const body = await backupLocked(); const f = await d.getFileHandle("paraggelies-antigrafo-" + today() + ".json", { create: true }); const w = await f.createWritable(); await w.write(body); await w.close(); S.phone = { last: Date.now() }; S.meta.lastBackup = new Date().toISOString(); clearTimeout(saveT); saveT = setTimeout(write, 250); return true; },
   async list() { const d = await this.dir(await this.get(), true); if (!d) return []; const out = []; for await (const [n, h] of d.entries()) if (h.kind === "file" && /^paraggelies-antigrafo-.*\.json$/.test(n)) out.push({ n, h }); return out.sort((a, b) => b.n.localeCompare(a.n)).slice(0, 10); }
 };
 let phT = null;
 /* άμεσο αντίγραφο ασφαλείας (πριν από μεγάλες διαγραφές) */
 A.backupInfo = () => { let on = false; try { on = !!(window.GlenDrive && GlenDrive.state().on); } catch {} return { drive: on, text: gdState() }; };
-A.backupFile = () => download("paraggelies-antigrafo-" + today() + ".json", backupPayload(), "application/json");
+A.backupFile = async () => download("paraggelies-antigrafo-" + today() + ".json", await backupLocked(), "application/json");
 A.backupNow = () => { if (DEMO) return; clearTimeout(saveT); write(); try { window.GlenDrive && GlenDrive.state().on && GlenDrive.changed(); } catch {} PH.get().then(h => h && PH.write(false)).catch(() => {}); };
 function phoneBackupSoon() { if (DEMO) return; clearTimeout(phT); phT = setTimeout(() => { PH.get().then(h => h && PH.write(false)).catch(() => {}); }, 20000); }
 async function backupSheet() {
   let g = { on: false }; try { if (window.GlenDrive) g = GlenDrive.state() || g; } catch {}
   const ph = await PH.get();
   const hasDir = "showDirectoryPicker" in window;
+  try { window.GlenDrive && GlenDrive.ready && await GlenDrive.ready(); } catch {}
+  const pw = hasBkPw();
   sheet("💾 Αντίγραφα ασφαλείας", `<div id="bkBox">
+   <div class="card"><h3>🔒 Κωδικός αντιγράφων</h3>${pw ? `<div class="okbox">✓ Τα αντίγραφα (Drive, φάκελος, αρχείο) κλειδώνουν με τον κωδικό σου.</div><div class="row"><button type="button" class="btn sm soft grow" data-act="pwChange">Αλλαγή κωδικού</button><button type="button" class="btn sm soft" data-act="pwClear">Αφαίρεση</button></div>` : `<div class="warnbox">Τα αντίγραφα περιέχουν το κλειδί που ανοίγει τις παραγγελίες σου, και τα στοιχεία των πελατών. Βάλε κωδικό, ώστε να μην τα διαβάζει όποιος βρει το αρχείο.</div><button type="button" class="btn amber wide" data-act="pwSet">🔒 Βάλε κωδικό αντιγράφων</button>`}</div>
    <div class="card"><h3>Google Drive</h3><p class="note" style="margin-top:0">Με το Google Drive τα δεδομένα σου είναι ασφαλή ακόμα κι αν χαλάσει ή χαθεί το κινητό. Ανεβαίνει αντίγραφο αυτόματα μετά από κάθε αλλαγή, στον φάκελο «GlenApps › Παραγγελίες» του δικού σου Drive.</p>
     ${g.on ? `<div class="okbox">✓ Συνδεδεμένο${g.email ? " (" + esc(g.email) + ")" : ""}${g.last ? " · τελευταίο " + fmtTime(g.last) : ""}</div>${g.needTap ? `<div class="warnbox">Πάτα «Ανέβασμα τώρα» για να ξαναδώσεις άδεια.</div>` : ""}${g.err ? `<div class="errbox">${esc(g.err)}</div>` : ""}<div class="row"><button type="button" class="btn sm amber grow" data-act="gdNow">Ανέβασμα τώρα</button><button type="button" class="btn sm soft grow" data-act="gdRestore">Επαναφορά</button><button type="button" class="btn sm soft" data-act="gdOff">Αποσύνδεση</button></div>` : `<button type="button" class="btn amber wide" data-act="gdOn">Σύνδεση με Google Drive</button>`}</div>
    <div class="card"><h3>Φάκελος στο κινητό</h3><p class="note" style="margin-top:0">Δεύτερη επιλογή, για όσους δεν έχουν Google Drive. Γράφει αυτόματα στο «GlenApps › Παραγγελίες» μέσα στον φάκελο που θα διαλέξεις (προτείνεται οι «Λήψεις»).</p>
     ${hasDir ? (ph ? `<div class="okbox">✓ Ενεργός${S.phone && S.phone.last ? " · τελευταίο " + fmtTime(S.phone.last) : ""}</div><div class="row"><button type="button" class="btn sm amber grow" data-act="phNow">Αντίγραφο τώρα</button><button type="button" class="btn sm soft grow" data-act="phRestore">Επαναφορά</button><button type="button" class="btn sm soft" data-act="phOff">✕</button></div>` : `<button type="button" class="btn amber wide" data-act="phOn">Επιλογή φακέλου</button>`) : `<p class="note">Αυτός ο περιηγητής δεν υποστηρίζει φάκελο· χρησιμοποίησε το αρχείο από κάτω.</p>`}</div>
    <div class="card"><h3>Αρχείο</h3><div class="row"><button type="button" class="btn sm soft grow" data-act="fileOut">⬇️ Λήψη αρχείου</button><label class="btn sm soft grow">⬆️ Επαναφορά από αρχείο<input type="file" accept=".json,application/json" id="fileIn" hidden></label></div></div>
-   <p class="note">Το αντίγραφο περιέχει όλα τα δεδομένα: στοιχεία και εμφάνιση επιχείρησης, κατάλογο με φωτογραφίες, τιμές και ιστορικό τιμών, παραγγελίες, πελάτες με ημέρες παράδοσης, βαθμολογίες και οφειλές, ταμείο (έσοδα και έξοδα), αργίες, ρυθμίσεις, άδεια Pro και τα κλειδιά κρυπτογράφησης. Γράφεται αυτόματα μετά από κάθε αλλαγή. Κράτα το ιδιωτικό.</p></div>`, "",
+   <p class="note">Το αντίγραφο περιέχει όλα τα δεδομένα: στοιχεία και εμφάνιση επιχείρησης, κατάλογο με φωτογραφίες, τιμές και ιστορικό τιμών, παραγγελίες, πελάτες με ημέρες παράδοσης, βαθμολογίες και οφειλές, ταμείο (έσοδα και έξοδα), αργίες, ρυθμίσεις, άδεια Pro και τα κλειδιά κρυπτογράφησης. Γράφεται αυτόματα μετά από κάθε αλλαγή. ${pw ? "Είναι κλειδωμένο με τον κωδικό σου." : "Χωρίς κωδικό είναι απλό κείμενο: κράτα το ιδιωτικό."}</p></div>`, "",
    el => { const fi = el.querySelector("#fileIn"); fi && fi.addEventListener("change", async e => { const f = e.target.files[0]; if (f) restoreText(await f.text()); }); });
 }
-function restoreText(txt) {
+async function restoreText(txt) {
+  try { if (window.GlenDrive && GlenDrive.crypt && GlenDrive.crypt.isLocked(txt)) { const o = await GlenDrive.open(txt, n => pwAsk(n)); if (o == null) { toast("Το αντίγραφο δεν άνοιξε: χρειάζεται ο σωστός κωδικός αντιγράφων.", 4500); return; } txt = o; } } catch { toast("Το αντίγραφο δεν άνοιξε.", 4000); return; }
   let d; try { d = JSON.parse(txt); } catch { toast("Το αρχείο δεν είναι αντίγραφο των Παραγγελιών."); return; }
   const st = d && d.app === "paraggelies" && d.state;
   if (!st || !Array.isArray(st.orders) || !st.products) { toast("Το αρχείο δεν είναι αντίγραφο των Παραγγελιών."); return; }
   if (!confirm("Επαναφορά από αντίγραφο " + (d.at || "").slice(0, 16).replace("T", " ") + ";\nΘα αντικατασταθούν τα τωρινά δεδομένα (" + S.orders.length + " παραγγελίες). Πριν την επαναφορά κατεβαίνει αντίγραφο των τωρινών.")) return;
-  download("paraggelies-prin-tin-epanafora-" + today() + ".json", backupPayload(), "application/json");
+  download("paraggelies-prin-tin-epanafora-" + today() + ".json", await backupLocked(), "application/json");
   const keepGd = S.gdrive;
   S = migrate(st); S.gdrive = keepGd;
   if (typeof d.tameio === "string") { try { localStorage.setItem(EM_KEY, d.tameio); localStorage.removeItem(EMQ); } catch {} if (tmFrameEl) { tmFrameEl.remove(); tmFrameEl = null; } }
@@ -3208,8 +3231,19 @@ const ACT = {
   custDel: () => { const k = $("#shB").dataset.cust, c = S.customers[k]; if (!c || !confirm("Οριστική διαγραφή του πελάτη «" + c.name + "» και όλων των παραγγελιών του;")) return; S.orders = S.orders.filter(o => custKey(o.cust.phone) !== k); delete S.customers[k]; save(); closeSheet(); render(); toast("Διαγράφηκε."); },
   xlsDay: () => { if (!proGate("excel")) return; download("paraggelies-" + totDay + ".csv", csv(xlsDay(totDay)), "text/csv"); },
   xlsGo: () => { download("paraggelies-" + $("#xF").value + "-eos-" + $("#xT").value + ".csv", csv(xlsOrders($("#xF").value, $("#xT").value)), "text/csv"); closeSheet(); },
-  gdOn: async () => { try { await GlenDrive.connect(); toast("✓ Συνδέθηκε με Google Drive"); } catch { toast("Δεν έγινε σύνδεση."); } backupSheet(); },
-  gdNow: async () => { try { await GlenDrive.uploadNow(); toast("✓ Ανέβηκε στο Google Drive."); } catch { toast("Δεν ανέβηκε. Έλεγξε τη σύνδεση στο διαδίκτυο."); } backupSheet(); },
+  gdOn: async () => { let r; try { r = await GlenDrive.connect(); } catch { toast("Δεν έγινε σύνδεση."); backupSheet(); return; }
+    if (r === "restore") { toast("Συνδέθηκε. Η εφαρμογή είναι άδεια και στο Drive υπάρχουν αντίγραφα: διάλεξε ποιο θα επαναφέρεις.", 5000); ACT.gdRestore(); return; }
+    toast(r === "empty" ? "Συνδέθηκε. Δεν ανέβηκε τίποτα ακόμα: η εφαρμογή είναι άδεια." : "✓ Συνδέθηκε με Google Drive", 4000); backupSheet(); },
+  gdNow: async () => { try { const r = await GlenDrive.uploadNow(); toast(r === "empty" ? "Δεν ανέβηκε: η εφαρμογή είναι άδεια." : "✓ Ανέβηκε στο Google Drive."); } catch { toast("Δεν ανέβηκε. Έλεγξε τη σύνδεση στο διαδίκτυο."); } backupSheet(); },
+  pwSet: () => pwSheet("set"), pwChange: () => pwSheet("change"), pwClear: () => pwSheet("clear"),
+  pwYes: () => { const v = ($("#pwA") || {}).value || "", r = pwRes; pwRes = null; closeSheet(); r && r(v); },
+  pwNo: () => { const r = pwRes; pwRes = null; closeSheet(); r && r(null); },
+  pwSave: async () => { const m = $("[data-pwm]").dataset.pwm, o = ($("#pwO") || {}).value || "", a = ($("#pw1") || {}).value || "", b = ($("#pw2") || {}).value || "";
+    const err = t => { $("#pwErr").innerHTML = `<div class="errbox">${esc(t)}</div>`; };
+    if (m !== "clear") { if (a.length < 6) return err("Ο κωδικός θέλει τουλάχιστον 6 χαρακτήρες."); if (a !== b) return err("Οι δύο κωδικοί δεν είναι ίδιοι."); }
+    let ok = false; try { ok = m === "set" ? await GlenDrive.setPassword(a) : m === "change" ? await GlenDrive.changePassword(o, a) : await GlenDrive.clearPassword(o); } catch { return err("Αυτός ο περιηγητής δεν υποστηρίζει κρυπτογράφηση."); }
+    if (!ok) return err(m === "set" ? "Ο κωδικός δεν φυλάχτηκε σε αυτό το κινητό." : "Λάθος τωρινός κωδικός.");
+    toast(m === "clear" ? "Ο κωδικός αφαιρέθηκε." : "✓ Ο κωδικός μπήκε. Τα επόμενα αντίγραφα κλειδώνουν.", 4000); A.backupNow(); backupSheet(); },
   gdOff: () => { if (confirm("Αποσύνδεση από το Google Drive; Τα αρχεία που υπάρχουν εκεί μένουν.")) { GlenDrive.disconnect(); backupSheet(); } },
   gdRestore: async () => { try { const L = (await GlenDrive.list()).sort((a, b) => b.name.localeCompare(a.name)).slice(0, 10); sheet("Επαναφορά από Google Drive", `<div class="card list">${L.map((f, i) => `<div class="it" data-gdf="${esc(f.id)}"><div class="ic">📄</div><div class="t"><b>${esc(f.name)}</b>${i === 0 ? `<span>νεότερο</span>` : ""}</div></div>`).join("") || `<p class="note">Δεν βρέθηκαν αντίγραφα.</p>`}</div>`); } catch { toast("Δεν φορτώθηκε η λίστα."); } },
   phOn: async () => { try { const h = await window.showDirectoryPicker({ id: "backups", mode: "readwrite", startIn: "downloads" }); await PH.set(h); await PH.write(true); toast("✓ Γράφτηκε το πρώτο αντίγραφο."); } catch (e) { if (e && e.name !== "AbortError") { toast("Δεν έγινε· κατεβαίνει αρχείο."); ACT.fileOut(); } } backupSheet(); },
@@ -3248,7 +3282,7 @@ const ACT = {
   presetsGo: () => { tab = "menu"; render(); setTimeout(() => { const b = document.createElement("button"); b.dataset.ea = "presets"; b.hidden = true; document.body.appendChild(b); b.click(); b.remove(); }, 50); },
   remHideAll: () => { S.ui.remHide = { d: today(), ids: remindersList().map(r => r.id).concat((S.ui.remHide && S.ui.remHide.d === today() ? S.ui.remHide.ids : [])) }; save(); render(); toast("Θα ξαναεμφανιστούν αύριο."); },
   phRestore: async () => { const L = await PH.list(); sheet("Επαναφορά από φάκελο", `<div class="card list">${L.map((f, i) => `<div class="it" data-phf="${esc(f.n)}"><div class="ic">📄</div><div class="t"><b>${esc(f.n)}</b>${i === 0 ? `<span>νεότερο</span>` : ""}</div></div>`).join("") || `<p class="note">Δεν βρέθηκαν αντίγραφα.</p>`}</div>`); A._phl = L; },
-  fileOut: () => { download("paraggelies-antigrafo-" + today() + ".json", backupPayload(), "application/json"); S.meta.lastBackup = new Date().toISOString(); save(); }
+  fileOut: async () => { download("paraggelies-antigrafo-" + today() + ".json", await backupLocked(), "application/json"); S.meta.lastBackup = new Date().toISOString(); save(); }
 };
 A.ACT = ACT;
 const curOrd = () => S.orders.find(x => x.id === $("#shB").dataset.ord);
