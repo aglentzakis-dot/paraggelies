@@ -72,3 +72,4 @@ Object.assign(window.GL_EN,{"🔔 Ήχος για νέα παραγγελία":"
 /* 1.81 */
 Object.assign(window.GL_EN,{"🔒 Κωδικός αντιγράφων":"🔒 Backup password","🔒 Βάλε κωδικό αντιγράφων":"🔒 Set backup password","Αλλαγή κωδικού":"Change password","Αφαίρεση":"Remove","🔒 Κλειδωμένο αντίγραφο":"🔒 Locked backup","Άνοιγμα":"Open","Τωρινός κωδικός":"Current password","Νέος κωδικός (τουλάχιστον 6 χαρακτήρες)":"New password (at least 6 characters)","Κωδικός (τουλάχιστον 6 χαρακτήρες)":"Password (at least 6 characters)","Ξανά ο ίδιος":"Repeat"});
 /* 1.82 */
+/* 1.83 */
