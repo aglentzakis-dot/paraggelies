@@ -713,7 +713,8 @@
       d: { pr: st.nt && st.nt.ring === "loop" ? 5 : undefined, h: d.how || "both", days: d.days || [1, 2, 3, 4, 5, 6], sl: d.slots || [], min: +d.min || 0, max: +d.max || 14, cut: d.cut || "", cl: K.closedDates(d, 70), ad: d.askAddr !== false ? 1 : 0, mo: +d.minOrder || 0, nt: d.note || "", z: (d.zones || []).filter(z => (z.a || []).length && (z.d || []).length).map(z => ({ a: z.a, d: z.d })), zo: d.zOther === "pick" ? 1 : 0 },
       m, p, og: usedG.size ? Object.fromEntries([...usedG].map(id => { const g = st.mods[id]; return [id, { n: g.n, mn: +g.mn || 0, mx: +g.mx || 0, o: (g.o || []).map(x => [x.n, +x.p || 0, x.def ? 1 : 0, x.off ? 1 : 0]) }]; })) : undefined,
       k: st.nt.pub, t: st.nt.topic, u: opts.appUrl || "", g: st.nt.spub || undefined,
-      c: opts.cust || undefined
+      /* ο πελάτης φαίνεται μόνο με το τυχαίο tk· ποτέ με το κινητό του (k) */
+      c: opts.cust ? Object.fromEntries(Object.entries(opts.cust).filter(([x]) => x !== "k" && x !== "p" && x !== "n" && x !== "a")) : undefined
     };
   };
   /* από τον συμπαγή κατάλογο σε κοινή μορφή για την απόδοση */

@@ -2797,7 +2797,9 @@ async function thumbOf(src, n, q) {
 async function makeLink(cust, lo) {
   lo = lo || {};
   await ensureKeys(); await ensureLiveKeys();
+  /* στον σύνδεσμο μπαίνει μόνο το τυχαίο tk· το κινητό (k) μένει εδώ (το αφαιρεί το buildCatalog), και η παραγγελία βρίσκει τον πελάτη από το tk */
   if (cust && cust.k && S.customers[cust.k]) { const c = S.customers[cust.k]; if (!c.tok) { c.tok = K.uid(12).replace(/[.]/g, "x"); save(); } cust = Object.assign({}, cust, { tk: c.tok }); }
+  else if (cust) cust = null;
   const st = S;
   let prodsForLink = st.products;
   if (S.link.photos && isPro() && !lo.noPhotos) {
