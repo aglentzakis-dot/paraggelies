@@ -807,9 +807,9 @@ function proof(o) {
   <tr><td colspan="3" class="big">Σύνολο</td><td class="r big">${K.money(o.total)}</td></tr></table>
   <div class="m">${s.vatIncl !== false ? "Οι τιμές περιλαμβάνουν ΦΠΑ." : "Οι τιμές δεν περιλαμβάνουν ΦΠΑ."} ${o.paid ? "Πληρωμένη." : "Δεν έχει πληρωθεί."}</div>
   <div class="nf">Η βεβαίωση αυτή δεν αποτελεί φορολογικό παραστατικό. Το νόμιμο παραστατικό εκδίδεται από τον πωλητή.</div>
-  <div class="m">Παραγγελίες με GlenApps</div><p><button onclick="print()">Εκτύπωση</button></p></body></html>`;
+  <div class="m">Παραγγελίες με GlenApps</div><p><button type="button" id="prt">Εκτύπωση</button></p></body></html>`;
   const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); }
+  if (w) { w.document.write(html); w.document.close(); const pb = w.document.getElementById("prt"); if (pb) pb.addEventListener("click", () => w.print()); }
   else { const b = new Blob([html], { type: "text/html" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "vevaiosi-" + code(o) + ".html"; a.click(); }
 }
 
@@ -2305,12 +2305,18 @@ function rtResHTML() {
 }
 /* --- χάρτης (Leaflet, φορτώνει μόνο όταν χρειαστεί) --- */
 let lfP = null, rtMapObj = null;
+A.loadLeaflet = () => loadLeaflet();
 function loadLeaflet() {
   if (window.L && window.L.map) return Promise.resolve(window.L);
   if (lfP) return lfP;
   lfP = new Promise((res, rej) => {
-    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
-    const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; s.onload = () => res(window.L); s.onerror = () => { lfP = null; rej(); }; document.head.appendChild(s);
+    /* integrity: ο περιηγητής τρέχει τη Leaflet μόνο αν είναι ακριβώς το επίσημο αρχείο 1.9.4 (αλλαγμένο αρχείο στο cdnjs δεν φορτώνει) */
+    const LF = ["https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/", "https://unpkg.com/leaflet@1.9.4/dist/"];
+    const LF_JS = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=", LF_CSS = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
+    const go = i => { if (i >= LF.length) { lfP = null; rej(); return; }
+      const css = document.createElement("link"); css.rel = "stylesheet"; css.href = LF[i] + "leaflet.css"; css.integrity = LF_CSS; css.crossOrigin = "anonymous"; document.head.appendChild(css);
+      const s = document.createElement("script"); s.src = LF[i] + "leaflet.js"; s.integrity = LF_JS; s.crossOrigin = "anonymous"; s.onload = () => res(window.L); s.onerror = () => { s.remove(); css.remove(); go(i + 1); }; document.head.appendChild(s); };
+    go(0);
   });
   return lfP;
 }
