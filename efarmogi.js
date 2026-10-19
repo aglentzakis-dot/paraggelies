@@ -2809,7 +2809,9 @@ async function makeLink(cust, lo) {
   const shopForLink = st.shop.logo && S.link.logo && !lo.noLogo ? Object.assign({}, st.shop, { logo: await thumbOf(st.shop.logo, 48, 0.5) }) : st.shop;
   const C = K.buildCatalog(Object.assign({}, st, { products: prodsForLink, shop: shopForLink }), { photos: S.link.photos && isPro() && !lo.noPhotos, logo: S.link.logo && !lo.noLogo, icons: !lo.noIcons, appUrl: BASE, cust: cust || undefined });
   const pk = await K.pack(C);
-  return BASE + "p.html#n=" + pk.length + "&k=" + pk;
+  /* υπογραφή του πωλητή: ο πελάτης ελέγχει ότι κανείς δεν άλλαξε τον κατάλογο στη διαδρομή (όπως στους σύντομους) */
+  let g = ""; if (S.nt.spriv && C.g) { try { g = await K.liveSign(S.nt.spriv, pk); } catch {} }
+  return BASE + "p.html#n=" + pk.length + (g ? "&g=" + g : "") + "&k=" + pk;
 }
 A.makeLink = makeLink;
 async function shortOf(url) {

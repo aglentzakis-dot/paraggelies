@@ -68,3 +68,4 @@ Object.assign(window.GL_EN,{"✕ Απλήρωτη":"✕ Unpaid"});
 /* 1.78 */
 Object.assign(window.GL_EN,{"🔔 Ήχος για νέα παραγγελία":"🔔 New order sound","Χωρίς ήχο":"No sound","Ένα καμπανάκι":"Single chime","Συνεχόμενα":"Continuous","✓ Αποδοχή":"✓ Accept","⏸ Αναμονή":"⏸ Hold","✕ Απόρριψη":"✕ Reject","▶ Άκου τον ήχο":"▶ Play sound","⏸ Σε αναμονή":"⏸ On hold","Νέα παραγγελία":"New order"});
 /* 1.79 */
+/* 1.80 */

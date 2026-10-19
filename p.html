@@ -7,7 +7,7 @@
 <html lang="el">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="1.79">
+<meta name="app-version" content="1.80">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#17324D" id="themeColor">
 <meta name="robots" content="noindex">
@@ -18,9 +18,9 @@
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <title>Παραγγελία</title>
-<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.79">
-<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.79">
-<link rel="stylesheet" href="koino.css?v=1.79">
+<link rel="icon" id="fav" href="eikonidia/icon-192.png?v=1.80">
+<link rel="apple-touch-icon" id="fav2" href="eikonidia/apple-touch-icon.png?v=1.80">
+<link rel="stylesheet" href="koino.css?v=1.80">
 <style>
 :root{--c1:#17324D;--c2:#F2B632;--on1:#fff;--on2:#17324D;--paper:#F3F4F1;--card:#fff;--ink:#1b2733;--mute:#5d6873;--line:#dfe3e6}
 *{box-sizing:border-box}
@@ -96,7 +96,7 @@ input.t:focus,textarea.t:focus{outline:0;border-color:var(--c1)}
 .sect::after{content:"";flex:1;height:2px;background:var(--c2);opacity:.6;border-radius:2px;margin-left:6px}
 .sect.d2{font-size:16.5px;margin-top:12px}.sect.d3{font-size:15px;opacity:.85}
 .home-add{display:block;margin:4px auto 0;border:0;background:transparent;color:var(--c1);font-weight:700;text-decoration:underline;cursor:pointer;padding:8px}
-/* 1.79 · πιο ζεστή, πιο «βιτρίνα» εμφάνιση για τον πελάτη (με τα χρώματα του πωλητή) */
+/* 1.80 · πιο ζεστή, πιο «βιτρίνα» εμφάνιση για τον πελάτη (με τα χρώματα του πωλητή) */
 html{background:color-mix(in srgb,var(--c1) 6%,var(--paper))}html,body{background:color-mix(in srgb,var(--c1) 6%,var(--paper))}
 .hdr{position:relative;overflow:hidden;background:linear-gradient(125deg,var(--c1),color-mix(in srgb,var(--c1) 70%,var(--c2)));border-radius:0 0 26px 26px;padding-bottom:22px;box-shadow:0 12px 28px -16px color-mix(in srgb,var(--c1) 90%,transparent)}
 .hdr::before,.hdr::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
@@ -123,7 +123,7 @@ input.t,textarea.t{transition:border-color .15s,box-shadow .15s}input.t:focus,te
 <body>
 <div id="app"></div>
 <div class="modal" id="modal"><div class="box" id="mbox"></div></div>
-<script src="katalogos.js?v=1.79"></script>
+<script src="katalogos.js?v=1.80"></script>
 <script>
 (function(){
 "use strict";
@@ -159,6 +159,12 @@ async function load(){
   if(want&&got<want){bad("Ο σύνδεσμος κόπηκε στη μεταφορά: έφτασαν "+got+" από "+want+" χαρακτήρες. Ζήτησε από τον πωλητή να τον στείλει με το κουμπί «Αντιγραφή» ή να βγάλει το λογότυπο από τον σύνδεσμο.");return}
   try{C=await K.unpack(k)}catch(e){bad("Ο σύνδεσμος δεν διαβάστηκε σε αυτόν τον περιηγητή. Δοκίμασε: τρεις τελείες ⋮ πάνω δεξιά → «Άνοιγμα σε Chrome». (Τεχνική ένδειξη: "+esc(String(e&&e.message||e))+", "+got+(want?"/"+want:"")+")");return}
   if(!C||C.v!==1||!C.k||!C.t||!C.s||!C.s.n||(SJ&&C.g!==SJ.sp)){bad("Ο σύνδεσμος δεν είναι έγκυρος.");return}
+  /* υπογραφή: ο μακρύς σύνδεσμος (#k=) ελέγχεται με το κλειδί υπογραφής του πωλητή, όπως ο σύντομος.
+     Το κλειδί «καρφώνεται» στο κινητό του πελάτη: αλλαγμένος ή χωρίς υπογραφή σύνδεσμος του ίδιου πωλητή δεν ανοίγει. */
+  {const pin=store.get("pin:"+C.k.slice(0,16),"");const sg=SJ?SJ.g:h.get("g");
+   if(!SJ&&sg){if(!C.g||!((await K.liveVerify(C.g,k,sg))||(await K.liveVerify(C.g,K.cleanB64(k),sg)))){bad("Ο σύνδεσμος έχει αλλοιωθεί στη μεταφορά (η υπογραφή του πωλητή δεν ταιριάζει).");return}}
+   if(pin&&(!sg||C.g!==pin)){bad(sg?"Ο σύνδεσμος υπογράφεται με άλλο κλειδί από αυτό που ξέρει το κινητό σου για αυτό το κατάστημα.":"Ο σύνδεσμος δεν έχει την υπογραφή του πωλητή. Άνοιξε τον πιο πρόσφατο σύνδεσμο που σου έστειλε.");return}
+   if(sg&&C.g&&!pin)store.set("pin:"+C.k.slice(0,16),C.g)}
   C0=C;SK=(SELM?"parm:":"par:")+C.k.slice(0,16);if(SELM){store.set(SK+":cart",{});store.set(SK+":copt",{})}
   /* ο πιο πρόσφατος κατάλογος που είχε έρθει ζωντανά από τον πωλητή (αν είναι νεότερος από τον σύνδεσμο) */
   try{const L=store.get(SK+":live",null);if(L&&L.ts>C.ts&&L.pk&&L.g){const X=await K.verifyPacked(C0,L.pk,L.g);if(X&&X.ts===L.ts&&X.k===C0.k&&X.t===C0.t)C=mergeLive(X)}}catch{}
@@ -288,7 +294,7 @@ function optPaint(){if(!OS)return;const p=P[OS.pid];
 function optAdd(){const p=P[OS.pid];
   const miss=(p.mods||[]).map(g=>GR[g]).filter(g=>g&&(OS.sel[g.id]||[]).length<(g.mn||0));
   document.querySelectorAll(".og.miss").forEach(x=>x.classList.remove("miss"));
-  if(miss.length){$("#oerr").textContent="👆 Διάλεξε πώς το θέλεις: "+miss.map(g=>g.n).join(", ")+".";miss.forEach(g=>{const el=document.querySelector(`.og[data-g="${g.id}"]`);if(el)el.classList.add("miss")});const f=document.querySelector(`.og[data-g="${miss[0].id}"]`);if(f)f.scrollIntoView({behavior:"smooth",block:"center"});return}
+  if(miss.length){$("#oerr").textContent="👆 Διάλεξε πώς το θέλεις: "+miss.map(g=>g.n).join(", ")+".";miss.forEach(g=>{const el=document.querySelector(`.og[data-g="${CSS.escape(g.id)}"]`);if(el)el.classList.add("miss")});const f=document.querySelector(`.og[data-g="${CSS.escape(miss[0].id)}"]`);if(f)f.scrollIntoView({behavior:"smooth",block:"center"});return}
   const note=$("#onote")?$("#onote").value.trim().slice(0,120):"";
   const o={};for(const[g,L]of Object.entries(OS.sel))if(L.length)o[g]=L.slice().sort((a,b)=>a-b);
   const r=K.optCheck(p.mods,GR,o,note,p.nt);
@@ -345,7 +351,7 @@ function render(){
 function bar(){const t=totals();if(!t.n)return"";return`<div class="bar"><div class="sum"><b>${K.money(t.t)}</b><span>${t.n} ${t.n===1?"είδος":"είδη"} στο καλάθι</span></div><button type="button" class="btn alt" data-act="check">${SELM?"✓ Πέρασέ τα στην παραγγελία":"Συνέχεια →"}</button></div>`}
 function sellerSend(){const L=Object.entries(cart).filter(([k])=>P[pidOf(k)]).map(([k,q])=>({pid:pidOf(k),q,o:copt[k]?copt[k].o||{}:null,n:copt[k]?copt[k].n||"":""}));
   try{parent.postMessage({glenPick:L},"*")}catch{}cart={};copt={};store.set(SK+":cart",cart);store.set(SK+":copt",copt)}
-function refreshTile(id){const q=qty(id);document.querySelectorAll(`[data-qv="${id}"]`).forEach(e=>e.textContent=q?K.num(q):"0");document.querySelectorAll(`.tile[data-pid="${id}"]`).forEach(t=>{t.classList.toggle("has",!!q);const m=t.querySelector("[data-minus]");if(m)m.disabled=!q});
+function refreshTile(id){const q=qty(id);document.querySelectorAll(`[data-qv="${CSS.escape(id)}"]`).forEach(e=>e.textContent=q?K.num(q):"0");document.querySelectorAll(`.tile[data-pid="${CSS.escape(id)}"]`).forEach(t=>{t.classList.toggle("has",!!q);const m=t.querySelector("[data-minus]");if(m)m.disabled=!q});
   const old=document.querySelector(".bar");const html=bar();if(old)old.outerHTML=html||"";else if(html)document.body.insertAdjacentHTML("beforeend",html);
   const again=document.querySelector(".again");if(again&&totals().n)again.remove()}
 

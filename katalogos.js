@@ -19,6 +19,8 @@
 
   /* ---------- βασικά ---------- */
   K.esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  /* αναγνωριστικό που επιτρέπεται να μπει σε ιδιότητα HTML ή επιλογέα: μόνο γράμματα, αριθμοί, - _ . */
+  K.okId = s => typeof s === "string" && /^[A-Za-z0-9_.-]{1,48}$/.test(s);
   K.uid = (n = 9) => { const a = crypto.getRandomValues(new Uint8Array(n)); return K.b64u.enc(a); };
   K.b64u = {
     /* «.» αντί για «_»: το Viber θεωρεί το _κείμενο_ πλάγια γραφή, σβήνει τις κάτω παύλες και κόβει τον σύνδεσμο */
@@ -613,7 +615,7 @@
     const out = [];
     for (const n of nodes || []) {
       const sz = K.SIZES[n.size] ? n.size : "m";
-      const mk = ctx.edit ? `<button type="button" class="mk${ctx.marked && ctx.marked.has(n.id) ? " on" : ""}" data-mk="${n.id}" aria-label="Μαρκάρισμα">✓</button>` : "";
+      const mk = ctx.edit ? `<button type="button" class="mk${ctx.marked && ctx.marked.has(n.id) ? " on" : ""}" data-mk="${K.esc(n.id)}" aria-label="Μαρκάρισμα">✓</button>` : "";
       const sel = ctx.marked && ctx.marked.has(n.id) ? " marked" : "";
       if (n.t === "p") {
         const p = ctx.prod(n.pid);
@@ -622,8 +624,8 @@
         const so = !!p.soldout;
         const img = p.photo ? `<img class="ph" src="${K.esc(p.photo)}" alt="">` : /^data:image\//.test(p.aic || "") ? `<img class="em emi" src="${K.esc(p.aic)}" alt="">` : (n.emoji || p.emoji ? `<span class="em">${K.esc(n.emoji || p.emoji)}</span>` : "");
         const ctl = ctx.edit ? "" : so ? `<div class="so">${p.oos ? "Εκτός εποχής" : "Εξαντλήθηκε"}</div>` :
-          `<div class="qty"><button type="button" class="qb" data-minus="${p.id}" aria-label="Λιγότερο"${q ? "" : " disabled"}>−</button><span class="qv" data-qv="${p.id}">${q ? K.num(q) : "0"}</span><button type="button" class="qb plus" data-plus="${p.id}" aria-label="Περισσότερο">+</button></div>`;
-        out.push(`<div class="tile prod sz-${sz}${so ? " soldout" : ""}${q ? " has" : ""}${p.hidden || p.draft ? " hid" : ""}${sel}" data-node="${n.id}" data-pid="${p.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<div class="tx"><div class="nm">${K.esc(n.name || p.name)}</div><div class="pr">${K.money(p.price)} <small>/ ${K.esc(p.unit)}</small></div>${+p.step && +p.step !== 1 ? `<div class="stp">κάθε ＋ ${K.num(p.step)} ${K.esc(p.unit)} = <b>${K.money(p.price * p.step)}</b></div>` : ""}${(p.tiers || []).length ? `<div class="stp">${p.tiers.slice().sort((a, b) => a[0] - b[0]).map(t => `από ${K.num(t[0])}: <b>${K.money(t[1])}</b>`).join(" · ")}</div>` : ""}${+p.min > 0 && !ctx.edit ? `<div class="stp">ελάχιστη παραγγελία: ${K.num(p.min)}</div>` : ""}${p.max != null && !ctx.edit && p.max < 20 ? `<div class="stp lft">έμειναν ${K.num(p.max)}</div>` : ""}${p.desc && sz !== "s" ? `<div class="ds">${K.esc(p.desc)}</div>` : ""}</div>${ctl}${ctx.edit && (so || p.hidden || p.draft) ? `<div class="flag">${p.draft ? "Ενδεικτικό" : so ? "Εξαντλήθηκε" : "Κρυφό"}</div>` : ""}</div>`);
+          `<div class="qty"><button type="button" class="qb" data-minus="${K.esc(p.id)}" aria-label="Λιγότερο"${q ? "" : " disabled"}>−</button><span class="qv" data-qv="${K.esc(p.id)}">${q ? K.num(q) : "0"}</span><button type="button" class="qb plus" data-plus="${K.esc(p.id)}" aria-label="Περισσότερο">+</button></div>`;
+        out.push(`<div class="tile prod sz-${sz}${so ? " soldout" : ""}${q ? " has" : ""}${p.hidden || p.draft ? " hid" : ""}${sel}" data-node="${K.esc(n.id)}" data-pid="${K.esc(p.id)}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<div class="tx"><div class="nm">${K.esc(n.name || p.name)}</div><div class="pr">${K.money(p.price)} <small>/ ${K.esc(p.unit)}</small></div>${+p.step && +p.step !== 1 ? `<div class="stp">κάθε ＋ ${K.num(p.step)} ${K.esc(p.unit)} = <b>${K.money(p.price * p.step)}</b></div>` : ""}${(p.tiers || []).length ? `<div class="stp">${p.tiers.slice().sort((a, b) => a[0] - b[0]).map(t => `από ${K.num(t[0])}: <b>${K.money(t[1])}</b>`).join(" · ")}</div>` : ""}${+p.min > 0 && !ctx.edit ? `<div class="stp">ελάχιστη παραγγελία: ${K.num(p.min)}</div>` : ""}${p.max != null && !ctx.edit && p.max < 20 ? `<div class="stp lft">έμειναν ${K.num(p.max)}</div>` : ""}${p.desc && sz !== "s" ? `<div class="ds">${K.esc(p.desc)}</div>` : ""}</div>${ctl}${ctx.edit && (so || p.hidden || p.draft) ? `<div class="flag">${p.draft ? "Ενδεικτικό" : so ? "Εξαντλήθηκε" : "Κρυφό"}</div>` : ""}</div>`);
       } else {
         const cnt = ctx.count ? ctx.count(n) : 0;
         const img = n.photo ? `<img class="ph" src="${K.esc(n.photo)}" alt="">` : /^data:image\//.test(n.aic || "") ? `<img class="em emi" src="${K.esc(n.aic)}" alt="">` : n.emoji ? `<span class="em">${K.esc(n.emoji)}</span>` : "";
@@ -632,7 +634,7 @@
         if (ctx.root) { const kc = (n.kids || []).filter(k => k.t === "c").map(k => k.name).filter(Boolean);
           const kp = kc.length ? [] : (n.kids || []).filter(k => k.t === "p").map(k => { const p = ctx.prod(k.pid); return p && !(p.hidden && !ctx.edit) ? (k.name || p.name) : ""; }).filter(Boolean);
           const L = kc.length ? kc : kp; if (L.length) subs = `<span class="subs">${K.esc(L.slice(0, 4).join(" · "))}${L.length > 4 ? " …" : ""}</span>`; }
-        out.push(`<div role="button" tabindex="0" class="tile cat${ctx.root ? " top" : ""} sz-${sz}${sel}" data-node="${n.id}" data-open="${n.id}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<span class="nm">${K.esc(n.name || "Χωρίς όνομα")}</span>${subs}${cnt ? `<span class="badge">${K.num(cnt)}</span>` : ""}${ctx.edit ? `<span class="sub">${(n.kids || []).length} μέσα</span>` : ""}</div>`);
+        out.push(`<div role="button" tabindex="0" class="tile cat${ctx.root ? " top" : ""} sz-${sz}${sel}" data-node="${K.esc(n.id)}" data-open="${K.esc(n.id)}"${n.color ? ` style="--tc:${K.esc(n.color)};color:${K.contrast(n.color)}"` : ""}>${mk}${img}<span class="nm">${K.esc(n.name || "Χωρίς όνομα")}</span>${subs}${cnt ? `<span class="badge">${K.num(cnt)}</span>` : ""}${ctx.edit ? `<span class="sub">${(n.kids || []).length} μέσα</span>` : ""}</div>`);
       }
     }
     return out.join("") || (ctx.edit ? "" : `<p class="empty">Δεν υπάρχουν είδη εδώ ακόμα.</p>`);
@@ -720,9 +722,9 @@
   /* από τον συμπαγή κατάλογο σε κοινή μορφή για την απόδοση */
   K.expandCatalog = C => {
     const products = {};
-    for (const [id, o] of Object.entries(C.p || {})) products[id] = { id, name: o.n, unit: o.u, price: +o.r || 0, step: +o.s || 1, vat: o.v != null ? +o.v : 13, soldout: !!o.x || !!o.xs, oos: !!o.xs, desc: o.d || "", emoji: o.e || "", perish: !o.np, photo: o.f || "", tiers: Array.isArray(o.tq) ? o.tq : [], min: +o.mn || 0, max: o.mx != null ? +o.mx : null, aic: typeof o.ai === "string" ? o.ai : "", mods: Array.isArray(o.g) ? o.g : [], nt: !!o.nt, ntp: o.ntp || "" };
-    const walk = ns => (ns || []).map(o => o.p ? { id: o.i, t: "p", pid: o.p, name: o.n || (products[o.p] || {}).name || "", size: o.z || "m", emoji: o.e || "", color: o.c || "" } : { id: o.i, t: "c", name: o.n, size: o.z || "m", emoji: o.e || "", color: o.c || "", photo: o.f || "", aic: typeof o.ai === "string" ? o.ai : "", kids: walk(o.k) });
-    const groups = {}; for (const [id, g] of Object.entries(C.og || {})) groups[id] = { id, n: g.n, mn: +g.mn || 0, mx: +g.mx || 0, o: (g.o || []).map(a => ({ n: a[0], p: +a[1] || 0, def: !!a[2], off: !!a[3] })) };
+    for (const [id, o] of Object.entries(C.p || {})) if (K.okId(id) && o && typeof o === "object") products[id] = { id, name: o.n, unit: o.u, price: +o.r || 0, step: +o.s || 1, vat: o.v != null ? +o.v : 13, soldout: !!o.x || !!o.xs, oos: !!o.xs, desc: o.d || "", emoji: o.e || "", perish: !o.np, photo: o.f || "", tiers: Array.isArray(o.tq) ? o.tq : [], min: +o.mn || 0, max: o.mx != null ? +o.mx : null, aic: typeof o.ai === "string" ? o.ai : "", mods: Array.isArray(o.g) ? o.g.filter(K.okId) : [], nt: !!o.nt, ntp: o.ntp || "" };
+    const walk = ns => (Array.isArray(ns) ? ns : []).filter(o => o && K.okId(o.i) && (o.p ? K.okId(o.p) : true)).map(o => o.p ? { id: o.i, t: "p", pid: o.p, name: o.n || (products[o.p] || {}).name || "", size: o.z || "m", emoji: o.e || "", color: o.c || "" } : { id: o.i, t: "c", name: o.n, size: o.z || "m", emoji: o.e || "", color: o.c || "", photo: o.f || "", aic: typeof o.ai === "string" ? o.ai : "", kids: walk(o.k) });
+    const groups = {}; for (const [id, g] of Object.entries(C.og || {})) if (K.okId(id) && g && typeof g === "object") groups[id] = { id, n: g.n, mn: +g.mn || 0, mx: +g.mx || 0, o: (g.o || []).map(a => ({ n: a[0], p: +a[1] || 0, def: !!a[2], off: !!a[3] })) };
     return { products, menu: walk(C.m), groups };
   };
 
