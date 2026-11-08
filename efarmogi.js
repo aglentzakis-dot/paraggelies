@@ -3091,7 +3091,7 @@ async function doInstall() {
 function efmInit() { try { window.EfarmogesMas && EfarmogesMas.init({ app: "paraggelies", isPro: () => lic().kind === "pro", lang: () => "el", t: s => s, canShow: () => S.orders.length > 0 }); } catch {} }
 function efmMount() { try { const h = $("#efmHost"); if (!h || !window.EfarmogesMas || tab === "more") return; EfarmogesMas.mount(h); } catch {} }
 function efmSheet() {
-  sheet("🧩 Οι εφαρμογές μας", `<p class="note" style="margin-top:0">Κι άλλες εφαρμογές της GlenApps που ίσως σου φανούν χρήσιμες.</p><div id="efmList"></div>`, "", el => { try { window.EfarmogesMas ? EfarmogesMas.page(el.querySelector("#efmList"), { skip: ["paraggelies"] }) : (el.querySelector("#efmList").innerHTML = `<p class="note">Η λίστα δεν φορτώθηκε.</p>`); } catch {} });
+  sheet("🧩 Οι εφαρμογές μας", `<div id="efmList"></div>`, "", el => { try { window.EfarmogesMas ? EfarmogesMas.page(el.querySelector("#efmList")) : (el.querySelector("#efmList").innerHTML = `<p class="note">Η λίστα δεν φορτώθηκε.</p>`); } catch {} });
 }
 
 /* ---------- πατήματα ---------- */
